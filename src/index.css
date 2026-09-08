@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-bangla: 'Hind Siliguri', 'Noto Sans Bengali', system-ui, sans-serif;
+    --font-arabic: 'Noto Sans Arabic', system-ui, sans-serif;
+    --font-english: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-display: 'Newsreader', serif;
+    --bg-canvas: #FDFCF9;
+    --text-main: #2D3630;
+    --color-primary: #2D5A41;
+    --color-border: #EBE8E0;
+    --color-surface: #F7F5F0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    background-color: var(--bg-canvas);
+    color: var(--text-main);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Default font styling per language */
+  html[lang="bn"] body {
+    font-family: var(--font-bangla);
+    line-height: 1.7;
+  }
+
+  html[lang="ar"] body {
+    font-family: var(--font-arabic);
+    line-height: 1.8;
+    direction: rtl;
+    text-align: right;
+  }
+
+  html[lang="en"] body {
+    font-family: var(--font-english);
+    line-height: 1.6;
+  }
+}
+
+/* Minimalist scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1EDE4;
+}
+::-webkit-scrollbar-thumb {
+  background: #D8D3C5;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2D5A41;
+}
+
+.bg-pattern {
+  background-image: radial-gradient(#2D5A41 0.65px, transparent 0.65px);
+  background-size: 24px 24px;
+}
+
