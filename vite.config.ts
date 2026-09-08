@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 export default defineConfig(() => {
   return {
     // sahanubhutifoundation.github.io এর জন্য বেস পাথ সবসময় '/' ই হবে
-    base: '/', 
+    base: './', 
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
