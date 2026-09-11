@@ -9,6 +9,7 @@ import { DesignationBadge } from '../../components/DesignationBadge';
 import { AdminExpensesTab } from './AdminExpensesTab';
 import { AdminSiteSettingsTab } from './AdminSiteSettingsTab';
 import { AdminDesignationsManager } from './AdminDesignationsManager';
+import { AdminSidebar, AdminSection } from './AdminSidebar';
 import {
   FoundationConfig,
   Activity,
@@ -54,6 +55,12 @@ import {
   Save,
   Layers,
   Tag,
+  Menu,
+  Sparkles,
+  Globe,
+  PhoneCall,
+  Languages,
+  LayoutDashboard,
 } from 'lucide-react';
 
 export const AdminPage: React.FC = () => {
@@ -61,20 +68,10 @@ export const AdminPage: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [activeTab, setActiveTab] = useState<
-    | 'overview'
-    | 'inbox'
-    | 'members'
-    | 'designations'
-    | 'activities'
-    | 'notices'
-    | 'gallery'
-    | 'fund'
-    | 'expenses'
-    | 'about'
-    | 'settings'
-    | 'security'
-  >('overview');
+  const [activeSection, setActiveSection] = useState<AdminSection>('overview');
+  const [memberSubTab, setMemberSubTab] = useState<'list' | 'designations' | 'style'>('list');
+  const [fundSubTab, setFundSubTab] = useState<'sheet' | 'ledger'>('sheet');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // State data
   const [config, setConfig] = useState<FoundationConfig>(storageService.getConfig());
@@ -156,13 +153,13 @@ export const AdminPage: React.FC = () => {
     }
   }, []);
 
-  // Scroll to top on navigation/tab switch
+  // Scroll to top on navigation/section switch
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (!fundUrlInput && config.fundSourceUrl) {
       setFundUrlInput(config.fundSourceUrl);
     }
-  }, [activeTab, config.fundSourceUrl]);
+  }, [activeSection, config.fundSourceUrl]);
 
   const loadAllData = () => {
     const conf = storageService.getConfig();
@@ -502,9 +499,9 @@ export const AdminPage: React.FC = () => {
     );
   }
 
-  // IF AUTHENTICATED -> SHOW COMPLETE ADMIN DASHBOARD
+  // IF AUTHENTICATED -> SHOW COMPLETE ADMIN DASHBOARD WITH RESPONSIVE SIDEBAR
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 w-full overflow-x-hidden">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
       {/* Toast Notification */}
       {toastMsg && (
         <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl bg-[#2D3630] text-white text-xs font-semibold shadow-xl border border-[#3E4942] flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
@@ -513,111 +510,142 @@ export const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* Top Header Bar */}
-      <div className="p-4 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#2D5A41] animate-pulse" />
-            <span className="text-xs font-bold text-[#2D5A41] uppercase tracking-wider">
-              অ্যাডমিন সেশন সক্রিয়
-            </span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#2D3630] mt-1">
-            {t('adminTitle')}
-          </h1>
-          <p className="text-xs text-[#5C665F]">
-            {config.nameBn} • কেন্দ্রীয় ব্যবস্থাপনা কেন্দ্র
-          </p>
-        </div>
-
+      {/* Mobile Top App Bar (< lg) */}
+      <div className="lg:hidden flex items-center justify-between p-3.5 bg-white rounded-2xl border border-[#EBE8E0] shadow-xs mb-4">
         <div className="flex items-center gap-2.5">
           <button
-            onClick={handleReturnHome}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2D5A41]/30 bg-[#E8EFEA] text-xs font-semibold text-[#2D5A41] hover:bg-[#D9E5DC] transition-colors"
-            title="মূল ওয়েবসাইটে ফিরে যান"
+            type="button"
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-2 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] text-[#2D3630] hover:bg-[#EBE8E0] transition-colors"
+            title="মেনু ড্রয়ার খুলুন"
           >
-            <Home className="w-3.5 h-3.5" />
-            <span>{t('returnHomeBtn')}</span>
+            <Menu className="w-5 h-5 text-[#2D5A41]" />
           </button>
+          <div>
+            <h1 className="text-xs font-bold text-[#2D3630] leading-tight">
+              {config.nameBn}
+            </h1>
+            <span className="text-[10px] text-[#2D5A41] font-semibold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#2D5A41] animate-pulse" />
+              অ্যাডমিন কন্ট্রোল
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveSection('inbox')}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500 text-white text-[10px] font-bold"
+            >
+              <Inbox className="w-3 h-3" />
+              <span>{unreadCount} নতুন</span>
+            </button>
+          )}
 
           <button
-            onClick={handleExportBackup}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#EBE8E0] text-xs font-semibold text-[#5C665F] hover:bg-[#F7F5F0] transition-colors"
-          >
-            <Download className="w-3.5 h-3.5 text-[#7A877E]" />
-            <span>ব্যাকআপ</span>
-          </button>
-
-          <button
+            type="button"
             onClick={handleLogout}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-xs font-semibold transition-colors"
+            className="p-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200"
+            title="লগআউট"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>{t('adminLogoutBtn')}</span>
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Admin Nav Tabs */}
-      <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-none border-b border-[#EBE8E0]">
-        {[
-          { id: 'overview', label: t('adminDashboardTab'), icon: ShieldCheck },
-          { id: 'inbox', label: t('adminInboxTab'), icon: Inbox, count: unreadCount },
-          { id: 'members', label: t('adminMembersTab'), icon: Users, count: members.length },
-          { id: 'designations', label: 'পদবী ব্যবস্থাপনা', icon: Layers, count: designations.length },
-          { id: 'activities', label: t('adminActivitiesTab'), icon: FileText, count: activities.length },
-          { id: 'notices', label: t('adminNoticesTab'), icon: Bell, count: notices.length },
-          { id: 'gallery', label: t('adminGalleryTab'), icon: ImageIcon, count: gallery.length },
-          { id: 'expenses', label: 'ব্যয়ের লেজার ও দৃশ্যমানতা', icon: Receipt, count: expenses.length },
-          { id: 'fund', label: t('adminFundSourceTab'), icon: Wallet },
-          { id: 'about', label: t('adminAboutTab'), icon: Edit2 },
-          { id: 'settings', label: 'সাইট ও সোশ্যাল সেটিংস', icon: Sliders },
-          { id: 'security', label: 'নিরাপত্তা ও ব্যাকআপ', icon: Settings },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                isActive
-                  ? 'bg-[#2D5A41] text-white shadow-2xs'
-                  : 'bg-white text-[#5C665F] hover:bg-[#F7F5F0] border border-[#EBE8E0]'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{tab.label}</span>
-              {tab.count !== undefined && tab.count > 0 && (
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    isActive ? 'bg-white text-[#2D5A41]' : 'bg-[#2D5A41] text-white'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        {/* Responsive Sidebar (Desktop persistent, Mobile drawer) */}
+        <AdminSidebar
+          activeSection={activeSection}
+          onSelectSection={(sec) => setActiveSection(sec)}
+          unreadCount={unreadCount}
+          membersCount={members.length}
+          activitiesCount={activities.length}
+          noticesCount={notices.length}
+          galleryCount={gallery.length}
+          onLogout={handleLogout}
+          onExportBackup={handleExportBackup}
+          onReturnHome={handleReturnHome}
+          isMobileOpen={isMobileMenuOpen}
+          onCloseMobile={() => setIsMobileMenuOpen(false)}
+        />
 
-      {/* TAB 1: OVERVIEW STATS */}
-      {activeTab === 'overview' && (
+        {/* Main Content Area */}
+        <main className="flex-1 min-w-0 w-full space-y-6">
+
+      {/* SECTION 1: OVERVIEW STATS & DASHBOARD */}
+      {activeSection === 'overview' && (
         <div className="space-y-6">
+          {/* Dashboard Header Banner */}
+          <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#2D5A41] animate-pulse" />
+                <span className="text-xs font-bold text-[#2D5A41] uppercase tracking-wider">
+                  অ্যাডমিন ড্যাশবোর্ড
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-bold text-[#2D3630] mt-1">
+                {config.nameBn}
+              </h1>
+              <p className="text-xs text-[#5C665F]">
+                ফাউন্ডেশনের ওয়েবসাইট ও কনটেন্ট ম্যানেজমেন্ট ড্যাশবোর্ড
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleReturnHome}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2D5A41]/30 bg-[#E8EFEA] text-xs font-semibold text-[#2D5A41] hover:bg-[#D9E5DC] transition-colors"
+                title="মূল ওয়েবসাইট দেখুন"
+              >
+                <Home className="w-3.5 h-3.5" />
+                <span>ওয়েবসাইট</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportBackup}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#EBE8E0] text-xs font-semibold text-[#5C665F] hover:bg-[#F7F5F0] transition-colors"
+                title="ডাটাবেজ ব্যাকআপ"
+              >
+                <Download className="w-3.5 h-3.5 text-[#7A877E]" />
+                <span>ব্যাকআপ</span>
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs">
-              <span className="text-xs font-semibold text-[#7A877E]">মোট সদস্য</span>
+            <div
+              onClick={() => {
+                setActiveSection('members');
+                setMemberSubTab('list');
+              }}
+              className="p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs cursor-pointer hover:border-[#2D5A41]/40 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[#7A877E]">মোট সদস্য</span>
+                <Users className="w-4 h-4 text-[#7A877E] group-hover:text-[#2D5A41] transition-colors" />
+              </div>
               <div className="text-2xl font-bold text-[#2D3630] mt-1 font-mono">
                 {members.length}
               </div>
               <span className="text-[11px] text-[#2D5A41] mt-1 block">
-                {members.filter((m) => m.isActive).length} জন সক্রিয়
+                {members.filter((m) => m.isActive).length} জন সক্রিয় সদস্য
               </span>
             </div>
 
-            <div className="p-5 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs">
-              <span className="text-xs font-semibold text-[#7A877E]">কার্যক্রম ও উদ্যোগ</span>
+            <div
+              onClick={() => setActiveSection('activities')}
+              className="p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs cursor-pointer hover:border-[#2D5A41]/40 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[#7A877E]">কার্যক্রম ও উদ্যোগ</span>
+                <FileText className="w-4 h-4 text-[#7A877E] group-hover:text-[#2D5A41] transition-colors" />
+              </div>
               <div className="text-2xl font-bold text-[#2D3630] mt-1 font-mono">
                 {activities.length}
               </div>
@@ -626,8 +654,14 @@ export const AdminPage: React.FC = () => {
               </span>
             </div>
 
-            <div className="p-5 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs">
-              <span className="text-xs font-semibold text-[#7A877E]">নোটিশ বোর্ড</span>
+            <div
+              onClick={() => setActiveSection('notices')}
+              className="p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs cursor-pointer hover:border-[#2D5A41]/40 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[#7A877E]">বিজ্ঞপ্তি ও নোটিশ</span>
+                <Bell className="w-4 h-4 text-[#7A877E] group-hover:text-[#2D5A41] transition-colors" />
+              </div>
               <div className="text-2xl font-bold text-[#2D3630] mt-1 font-mono">
                 {notices.length}
               </div>
@@ -636,8 +670,14 @@ export const AdminPage: React.FC = () => {
               </span>
             </div>
 
-            <div className="p-5 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs">
-              <span className="text-xs font-semibold text-[#7A877E]">অপঠিত বার্তা</span>
+            <div
+              onClick={() => setActiveSection('inbox')}
+              className="p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs cursor-pointer hover:border-[#2D5A41]/40 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-[#7A877E]">যোগাযোগ ইনবক্স</span>
+                <Inbox className="w-4 h-4 text-[#7A877E] group-hover:text-[#2D5A41] transition-colors" />
+              </div>
               <div className="text-2xl font-bold text-[#2D5A41] mt-1 font-mono">
                 {unreadCount}
               </div>
@@ -649,34 +689,38 @@ export const AdminPage: React.FC = () => {
 
           {/* Quick Shortcuts */}
           <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-4">
-            <h2 className="text-sm font-bold text-[#2D3630]">দ্রুত পদক্ষেপ</h2>
+            <h2 className="text-sm font-bold text-[#2D3630]">দ্রুত পদক্ষেপ ও ম্যানেজমেন্ট শর্টকাট</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <button
+                type="button"
                 onClick={() => {
                   setEditingMember({ serial: members.length + 1, isActive: true });
-                  setActiveTab('members');
+                  setActiveSection('members');
+                  setMemberSubTab('list');
                 }}
                 className="p-3 rounded-xl border border-[#EBE8E0] hover:border-[#2D5A41]/40 hover:bg-[#F7F5F0] text-xs font-bold text-[#2D3630] flex flex-col items-center gap-2 text-center transition-all"
               >
                 <Plus className="w-5 h-5 text-[#2D5A41]" />
-                <span>নতুন সদস্য যুক্ত করুন</span>
+                <span>নতুন সদস্য যুক্ত</span>
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   setEditingActivity({ isPublished: true });
-                  setActiveTab('activities');
+                  setActiveSection('activities');
                 }}
                 className="p-3 rounded-xl border border-[#EBE8E0] hover:border-[#2D5A41]/40 hover:bg-[#F7F5F0] text-xs font-bold text-[#2D3630] flex flex-col items-center gap-2 text-center transition-all"
               >
                 <FileText className="w-5 h-5 text-[#2D5A41]" />
-                <span>নতুন কার্যক্রম যুক্ত করুন</span>
+                <span>নতুন কার্যক্রম যুক্ত</span>
               </button>
 
               <button
+                type="button"
                 onClick={() => {
                   setEditingNotice({ isPublished: true, isImportant: false });
-                  setActiveTab('notices');
+                  setActiveSection('notices');
                 }}
                 className="p-3 rounded-xl border border-[#EBE8E0] hover:border-[#2D5A41]/40 hover:bg-[#F7F5F0] text-xs font-bold text-[#2D3630] flex flex-col items-center gap-2 text-center transition-all"
               >
@@ -685,19 +729,59 @@ export const AdminPage: React.FC = () => {
               </button>
 
               <button
-                onClick={() => setActiveTab('fund')}
+                type="button"
+                onClick={() => {
+                  setActiveSection('fund');
+                  setFundSubTab('sheet');
+                }}
                 className="p-3 rounded-xl border border-[#EBE8E0] hover:border-[#2D5A41]/40 hover:bg-[#F7F5F0] text-xs font-bold text-[#2D3630] flex flex-col items-center gap-2 text-center transition-all"
               >
                 <Wallet className="w-5 h-5 text-[#2D5A41]" />
-                <span>তহবিল উৎস কনফিগার</span>
+                <span>তহবিল উৎস ও শিট</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveSection('foundation')}
+                className="p-3 rounded-xl border border-[#EBE8E0] hover:border-[#2D5A41]/40 hover:bg-[#F7F5F0] text-xs font-bold text-[#2D3630] flex flex-col items-center gap-2 text-center transition-all"
+              >
+                <Globe className="w-5 h-5 text-[#2D5A41]" />
+                <span>ব্র্যান্ড ও লোগো CMS</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveSection('homepage')}
+                className="p-3 rounded-xl border border-[#EBE8E0] hover:border-[#2D5A41]/40 hover:bg-[#F7F5F0] text-xs font-bold text-[#2D3630] flex flex-col items-center gap-2 text-center transition-all"
+              >
+                <Sparkles className="w-5 h-5 text-[#2D5A41]" />
+                <span>হোমপেজ হিরো ও বাটন</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveSection('about')}
+                className="p-3 rounded-xl border border-[#EBE8E0] hover:border-[#2D5A41]/40 hover:bg-[#F7F5F0] text-xs font-bold text-[#2D3630] flex flex-col items-center gap-2 text-center transition-all"
+              >
+                <Edit2 className="w-5 h-5 text-[#2D5A41]" />
+                <span>আমাদের সম্পর্কে CMS</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveSection('contact')}
+                className="p-3 rounded-xl border border-[#EBE8E0] hover:border-[#2D5A41]/40 hover:bg-[#F7F5F0] text-xs font-bold text-[#2D3630] flex flex-col items-center gap-2 text-center transition-all"
+              >
+                <PhoneCall className="w-5 h-5 text-[#2D5A41]" />
+                <span>যোগাযোগ ও সোশ্যাল</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: CONTACT INBOX */}
-      {activeTab === 'inbox' && (
+      {/* SECTION: CONTACT INBOX */}
+      {activeSection === 'inbox' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-[#2D3630]">
@@ -812,26 +896,93 @@ export const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: MEMBERS MANAGEMENT */}
-      {activeTab === 'members' && (
+      {/* SECTION: MEMBERS & DESIGNATIONS */}
+      {activeSection === 'members' && (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-bold text-[#2D3630]">
-                সদস্য ব্যবস্থাপনা ও স্বয়ংক্রিয় ক্রমবণ্টন ({members.length})
-              </h2>
-              <p className="text-xs text-[#5C665F]">
-                যেকারো ক্রমিক নম্বর পরিবর্তন করলে পরবর্তী ক্রমগুলো স্বয়ংক্রিয়ভাবে নিচে নেমে যাবে।
-              </p>
-            </div>
+          {/* Sub Navigation */}
+          <div className="flex overflow-x-auto gap-2 p-1.5 bg-[#F7F5F0] rounded-2xl border border-[#EBE8E0]">
             <button
-              onClick={() => setEditingMember({ serial: members.length + 1, isActive: true })}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold self-start sm:self-center"
+              type="button"
+              onClick={() => setMemberSubTab('list')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                memberSubTab === 'list'
+                  ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                  : 'text-[#5C665F] hover:text-[#2D3630]'
+              }`}
             >
-              <Plus className="w-4 h-4" />
-              <span>নতুন সদস্য যুক্ত করুন</span>
+              <Users className="w-3.5 h-3.5" />
+              <span>সদস্য তালিকা ({members.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMemberSubTab('designations')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                memberSubTab === 'designations'
+                  ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                  : 'text-[#5C665F] hover:text-[#2D3630]'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>পদবী ব্যবস্থাপনা ({designations.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMemberSubTab('style')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                memberSubTab === 'style'
+                  ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                  : 'text-[#5C665F] hover:text-[#2D3630]'
+              }`}
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>কার্ড প্রদর্শন শৈলী</span>
             </button>
           </div>
+
+          {memberSubTab === 'designations' && (
+            <AdminDesignationsManager
+              members={members}
+              designations={designations}
+              onDesignationsUpdated={(list) => setDesignations(list)}
+              showToast={showToast}
+              requestConfirm={requestConfirm}
+            />
+          )}
+
+          {memberSubTab === 'style' && (
+            <AdminSiteSettingsTab
+              config={config}
+              onConfigChange={(updated) => {
+                setConfig(updated);
+                storageService.saveConfig(updated);
+              }}
+              onShowToast={showToast}
+              currentSection="members"
+              hideSubNav={true}
+            />
+          )}
+
+          {memberSubTab === 'list' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-bold text-[#2D3630]">
+                    সদস্য তালিকা ও স্বয়ংক্রিয় ক্রমবণ্টন ({members.length})
+                  </h2>
+                  <p className="text-xs text-[#5C665F]">
+                    যেকারো ক্রমিক নম্বর পরিবর্তন করলে পরবর্তী ক্রমগুলো স্বয়ংক্রিয়ভাবে নিচে নেমে যাবে।
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditingMember({ serial: members.length + 1, isActive: true })}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold self-start sm:self-center"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>নতুন সদস্য যুক্ত করুন</span>
+                </button>
+              </div>
 
           {/* Member Edit / Add Form Modal */}
           {editingMember && (
@@ -886,7 +1037,10 @@ export const AdminPage: React.FC = () => {
                     </label>
                     <button
                       type="button"
-                      onClick={() => setActiveTab('designations')}
+                      onClick={() => {
+                        setActiveSection('members');
+                        setMemberSubTab('designations');
+                      }}
                       className="text-[11px] font-semibold text-[#2D5A41] hover:underline self-start sm:self-auto"
                     >
                       + পদবী তালিকা ম্যানেজ করুন
@@ -1126,21 +1280,12 @@ export const AdminPage: React.FC = () => {
             </table>
           </div>
         </div>
+        )}
+      </div>
       )}
 
-      {/* TAB: DESIGNATIONS MANAGEMENT */}
-      {activeTab === 'designations' && (
-        <AdminDesignationsManager
-          members={members}
-          designations={designations}
-          onDesignationsUpdated={(list) => setDesignations(list)}
-          showToast={showToast}
-          requestConfirm={requestConfirm}
-        />
-      )}
-
-      {/* TAB 4: ACTIVITIES EDITOR */}
-      {activeTab === 'activities' && (
+      {/* SECTION: ACTIVITIES EDITOR */}
+      {activeSection === 'activities' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-[#2D3630]">
@@ -1303,8 +1448,8 @@ export const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 5: NOTICES EDITOR */}
-      {activeTab === 'notices' && (
+      {/* SECTION: NOTICES EDITOR */}
+      {activeSection === 'notices' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-[#2D3630]">
@@ -1442,8 +1587,8 @@ export const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 6: GALLERY MANAGER */}
-      {activeTab === 'gallery' && (
+      {/* SECTION: GALLERY MANAGER */}
+      {activeSection === 'gallery' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-[#2D3630]">
@@ -1554,41 +1699,84 @@ export const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 7: FUND SOURCE CONNECTION */}
-      {activeTab === 'fund' && (
+      {/* SECTION: FUND SOURCE & EXPENSES LEDGER */}
+      {activeSection === 'fund' && (
         <div className="space-y-6">
-          <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#EBE8E0]">
-              <div>
-                <h2 className="text-base font-bold text-[#2D3630] flex items-center gap-2">
-                  <Wallet className="w-5 h-5 text-[#2D5A41]" />
-                  <span>{t('adminFundSourceTab')} (Google Sheet & Fund CMS)</span>
-                </h2>
-                <p className="text-xs text-[#5C665F] mt-1 leading-relaxed">
-                  এখানে যেকোনো গুগল শিট, CSV অথবা Google Apps Script এন্ডপয়েন্ট লিঙ্ক পেস্ট করলে ওয়েবসাইট স্বয়ংক্রিয়ভাবে সেখান থেকে তহবিল ডাটা লোড করবে।
-                </p>
-              </div>
+          {/* Sub Navigation */}
+          <div className="flex overflow-x-auto gap-2 p-1.5 bg-[#F7F5F0] rounded-2xl border border-[#EBE8E0]">
+            <button
+              type="button"
+              onClick={() => setFundSubTab('sheet')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                fundSubTab === 'sheet'
+                  ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                  : 'text-[#5C665F] hover:text-[#2D3630]'
+              }`}
+            >
+              <Wallet className="w-3.5 h-3.5" />
+              <span>গুগল শিট সংযোগ ও ফান্ড স্ট্যাটাস</span>
+            </button>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('expenses')}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2D5A41]/30 bg-[#E8EFEA] text-xs font-semibold text-[#2D5A41] hover:bg-[#D9E5DC] transition-colors"
-                >
-                  <Receipt className="w-3.5 h-3.5" />
-                  <span>ব্যয়ের লেজারে যান</span>
-                </button>
-                <a
-                  href="/fund"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#EBE8E0] text-xs font-semibold text-[#5C665F] hover:bg-[#F7F5F0] transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5 text-[#7A877E]" />
-                  <span>লাইভ তহবিল পেজ</span>
-                </a>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setFundSubTab('ledger')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                fundSubTab === 'ledger'
+                  ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                  : 'text-[#5C665F] hover:text-[#2D3630]'
+              }`}
+            >
+              <Receipt className="w-3.5 h-3.5" />
+              <span>ব্যয়ের লেজার ও দৃশ্যমানতা ({expenses.length})</span>
+            </button>
+          </div>
+
+          {fundSubTab === 'ledger' && (
+            <AdminExpensesTab
+              expenses={expenses}
+              onExpensesChange={setExpenses}
+              visibilitySettings={visibilitySettings}
+              onVisibilityChange={setVisibilitySettings}
+              onRequestConfirm={requestConfirm}
+              onShowToast={showToast}
+              fundPreview={fundPreview}
+            />
+          )}
+
+          {fundSubTab === 'sheet' && (
+            <div className="space-y-6">
+              <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#EBE8E0]">
+                  <div>
+                    <h2 className="text-base font-bold text-[#2D3630] flex items-center gap-2">
+                      <Wallet className="w-5 h-5 text-[#2D5A41]" />
+                      <span>{t('adminFundSourceTab')} (Google Sheet & Fund CMS)</span>
+                    </h2>
+                    <p className="text-xs text-[#5C665F] mt-1 leading-relaxed">
+                      এখানে যেকোনো গুগল শিট, CSV অথবা Google Apps Script এন্ডপয়েন্ট লিঙ্ক পেস্ট করলে ওয়েবসাইট স্বয়ংক্রিয়ভাবে সেখান থেকে তহবিল ডাটা লোড করবে।
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFundSubTab('ledger')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2D5A41]/30 bg-[#E8EFEA] text-xs font-semibold text-[#2D5A41] hover:bg-[#D9E5DC] transition-colors"
+                    >
+                      <Receipt className="w-3.5 h-3.5" />
+                      <span>ব্যয়ের লেজারে যান</span>
+                    </button>
+                    <a
+                      href="/fund"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#EBE8E0] text-xs font-semibold text-[#5C665F] hover:bg-[#F7F5F0] transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-[#7A877E]" />
+                      <span>লাইভ তহবিল পেজ</span>
+                    </a>
+                  </div>
+                </div>
 
             <form onSubmit={handleSaveFundSource} className="space-y-4">
               <div>
@@ -1694,332 +1882,288 @@ export const AdminPage: React.FC = () => {
           </div>
         </div>
       )}
+    </div>
+  )}
 
-      {/* TAB 8: ABOUT US & HOMEPAGE SUMMARY CMS */}
-      {activeTab === 'about' && (
-        <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#EBE8E0]">
-            <div>
-              <h2 className="text-base font-bold text-[#2D3630]">
-                আমাদের সম্পর্কে ও হোমপেজ পরিচিতি সম্পাদক
-              </h2>
-              <p className="text-xs text-[#5C665F] mt-1">
-                হোমপেজের সংক্ষিপ্ত সারসংক্ষেপ, আমাদের সম্পর্কে পেজের বিস্তারিত বক্তব্য ও প্রাতিষ্ঠানিক রূপরেখা
-              </p>
-            </div>
-
-            {/* Language Switcher for About Editor */}
-            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] self-start sm:self-auto">
-              {(['bn', 'en', 'ar'] as const).map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => setAboutLang(l)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                    aboutLang === l
-                      ? 'bg-[#2D5A41] text-white shadow-2xs'
-                      : 'text-[#5C665F] hover:text-[#2D3630] hover:bg-[#EBE8E0]/60'
-                  }`}
-                >
-                  {l === 'bn' ? 'বাংলা (BN)' : l === 'en' ? 'English (EN)' : 'العربية (AR)'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              storageService.saveConfig(config);
-              showToast('আমাদের সম্পর্কে ও হোমপেজ পরিচিতি সংরক্ষিত হয়েছে!');
-            }}
-            className="space-y-6 text-xs"
-          >
-            {/* 1. HOMEPAGE SHORT INTRODUCTION */}
-            <div className="p-4 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="block font-bold text-[#2D3630]">
-                  হোমপেজ — সংক্ষিপ্ত পরিচয় (Homepage — Short Introduction) [{aboutLang.toUpperCase()}]
-                </label>
-                <span className="text-[11px] px-2 py-0.5 rounded bg-[#E8EFEA] text-[#2D5A41] font-semibold">
-                  হোমপেজে দৃশ্যমান
-                </span>
-              </div>
-              <p className="text-[11px] text-[#7A877E]">
-                এটি সরাসরি মূল হোমপেজের &apos;আমাদের সংক্ষিপ্ত পরিচয়&apos; সেকশনে প্রদর্শিত হবে। সংক্ষিপ্ত ও আকর্ষণীয় রাখা বাঞ্ছনীয়।
-              </p>
-              <textarea
-                rows={4}
-                value={config.homepageAboutSummary?.[aboutLang] || ''}
-                onChange={(e) =>
-                  setConfig({
-                    ...config,
-                    homepageAboutSummary: {
-                      ...(config.homepageAboutSummary || { bn: '', en: '', ar: '' }),
-                      [aboutLang]: e.target.value,
-                    },
-                  })
-                }
-                placeholder={
-                  aboutLang === 'bn'
-                    ? 'সহানুভূতি ফাউন্ডেশন ফেনী সদর উপজেলার শর্শদী ইউনিয়নের ঐতিহ্যবাহী মৌলভী বাড়ির তরুণ সমাজের উদ্যোগে প্রতিষ্ঠিত...'
-                    : aboutLang === 'ar'
-                    ? 'تأسست مؤسسة ساهانوبوتي بمبادرة من شباب عائلة مولفي باري...'
-                    : 'Sahanubhuti Foundation was initiated by the young members of our family...'
-                }
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] leading-relaxed focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-              />
-            </div>
-
-            {/* 2. ABOUT PAGE FULL INTRODUCTION / SPEECH */}
-            <div className="p-4 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="block font-bold text-[#2D3630]">
-                  আমাদের সম্পর্কে পেজ — পূর্ণাঙ্গ উদ্বোধনী বার্তা (About Page — Full Speech) [{aboutLang.toUpperCase()}]
-                </label>
-                <span className="text-[11px] px-2 py-0.5 rounded bg-[#F1EDE4] text-[#5C665F] font-semibold">
-                  About পেজে দৃশ্যমান
-                </span>
-              </div>
-              <p className="text-[11px] text-[#7A877E]">
-                এটি &apos;আমাদের সম্পর্কে&apos; পেজের মূল উদ্বোধনী বক্তব্য হিসেবে প্রদর্শিত হবে।
-              </p>
-              <textarea
-                rows={8}
-                value={config.aboutSpeech?.[aboutLang] || ''}
-                onChange={(e) =>
-                  setConfig({
-                    ...config,
-                    aboutSpeech: {
-                      ...config.aboutSpeech,
-                      [aboutLang]: e.target.value,
-                    },
-                  })
-                }
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] leading-relaxed focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-              />
-            </div>
-
-            {/* 3. FAMILY INITIATIVE & BAYTUL MAL */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="block font-bold text-[#2D3630]">
-                  আমাদের শুরু ও পারিবারিক ইতিহাস (Our Beginning) [{aboutLang.toUpperCase()}]
-                </label>
-                <textarea
-                  rows={4}
-                  value={config.familyInitiativeText?.[aboutLang] || ''}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      familyInitiativeText: {
-                        ...(config.familyInitiativeText || { bn: '', en: '', ar: '' }),
-                        [aboutLang]: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] leading-relaxed focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block font-bold text-[#2D3630]">
-                  বাইতুল মাল সঞ্চয় বার্তা (Baytul Mal Reserve) [{aboutLang.toUpperCase()}]
-                </label>
-                <textarea
-                  rows={4}
-                  value={config.baytulMalText?.[aboutLang] || ''}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      baytulMalText: {
-                        ...(config.baytulMalText || { bn: '', en: '', ar: '' }),
-                        [aboutLang]: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] leading-relaxed focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                />
-              </div>
-            </div>
-
-            {/* 4. MISSION & VISION */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="block font-bold text-[#2D3630]">
-                  মূল উদ্দেশ্য (Mission) [{aboutLang.toUpperCase()}]
-                </label>
-                <textarea
-                  rows={3}
-                  value={config.mission?.[aboutLang] || ''}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      mission: {
-                        ...config.mission,
-                        [aboutLang]: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block font-bold text-[#2D3630]">
-                  ভবিষ্যৎ ভাবনা (Vision) [{aboutLang.toUpperCase()}]
-                </label>
-                <textarea
-                  rows={3}
-                  value={config.vision?.[aboutLang] || ''}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      vision: {
-                        ...config.vision,
-                        [aboutLang]: e.target.value,
-                      },
-                    })
-                  }
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="px-6 py-2.5 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white font-semibold flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              <span>পরিবর্তন সংরক্ষণ করুন</span>
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* TAB 9: SECURITY & SETTINGS */}
-      {activeTab === 'security' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Change Password Card */}
-          <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-4">
-            <div className="flex items-center gap-2">
-              <Key className="w-5 h-5 text-[#2D5A41]" />
-              <h2 className="text-sm font-bold text-[#2D3630]">পাসওয়ার্ড পরিবর্তন</h2>
-            </div>
-            <p className="text-xs text-[#5C665F]">
-              অ্যাডমিন প্যানেলে প্রবেশের পাসওয়ার্ড ক্রিপ্টোগ্রাফিক সল্ট সহ নিরাপদে পরিবর্তন করুন।
-            </p>
-
-            {passMsg && (
-              <div
-                className={`p-3 rounded-xl text-xs font-semibold ${
-                  passMsg.isError ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'
-                }`}
-              >
-                {passMsg.text}
-              </div>
-            )}
-
-            <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-[#2D3630] mb-1">বর্তমান পাসওয়ার্ড</label>
-                <input
-                  type="password"
-                  required
-                  value={currPass}
-                  onChange={(e) => setCurrPass(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-[#2D3630] mb-1">নতুন পাসওয়ার্ড</label>
-                <input
-                  type="password"
-                  required
-                  value={newPass}
-                  onChange={(e) => setNewPass(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-[#2D3630] mb-1">নতুন পাসওয়ার্ড নিশ্চিত করুন</label>
-                <input
-                  type="password"
-                  required
-                  value={confirmPass}
-                  onChange={(e) => setConfirmPass(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white font-semibold"
-              >
-                পাসওয়ার্ড আপডেট করুন
-              </button>
-            </form>
-          </div>
-
-          {/* Backup and Restore Card */}
-          <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-4">
-            <div className="flex items-center gap-2">
-              <Download className="w-5 h-5 text-[#2D5A41]" />
-              <h2 className="text-sm font-bold text-[#2D3630]">ডাটাবেজ ব্যাকআপ ও রিস্টোর</h2>
-            </div>
-            <p className="text-xs text-[#5C665F]">
-              ফাউন্ডেশনের সকল ডাটা (সদস্য, কার্যক্রম, নোটিশ, গ্যালারি) একটি JSON ফাইলে সংরক্ষণ ও প্রয়োজনমাফিক ফিরিয়ে আনুন।
-            </p>
-
-            <div className="space-y-3 pt-2">
-              <button
-                onClick={handleExportBackup}
-                className="w-full py-2.5 px-4 rounded-xl border border-[#EBE8E0] bg-[#F7F5F0] hover:bg-[#EBE8E0] text-xs font-semibold text-[#2D3630] flex items-center justify-center gap-2 transition-colors"
-              >
-                <Download className="w-4 h-4 text-[#5C665F]" />
-                <span>সম্পূর্ণ ডাটাবেজ ডাউনলোড করুন (.json)</span>
-              </button>
-
-              <div>
-                <label className="w-full py-2.5 px-4 rounded-xl border-2 border-dashed border-[#EBE8E0] hover:border-[#2D5A41]/40 text-xs font-semibold text-[#5C665F] flex items-center justify-center gap-2 cursor-pointer transition-colors bg-[#FDFCF9]">
-                  <Upload className="w-4 h-4 text-[#7A877E]" />
-                  <span>ব্যাকআপ ফাইল নির্বাচন করে রিস্টোর করুন</span>
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={handleImportBackup}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB: EXPENSES LEDGER & VISIBILITY */}
-      {activeTab === 'expenses' && (
-        <AdminExpensesTab
-          expenses={expenses}
-          onExpensesChange={setExpenses}
-          visibilitySettings={visibilitySettings}
-          onVisibilityChange={setVisibilitySettings}
-          onRequestConfirm={requestConfirm}
-          onShowToast={showToast}
-          fundPreview={fundPreview}
-        />
-      )}
-
-      {/* TAB: SITE & SOCIAL SETTINGS */}
-      {activeTab === 'settings' && (
+      {/* SECTION: FOUNDATION & BRAND IDENTITY CMS */}
+      {activeSection === 'foundation' && (
         <AdminSiteSettingsTab
           config={config}
-          onConfigChange={setConfig}
+          onConfigChange={(updated) => {
+            setConfig(updated);
+            storageService.saveConfig(updated);
+          }}
           onShowToast={showToast}
+          currentSection="general"
+          hideSubNav={false}
         />
       )}
+
+      {/* SECTION: HOMEPAGE CMS */}
+      {activeSection === 'homepage' && (
+        <AdminSiteSettingsTab
+          config={config}
+          onConfigChange={(updated) => {
+            setConfig(updated);
+            storageService.saveConfig(updated);
+          }}
+          onShowToast={showToast}
+          currentSection="hero"
+          hideSubNav={true}
+        />
+      )}
+
+      {/* SECTION: HEADER & NAVIGATION CMS */}
+      {activeSection === 'header' && (
+        <AdminSiteSettingsTab
+          config={config}
+          onConfigChange={(updated) => {
+            setConfig(updated);
+            storageService.saveConfig(updated);
+          }}
+          onShowToast={showToast}
+          currentSection="header"
+          hideSubNav={true}
+        />
+      )}
+
+      {/* SECTION: FOOTER & COPYRIGHT CMS */}
+      {activeSection === 'footer' && (
+        <AdminSiteSettingsTab
+          config={config}
+          onConfigChange={(updated) => {
+            setConfig(updated);
+            storageService.saveConfig(updated);
+          }}
+          onShowToast={showToast}
+          currentSection="footer"
+          hideSubNav={true}
+        />
+      )}
+
+      {/* SECTION: ABOUT US CMS */}
+      {activeSection === 'about' && (
+        <AdminSiteSettingsTab
+          config={config}
+          onConfigChange={(updated) => {
+            setConfig(updated);
+            storageService.saveConfig(updated);
+          }}
+          onShowToast={showToast}
+          currentSection="about"
+          hideSubNav={true}
+        />
+      )}
+
+      {/* SECTION: CONTACT & SOCIAL CMS */}
+      {activeSection === 'contact' && (
+        <AdminSiteSettingsTab
+          config={config}
+          onConfigChange={(updated) => {
+            setConfig(updated);
+            storageService.saveConfig(updated);
+          }}
+          onShowToast={showToast}
+          currentSection="social"
+          hideSubNav={true}
+        />
+      )}
+
+      {/* SECTION: LANGUAGE & LOCALIZATION */}
+      {activeSection === 'language' && (
+        <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6 text-xs">
+          <div className="pb-4 border-b border-[#EBE8E0]">
+            <h2 className="text-base font-bold text-[#2D3630] flex items-center gap-2">
+              <Languages className="w-5 h-5 text-[#2D5A41]" />
+              <span>ভাষা ও আন্তর্জাতিকীকরণ ব্যবস্থাপনা (Language & Localization)</span>
+            </h2>
+            <p className="text-xs text-[#5C665F] mt-1">
+              সহানুভূতি ফাউন্ডেশনের ওয়েবসাইট বর্তমানে ৩টি আন্তর্জাতিক ভাষায় সক্রিয়ভাবে সমন্বিত।
+            </p>
+          </div>
+
+          {/* Language Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl bg-[#F7F5F0] border border-[#2D5A41]/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-[#2D3630]">বাংলা (Bangla)</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#2D5A41] text-white">মূল ডিফল্ট</span>
+              </div>
+              <p className="text-[11px] text-[#5C665F]">ফাউন্ডেশনের উৎপত্তিস্থল ও প্রাথমিক ভাষা। সকল তথ্যের মূল ভিত্তি।</p>
+              <div className="text-[10px] font-mono text-[#7A877E] pt-1 border-t border-[#EBE8E0]">LTR • Hind Siliguri</div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white border border-[#EBE8E0] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-[#2D3630]">English (ইংরেজি)</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#E8EFEA] text-[#2D5A41]">আন্তর্জাতিক</span>
+              </div>
+              <p className="text-[11px] text-[#5C665F]">বিশ্বব্যাপী প্রতিনিধি ও মানবিক অংশীদারদের সুবিধার্থে প্রযোজ্য।</p>
+              <div className="text-[10px] font-mono text-[#7A877E] pt-1 border-t border-[#EBE8E0]">LTR • Plus Jakarta Sans</div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white border border-[#EBE8E0] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-[#2D3630]">العربية (আরবি)</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#E8EFEA] text-[#2D5A41]">প্রবাসী ও আত্মীয়</span>
+              </div>
+              <p className="text-[11px] text-[#5C665F]">মধ্যপ্রাচ্য ও উপসাগরীয় অঞ্চলের পরিবার ও শুভাকাঙ্ক্ষীদের জন্য পূর্ণাঙ্গ RTL ইন্টারফেস।</p>
+              <div className="text-[10px] font-mono text-[#7A877E] pt-1 border-t border-[#EBE8E0]">RTL • Noto Sans Arabic</div>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="p-4 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="font-bold text-[#2D3630] block">হেডার ও ফুটারে ভাষা পরিবর্তন বাটন প্রদর্শন (Language Switcher)</label>
+                <p className="text-[11px] text-[#7A877E]">চালু থাকলে ভিজিটররা এক ক্লিকেই বাংলা, ইংরেজি ও আরবি ভাষার মাঝে বদল করতে পারবেন।</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={config.showLanguageSelector !== false}
+                onChange={(e) => {
+                  const updated = { ...config, showLanguageSelector: e.target.checked };
+                  setConfig(updated);
+                  storageService.saveConfig(updated);
+                  showToast('ভাষা সুইচার সেটিংস সংরক্ষিত হয়েছে!');
+                }}
+                className="w-5 h-5 rounded text-[#2D5A41] focus:ring-[#2D5A41] accent-[#2D5A41]"
+              />
+            </div>
+
+            <div className="p-3 bg-[#E8EFEA] rounded-lg border border-[#2D5A41]/20 text-[#1E3E2D] text-xs leading-relaxed">
+              💡 <strong>স্মার্ট ফলব্যাক নীতি:</strong> কোনো কার্যক্রম বা পরিচিতি লেখার সময় ইংরেজি বা আরবি ঘর ফাঁকা রাখলে স্বয়ংক্রিয়ভাবে মূল বাংলা লেখা প্রদর্শিত হবে। ফলে কোনো পেজেই অসম্পূর্ণতা বা শূন্যস্থান দেখা যাবে না।
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION: SECURITY & SYSTEM BACKUP */}
+      {activeSection === 'settings' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Change Password Card */}
+            <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-4">
+              <div className="flex items-center gap-2">
+                <Key className="w-5 h-5 text-[#2D5A41]" />
+                <h2 className="text-sm font-bold text-[#2D3630]">পাসওয়ার্ড পরিবর্তন</h2>
+              </div>
+              <p className="text-xs text-[#5C665F]">
+                অ্যাডমিন প্যানেলে প্রবেশের পাসওয়ার্ড ক্রিপ্টোগ্রাফিক সল্ট সহ নিরাপদে পরিবর্তন করুন।
+              </p>
+
+              {passMsg && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-semibold ${
+                    passMsg.isError ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'
+                  }`}
+                >
+                  {passMsg.text}
+                </div>
+              )}
+
+              <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-bold text-[#2D3630] mb-1">বর্তমান পাসওয়ার্ড</label>
+                  <input
+                    type="password"
+                    required
+                    value={currPass}
+                    onChange={(e) => setCurrPass(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#2D3630] mb-1">নতুন পাসওয়ার্ড</label>
+                  <input
+                    type="password"
+                    required
+                    value={newPass}
+                    onChange={(e) => setNewPass(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#2D3630] mb-1">নতুন পাসওয়ার্ড নিশ্চিত করুন</label>
+                  <input
+                    type="password"
+                    required
+                    value={confirmPass}
+                    onChange={(e) => setConfirmPass(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white font-semibold"
+                >
+                  পাসওয়ার্ড আপডেট করুন
+                </button>
+              </form>
+            </div>
+
+            {/* Backup and Restore Card */}
+            <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-4">
+              <div className="flex items-center gap-2">
+                <Download className="w-5 h-5 text-[#2D5A41]" />
+                <h2 className="text-sm font-bold text-[#2D3630]">ডাটাবেজ ব্যাকআপ ও রিস্টোর</h2>
+              </div>
+              <p className="text-xs text-[#5C665F]">
+                ফাউন্ডেশনের সকল ডাটা (সদস্য, কার্যক্রম, নোটিশ, গ্যালারি) একটি JSON ফাইলে সংরক্ষণ ও প্রয়োজনমাফিক ফিরিয়ে আনুন।
+              </p>
+
+              <div className="space-y-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleExportBackup}
+                  className="w-full py-2.5 px-4 rounded-xl border border-[#EBE8E0] bg-[#F7F5F0] hover:bg-[#EBE8E0] text-xs font-semibold text-[#2D3630] flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Download className="w-4 h-4 text-[#5C665F]" />
+                  <span>সম্পূর্ণ ডাটাবেজ ডাউনলোড করুন (.json)</span>
+                </button>
+
+                <div>
+                  <label className="w-full py-2.5 px-4 rounded-xl border-2 border-dashed border-[#EBE8E0] hover:border-[#2D5A41]/40 text-xs font-semibold text-[#5C665F] flex items-center justify-center gap-2 cursor-pointer transition-colors bg-[#FDFCF9]">
+                    <Upload className="w-4 h-4 text-[#7A877E]" />
+                    <span>ব্যাকআপ ফাইল নির্বাচন করে রিস্টোর করুন</span>
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={handleImportBackup}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick link to site & SEO configuration */}
+          <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-4">
+            <h3 className="text-sm font-bold text-[#2D3630] flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-[#2D5A41]" />
+              <span>উন্নত সাইট সেটিংস ও মেটা কনফিগারেশন</span>
+            </h3>
+            <AdminSiteSettingsTab
+              config={config}
+              onConfigChange={(updated) => {
+                setConfig(updated);
+                storageService.saveConfig(updated);
+              }}
+              onShowToast={showToast}
+              currentSection="general"
+              hideSubNav={false}
+            />
+          </div>
+        </div>
+      )}
+
+          </main>
+        </div>
 
       {/* Global Confirm Action Modal */}
       <ConfirmModal

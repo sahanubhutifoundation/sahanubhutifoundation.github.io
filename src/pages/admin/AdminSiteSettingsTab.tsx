@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Globe,
   Share2,
@@ -28,21 +28,35 @@ import {
   isMapUrlValid,
 } from '../../utils/foundationHelpers';
 
-interface AdminSiteSettingsTabProps {
+export interface AdminSiteSettingsTabProps {
   config: FoundationConfig;
   onConfigChange: (updated: FoundationConfig) => void;
   onShowToast: (msg: string) => void;
+  currentSection?: 'general' | 'hero' | 'logo' | 'header' | 'footer' | 'about' | 'social' | 'members';
+  hideSubNav?: boolean;
 }
 
 export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
   config,
   onConfigChange,
   onShowToast,
+  currentSection,
+  hideSubNav = false,
 }) => {
   const [formData, setFormData] = useState<FoundationConfig>(config);
   const [activeSection, setActiveSection] = useState<
     'general' | 'hero' | 'logo' | 'header' | 'footer' | 'about' | 'social' | 'members'
-  >('general');
+  >(currentSection || 'general');
+
+  useEffect(() => {
+    if (currentSection) {
+      setActiveSection(currentSection);
+    }
+  }, [currentSection]);
+
+  useEffect(() => {
+    setFormData(config);
+  }, [config]);
 
   const updateMultiText = (
     field: keyof FoundationConfig,
@@ -90,37 +104,39 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 text-xs">
-      {/* Sub-tab Navigation */}
-      <div className="flex overflow-x-auto gap-2 p-1.5 bg-[#F7F5F0] rounded-2xl border border-[#EBE8E0]">
-        {[
-          { id: 'general', label: 'সাধারণ পরিচিতি', icon: Globe },
-          { id: 'hero', label: 'হোমপেজ ও হিরো CMS', icon: Sparkles },
-          { id: 'logo', label: 'লোগো ও অবস্থান', icon: ImageIcon },
-          { id: 'header', label: 'হেডার কন্ট্রোল', icon: Compass },
-          { id: 'footer', label: 'ফুটার কন্ট্রোল', icon: Layers },
-          { id: 'about', label: 'আমাদের সম্পর্কে CMS', icon: FileText },
-          { id: 'social', label: 'যোগাযোগ ও সোশ্যাল', icon: Share2 },
-          { id: 'members', label: 'সদস্য প্রদর্শন শৈলী', icon: User },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeSection === tab.id;
-          return (
-            <button
-              type="button"
-              key={tab.id}
-              onClick={() => setActiveSection(tab.id as any)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold whitespace-nowrap transition-all ${
-                isActive
-                  ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
-                  : 'text-[#5C665F] hover:text-[#2D3630]'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Sub-tab Navigation (Hidden when controlled from primary Admin sidebar) */}
+      {!hideSubNav && (
+        <div className="flex overflow-x-auto gap-2 p-1.5 bg-[#F7F5F0] rounded-2xl border border-[#EBE8E0]">
+          {[
+            { id: 'general', label: 'সাধারণ পরিচিতি', icon: Globe },
+            { id: 'hero', label: 'হোমপেজ ও হিরো CMS', icon: Sparkles },
+            { id: 'logo', label: 'লোগো ও অবস্থান', icon: ImageIcon },
+            { id: 'header', label: 'হেডার কন্ট্রোল', icon: Compass },
+            { id: 'footer', label: 'ফুটার কন্ট্রোল', icon: Layers },
+            { id: 'about', label: 'আমাদের সম্পর্কে CMS', icon: FileText },
+            { id: 'social', label: 'যোগাযোগ ও সোশ্যাল', icon: Share2 },
+            { id: 'members', label: 'সদস্য প্রদর্শন শৈলী', icon: User },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeSection === tab.id;
+            return (
+              <button
+                type="button"
+                key={tab.id}
+                onClick={() => setActiveSection(tab.id as any)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold whitespace-nowrap transition-all ${
+                  isActive
+                    ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                    : 'text-[#5C665F] hover:text-[#2D3630]'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* 1. GENERAL IDENTITY */}
       {activeSection === 'general' && (
