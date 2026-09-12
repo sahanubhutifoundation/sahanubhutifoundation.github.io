@@ -10,6 +10,7 @@ import { AdminExpensesTab } from './AdminExpensesTab';
 import { AdminSiteSettingsTab } from './AdminSiteSettingsTab';
 import { AdminDesignationsManager } from './AdminDesignationsManager';
 import { AdminSidebar, AdminSection } from './AdminSidebar';
+import { CloudSyncCard } from './CloudSyncCard';
 import {
   FoundationConfig,
   Activity,
@@ -95,6 +96,8 @@ export const AdminPage: React.FC = () => {
   const [editingNotice, setEditingNotice] = useState<Partial<Notice> | null>(null);
   const [editingGallery, setEditingGallery] = useState<Partial<GalleryItem> | null>(null);
   const [activeMessage, setActiveMessage] = useState<ContactMessage | null>(null);
+  const [inboxFilter, setInboxFilter] = useState<'all' | 'unread' | 'read'>('all');
+  const [inboxSearch, setInboxSearch] = useState('');
 
   // Confirm modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -617,6 +620,59 @@ export const AdminPage: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Prominent Inbox Alert Banner if Unread Messages Exist */}
+          {unreadCount > 0 ? (
+            <div
+              onClick={() => setActiveSection('inbox')}
+              className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 shadow-2xs flex items-center justify-between gap-4 cursor-pointer hover:bg-amber-500/15 transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Inbox className="w-5 h-5 animate-bounce" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-[#2D3630] flex items-center gap-2">
+                    <span>যোগাযোগ ইনবক্সে {unreadCount} টি নতুন অপঠিত বার্তা এসেছে!</span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+                      জরুরি
+                    </span>
+                  </h4>
+                  <p className="text-xs text-[#5C665F] mt-0.5">
+                    ভিজিটরদের পাঠানো বার্তা পড়তে এবং উত্তর দিতে এখানে ক্লিক করুন।
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 text-xs font-bold text-amber-900 group-hover:translate-x-1 transition-transform shrink-0">
+                <span>ইনবক্স খুলুন</span>
+                <span className="text-base font-normal">→</span>
+              </div>
+            </div>
+          ) : (
+            <div
+              onClick={() => setActiveSection('inbox')}
+              className="p-3.5 sm:p-4 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs flex items-center justify-between gap-3 cursor-pointer hover:border-[#2D5A41]/40 transition-colors group"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#F7F5F0] text-[#2D5A41] flex items-center justify-center shrink-0 border border-[#EBE8E0]">
+                  <Inbox className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-[#2D3630]">
+                  যোগাযোগ ইনবক্স: মোট {messages.length} টি বার্তা সংরক্ষিত রয়েছে
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-[#2D5A41] group-hover:underline flex items-center gap-1">
+                ইনবক্স দেখুন →
+              </span>
+            </div>
+          )}
+
+          {/* Cloud Database (Supabase) Synchronization & Migration Card */}
+          <CloudSyncCard
+            onRefreshLocalState={loadAllData}
+            onShowToast={showToast}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div
@@ -1204,18 +1260,19 @@ export const AdminPage: React.FC = () => {
 
           {/* Members Table */}
           <div className="bg-white rounded-2xl border border-[#EBE8E0] shadow-2xs overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#F7F5F0] text-[#5C665F] font-semibold border-b border-[#EBE8E0]">
-                <tr>
-                  <th className="py-2.5 px-3">ক্রম</th>
-                  <th className="py-2.5 px-3">নাম</th>
-                  <th className="py-2.5 px-3">পদবী / ভূমিকা</th>
-                  <th className="py-2.5 px-3">যোগাযোগ</th>
-                  <th className="py-2.5 px-3 text-center">অবস্থা</th>
-                  <th className="py-2.5 px-3 text-right">পদক্ষেপ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#EBE8E0]">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs min-w-[560px]">
+                <thead className="bg-[#F7F5F0] text-[#5C665F] font-semibold border-b border-[#EBE8E0]">
+                  <tr>
+                    <th className="py-2.5 px-3">ক্রম</th>
+                    <th className="py-2.5 px-3">নাম</th>
+                    <th className="py-2.5 px-3">পদবী / ভূমিকা</th>
+                    <th className="py-2.5 px-3">যোগাযোগ</th>
+                    <th className="py-2.5 px-3 text-center">অবস্থা</th>
+                    <th className="py-2.5 px-3 text-right">পদক্ষেপ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#EBE8E0]">
                 {members.map((m) => (
                   <tr key={m.id} className="hover:bg-[#F7F5F0]">
                     <td className="py-3 px-3 font-mono font-bold text-[#2D5A41]">
@@ -1278,6 +1335,7 @@ export const AdminPage: React.FC = () => {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
         )}
@@ -1411,33 +1469,39 @@ export const AdminPage: React.FC = () => {
             {activities.map((act) => (
               <div
                 key={act.id}
-                className="p-4 rounded-xl bg-white border border-[#EBE8E0] flex items-center justify-between gap-4 text-xs"
+                className="p-4 rounded-xl bg-white border border-[#EBE8E0] flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 text-xs"
               >
-                <div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-[#E8EFEA] text-[#2D5A41] font-semibold mr-2">
-                    {act.category}
-                  </span>
-                  <strong className="text-[#2D3630] text-sm">{typeof act.title === 'string' ? act.title : act.title.bn}</strong>
-                  <div className="text-[#A4B3A8] mt-0.5">তারিখ: {act.date}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-[#E8EFEA] text-[#2D5A41] font-semibold">
+                      {act.category}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        act.isPublished ? 'bg-[#E8EFEA] text-[#2D5A41]' : 'bg-[#F7F5F0] text-[#7A877E]'
+                      }`}
+                    >
+                      {act.isPublished ? 'প্রকাশিত' : 'ড্রাফট'}
+                    </span>
+                  </div>
+                  <strong className="text-[#2D3630] text-sm block truncate">
+                    {typeof act.title === 'string' ? act.title : act.title.bn}
+                  </strong>
+                  <div className="text-[#A4B3A8] mt-0.5 text-[11px]">তারিখ: {act.date}</div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                      act.isPublished ? 'bg-[#E8EFEA] text-[#2D5A41]' : 'bg-[#F7F5F0] text-[#7A877E]'
-                    }`}
-                  >
-                    {act.isPublished ? 'প্রকাশিত' : 'ড্রাফট'}
-                  </span>
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#EBE8E0] w-full sm:w-auto justify-end">
                   <button
                     onClick={() => setEditingActivity(act)}
-                    className="p-1 rounded text-[#5C665F] hover:text-[#2D5A41]"
+                    className="p-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] hover:text-[#2D5A41] hover:bg-[#F7F5F0]"
+                    title="সম্পাদনা"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteActivity(act.id)}
-                    className="p-1 rounded text-rose-500 hover:text-rose-700"
+                    className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:text-rose-800"
+                    title="মুছে ফেলুন"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -1451,16 +1515,21 @@ export const AdminPage: React.FC = () => {
       {/* SECTION: NOTICES EDITOR */}
       {activeSection === 'notices' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-[#2D3630]">
-              নোটিশ বোর্ড সম্পাদক ({notices.length})
-            </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-[#2D3630]">
+                নোটিশ বোর্ড সম্পাদক ({notices.length})
+              </h2>
+              <p className="text-xs text-[#5C665F] mt-0.5">
+                অফিসিয়াল নোটিশ ও সাধারণ বিজ্ঞপ্তি ব্যবস্থাপনা করুন।
+              </p>
+            </div>
             <button
               onClick={() => setEditingNotice({ isPublished: true, isImportant: false })}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold self-start sm:self-auto"
             >
               <Plus className="w-4 h-4" />
-              <span>নতুন নোটিশ লিখুন</span>
+              <span>নতুন নোটিশ যুক্ত করুন</span>
             </button>
           </div>
 
@@ -1558,25 +1627,41 @@ export const AdminPage: React.FC = () => {
             {notices.map((not) => (
               <div
                 key={not.id}
-                className="p-4 rounded-xl bg-white border border-[#EBE8E0] flex items-center justify-between gap-4 text-xs"
+                className="p-4 rounded-xl bg-white border border-[#EBE8E0] flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 text-xs"
               >
-                <div>
-                  <strong className="text-[#2D3630] text-sm">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    {not.isImportant && (
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                        জরুরি
+                      </span>
+                    )}
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        not.isPublished ? 'bg-[#E8EFEA] text-[#2D5A41]' : 'bg-[#F7F5F0] text-[#7A877E]'
+                      }`}
+                    >
+                      {not.isPublished ? 'প্রকাশিত' : 'ড্রাফট'}
+                    </span>
+                  </div>
+                  <strong className="text-[#2D3630] text-sm block truncate">
                     {typeof not.title === 'string' ? not.title : not.title.bn}
                   </strong>
-                  <div className="text-[#A4B3A8] mt-0.5">তারিখ: {not.date}</div>
+                  <div className="text-[#A4B3A8] mt-0.5 text-[11px]">তারিখ: {not.date}</div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#EBE8E0] w-full sm:w-auto justify-end">
                   <button
                     onClick={() => setEditingNotice(not)}
-                    className="p-1 rounded text-[#5C665F] hover:text-[#2D5A41]"
+                    className="p-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] hover:text-[#2D5A41] hover:bg-[#F7F5F0]"
+                    title="সম্পাদনা"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteNotice(not.id)}
-                    className="p-1 rounded text-rose-500 hover:text-rose-700"
+                    className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:text-rose-800"
+                    title="মুছে ফেলুন"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -1590,13 +1675,18 @@ export const AdminPage: React.FC = () => {
       {/* SECTION: GALLERY MANAGER */}
       {activeSection === 'gallery' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-[#2D3630]">
-              গ্যালারি মিডিয়া ব্যবস্থাপনা ({gallery.length})
-            </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-[#2D3630]">
+                গ্যালারি মিডিয়া ব্যবস্থাপনা ({gallery.length})
+              </h2>
+              <p className="text-xs text-[#5C665F] mt-0.5">
+                ছবি ও ভিডিও গ্যালারিতে প্রকাশ করুন।
+              </p>
+            </div>
             <button
               onClick={() => setEditingGallery({ isPublished: true, type: 'image' })}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold self-start sm:self-auto"
             >
               <Plus className="w-4 h-4" />
               <span>নতুন ছবি/ভিডিও যুক্ত করুন</span>
@@ -1696,6 +1786,287 @@ export const AdminPage: React.FC = () => {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* SECTION: CONTACT INBOX */}
+      {activeSection === 'inbox' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-[#2D3630] flex items-center gap-2">
+                <Inbox className="w-5 h-5 text-[#2D5A41]" />
+                <span>যোগাযোগ ইনবক্স ({messages.length})</span>
+              </h2>
+              <p className="text-xs text-[#5C665F] mt-1">
+                সাধারণ নাগরিক ও শুভানুধ্যায়ীদের পাঠানো বার্তা, পরামর্শ ও প্রশ্নাবলি।
+              </p>
+            </div>
+
+            {unreadCount > 0 && (
+              <span className="self-start sm:self-auto px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                {unreadCount} টি অপঠিত বার্তা
+              </span>
+            )}
+          </div>
+
+          {/* Filter & Search Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-[#7A877E] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={inboxSearch}
+                onChange={(e) => setInboxSearch(e.target.value)}
+                placeholder="প্রেরক, ইমেইল বা বিষয় খুঁজুন..."
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 w-full sm:w-auto bg-[#F7F5F0] p-1 rounded-xl border border-[#EBE8E0]">
+              <button
+                type="button"
+                onClick={() => setInboxFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  inboxFilter === 'all'
+                    ? 'bg-white text-[#2D5A41] shadow-2xs'
+                    : 'text-[#5C665F] hover:text-[#2D3630]'
+                }`}
+              >
+                সকল ({messages.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setInboxFilter('unread')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  inboxFilter === 'unread'
+                    ? 'bg-white text-[#2D5A41] shadow-2xs'
+                    : 'text-[#5C665F] hover:text-[#2D3630]'
+                }`}
+              >
+                অপঠিত ({unreadCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setInboxFilter('read')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  inboxFilter === 'read'
+                    ? 'bg-white text-[#2D5A41] shadow-2xs'
+                    : 'text-[#5C665F] hover:text-[#2D3630]'
+                }`}
+              >
+                পঠিত ({messages.length - unreadCount})
+              </button>
+            </div>
+          </div>
+
+          {/* Inbox Content */}
+          {(() => {
+            const filtered = messages.filter((m) => {
+              if (inboxFilter === 'unread' && m.isRead) return false;
+              if (inboxFilter === 'read' && !m.isRead) return false;
+              if (inboxSearch.trim()) {
+                const q = inboxSearch.toLowerCase();
+                const matchName = m.name?.toLowerCase().includes(q);
+                const matchEmail = m.email?.toLowerCase().includes(q);
+                const matchSub = m.subject?.toLowerCase().includes(q);
+                const matchBody = m.message?.toLowerCase().includes(q);
+                return matchName || matchEmail || matchSub || matchBody;
+              }
+              return true;
+            });
+
+            if (filtered.length === 0) {
+              return (
+                <div className="p-12 text-center bg-white rounded-2xl border border-[#EBE8E0] space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-[#F7F5F0] flex items-center justify-center mx-auto text-[#7A877E]">
+                    <Inbox className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-[#2D3630]">কোনো বার্তা পাওয়া যায়নি</h3>
+                  <p className="text-xs text-[#7A877E]">
+                    {inboxSearch ? 'অনুসন্ধানের সাথে কোনো বার্তা মেলেনি।' : 'ইনবক্সে বর্তমানে কোনো বার্তা নেই।'}
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Message List */}
+                <div className={`space-y-3 ${activeMessage ? 'lg:col-span-5' : 'lg:col-span-12'}`}>
+                  {filtered.map((msg) => {
+                    const isSelected = activeMessage?.id === msg.id;
+                    const dateFormatted = msg.submittedAt
+                      ? new Date(msg.submittedAt).toLocaleDateString('bn-BD', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })
+                      : '';
+
+                    return (
+                      <div
+                        key={msg.id}
+                        onClick={() => {
+                          setActiveMessage(msg);
+                          if (!msg.isRead) {
+                            handleToggleMessageRead(msg.id, false);
+                          }
+                        }}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#E8EFEA]/40 border-[#2D5A41] shadow-2xs'
+                            : msg.isRead
+                            ? 'bg-white border-[#EBE8E0] hover:border-[#D9D6CC]'
+                            : 'bg-amber-50/50 border-amber-200 hover:border-amber-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              {!msg.isRead && (
+                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="অপঠিত" />
+                              )}
+                              <h4 className="text-xs font-bold text-[#2D3630] truncate">{msg.name}</h4>
+                            </div>
+                            <p className="text-[11px] text-[#5C665F] truncate mt-0.5 font-medium">
+                              {msg.subject || 'বিষয় উল্লেখ নেই'}
+                            </p>
+                          </div>
+                          <span className="text-[10px] text-[#7A877E] whitespace-nowrap shrink-0">
+                            {dateFormatted}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#7A877E] line-clamp-2 mt-2 leading-relaxed">
+                          {msg.message}
+                        </p>
+                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#EBE8E0]/60 text-[10px]">
+                          <span className="text-[#5C665F] truncate">{msg.email}</span>
+                          <span className="font-semibold text-[#2D5A41]">
+                            {isSelected ? 'বিস্তারিত খোলা আছে' : 'পড়ুন →'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Message Detail View */}
+                {activeMessage && (
+                  <div className="lg:col-span-7 bg-white rounded-2xl border border-[#EBE8E0] shadow-2xs p-5 sm:p-6 space-y-5">
+                    <div className="flex items-start justify-between gap-3 pb-4 border-b border-[#EBE8E0]">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-bold text-[#2D3630]">
+                            {activeMessage.subject || 'বিষয় উল্লেখ নেই'}
+                          </h3>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                              activeMessage.isRead
+                                ? 'bg-[#E8EFEA] text-[#2D5A41]'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {activeMessage.isRead ? 'পঠিত' : 'অপঠিত'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#7A877E] mt-1">
+                          প্রেরণের সময়:{' '}
+                          {activeMessage.submittedAt
+                            ? new Date(activeMessage.submittedAt).toLocaleString('bn-BD', {
+                                dateStyle: 'medium',
+                                timeStyle: 'short',
+                              })
+                            : '—'}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveMessage(null)}
+                        className="p-1.5 rounded-lg text-[#7A877E] hover:text-[#2D3630] hover:bg-[#F7F5F0]"
+                        title="বন্ধ করুন"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Sender Info Bar */}
+                    <div className="p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] space-y-2 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[#5C665F]">
+                          প্রেরক: <strong className="text-[#2D3630]">{activeMessage.name}</strong>
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {activeMessage.email && (
+                            <a
+                              href={`mailto:${activeMessage.email}?subject=Re: ${encodeURIComponent(activeMessage.subject || 'সহানুভূতি ফাউন্ডেশন বার্তা')}`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-[#EBE8E0] text-[#2D5A41] font-semibold text-[11px] hover:bg-[#E8EFEA] transition-colors"
+                            >
+                              <Mail className="w-3 h-3" />
+                              <span>ইমেইল পাঠান</span>
+                            </a>
+                          )}
+                          {activeMessage.phone && (
+                            <a
+                              href={`tel:${activeMessage.phone}`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-[#EBE8E0] text-[#2D3630] font-semibold text-[11px] hover:bg-[#E8EFEA] transition-colors"
+                            >
+                              <PhoneCall className="w-3 h-3" />
+                              <span>কল করুন</span>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-[#7A877E]">
+                        <div>ইমেইল: <span className="text-[#2D3630] font-mono">{activeMessage.email}</span></div>
+                        <div>ফোন: <span className="text-[#2D3630] font-mono">{activeMessage.phone || 'দেওয়া হয়নি'}</span></div>
+                      </div>
+                    </div>
+
+                    {/* Full Message Body */}
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-[#2D3630]">বার্তার মূল বক্তব্য:</h4>
+                      <div className="p-4 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] text-xs text-[#2D3630] leading-relaxed whitespace-pre-wrap">
+                        {activeMessage.message}
+                      </div>
+                    </div>
+
+                    {/* Bottom Actions */}
+                    <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#EBE8E0]">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleMessageRead(activeMessage.id, activeMessage.isRead)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#EBE8E0] text-xs font-semibold text-[#5C665F] hover:bg-[#F7F5F0] transition-colors"
+                      >
+                        {activeMessage.isRead ? (
+                          <>
+                            <EyeOff className="w-3.5 h-3.5" />
+                            <span>অপঠিত হিসেবে চিহ্নিত করুন</span>
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>পঠিত হিসেবে চিহ্নিত করুন</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMessage(activeMessage.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold hover:bg-rose-100 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>বার্তা মুছুন</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -2042,6 +2413,12 @@ export const AdminPage: React.FC = () => {
       {/* SECTION: SECURITY & SYSTEM BACKUP */}
       {activeSection === 'settings' && (
         <div className="space-y-6">
+          {/* Cloud Synchronization & Migration Management */}
+          <CloudSyncCard
+            onRefreshLocalState={loadAllData}
+            onShowToast={showToast}
+          />
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Change Password Card */}
             <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-4">

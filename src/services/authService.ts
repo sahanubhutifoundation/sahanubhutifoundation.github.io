@@ -1,7 +1,9 @@
+import { getSupabase } from './supabaseClient';
+
 /**
  * Authentication Service for Sahanubhuti Foundation Admin
- * Implements salted cryptographic SHA-256 verification, session management,
- * and extensible hooks for Firebase/Supabase Auth.
+ * Implements Supabase Auth with fallback salted cryptographic SHA-256 verification,
+ * session management, and cross-device authentication.
  */
 
 const AUTH_KEYS = {
@@ -9,10 +11,10 @@ const AUTH_KEYS = {
   ADMIN_SALT: 'sf_admin_p_salt_v2',
   SESSION_TOKEN: 'sf_admin_session_token',
   SESSION_EXPIRY: 'sf_admin_session_expiry',
+  SESSION_USER_EMAIL: 'sf_admin_user_email',
 };
 
 // Default cryptographic salt and initial hash for the default password 'Moulovi@@'
-// Computed using SHA-256(salt + 'Moulovi@@')
 const INITIAL_SALT = 'sf_foundation_moulovi_feni_2024';
 const INITIAL_HASH = 'c331a2a304e98a9689a770d4108bec53895bbd3a8288067239e00ad05bbb8ed6';
 const LEGACY_BROKEN_HASH = '9bb0249c56ca19888995a32ec69ff15a6b0c2a29352e825a07ddfa52932ff870';
@@ -37,35 +39,74 @@ export const authService = {
   },
 
   /**
-   * Verifies password against stored salted hash
+   * Attempts sign-in via Supabase Cloud Auth (email & password)
    */
-  async verifyPassword(password: string): Promise<boolean> {
+  async signInWithSupabase(email: string, password: string): Promise<{ success: boolean; message: string; user?: any }> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { success: false, message: 'Supabase ক্লাউড কানেকশন কনফিগার করা হয়নি।' };
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password.trim(),
+      });
+
+      if (error) {
+        return { success: false, message: error.message };
+      }
+
+      if (data?.session) {
+        this.createSession(email);
+        return { success: true, message: 'সফলভাবে ক্লাউড অ্যাডমিন হিসেবে লগইন হয়েছে!', user: data.user };
+      }
+
+      return { success: false, message: 'লগইন সেশন প্রাপ্ত হয়নি।' };
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Supabase ক্লাউড অথেন্টিকেশন ত্রুটি।' };
+    }
+  },
+
+  /**
+   * Verifies password against Supabase Auth (if email provided) or stored salted hash
+   */
+  async verifyPassword(password: string, email?: string): Promise<boolean> {
     this.init();
     const cleanInput = (password || '').trim();
     if (!cleanInput) return false;
 
+    // 1. If email is provided, attempt Supabase Auth first
+    if (email && email.includes('@')) {
+      const cloudRes = await this.signInWithSupabase(email, cleanInput);
+      if (cloudRes.success) {
+        return true;
+      }
+    }
+
+    // 2. Check stored salted hash
     const storedHash = localStorage.getItem(AUTH_KEYS.ADMIN_HASH) || INITIAL_HASH;
     const storedSalt = localStorage.getItem(AUTH_KEYS.ADMIN_SALT) || INITIAL_SALT;
 
     const inputHash = await sha256(storedSalt + cleanInput);
 
     if (inputHash === storedHash) {
-      this.createSession();
+      this.createSession(email);
       return true;
     }
 
-    // Direct check for master initialization password 'Moulovi@@'
+    // 3. Direct check for master initialization password 'Moulovi@@'
     if (cleanInput === 'Moulovi@@') {
       localStorage.setItem(AUTH_KEYS.ADMIN_HASH, INITIAL_HASH);
       localStorage.setItem(AUTH_KEYS.ADMIN_SALT, INITIAL_SALT);
-      this.createSession();
+      this.createSession(email);
       return true;
     }
 
-    // Fallback check against raw initial hash
+    // 4. Fallback check against raw initial hash
     const directInitialHash = await sha256(INITIAL_SALT + cleanInput);
     if (directInitialHash === INITIAL_HASH) {
-      this.createSession();
+      this.createSession(email);
       return true;
     }
 
@@ -73,7 +114,7 @@ export const authService = {
   },
 
   /**
-   * Updates admin password with new salted hash
+   * Updates admin password with new salted hash and updates Supabase Auth if logged in
    */
   async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
     const isCurrentValid = await this.verifyPassword(currentPassword);
@@ -85,11 +126,21 @@ export const authService = {
       return { success: false, message: 'নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।' };
     }
 
-    const newSalt = `sf_salt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newSalt = `sf_salt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const newHash = await sha256(newSalt + newPassword);
 
     localStorage.setItem(AUTH_KEYS.ADMIN_HASH, newHash);
     localStorage.setItem(AUTH_KEYS.ADMIN_SALT, newSalt);
+
+    // If Supabase session is active, also update password in Supabase Auth
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        await supabase.auth.updateUser({ password: newPassword });
+      } catch (e) {
+        console.warn('Supabase password update note:', e);
+      }
+    }
 
     return { success: true, message: 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে।' };
   },
@@ -97,11 +148,14 @@ export const authService = {
   /**
    * Creates an authenticated session (valid for 24 hours)
    */
-  createSession(): void {
-    const token = `session_${Date.now()}_${Math.random().toString(36).substr(2, 12)}`;
+  createSession(userEmail?: string): void {
+    const token = `session_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
     const expiry = Date.now() + 24 * 60 * 60 * 1000;
     localStorage.setItem(AUTH_KEYS.SESSION_TOKEN, token);
     localStorage.setItem(AUTH_KEYS.SESSION_EXPIRY, expiry.toString());
+    if (userEmail) {
+      localStorage.setItem(AUTH_KEYS.SESSION_USER_EMAIL, userEmail);
+    }
   },
 
   /**
@@ -128,8 +182,22 @@ export const authService = {
   logout(): void {
     localStorage.removeItem(AUTH_KEYS.SESSION_TOKEN);
     localStorage.removeItem(AUTH_KEYS.SESSION_EXPIRY);
+    localStorage.removeItem(AUTH_KEYS.SESSION_USER_EMAIL);
+
+    const supabase = getSupabase();
+    if (supabase) {
+      supabase.auth.signOut().catch(() => {});
+    }
+  },
+
+  /**
+   * Get currently logged-in user email if available
+   */
+  getCurrentUserEmail(): string | null {
+    return localStorage.getItem(AUTH_KEYS.SESSION_USER_EMAIL) || null;
   },
 };
 
 // Run initialization
 authService.init();
+

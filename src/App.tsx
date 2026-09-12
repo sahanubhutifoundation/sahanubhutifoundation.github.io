@@ -18,6 +18,8 @@ import { NoticePage } from './pages/NoticePage';
 import { NoticeDetailPage } from './pages/NoticeDetailPage';
 import { ContactPage } from './pages/ContactPage';
 import { AdminPage } from './pages/admin/AdminPage';
+import { storageService } from './services/storageService';
+import { supabaseService } from './services/supabaseService';
 
 /**
  * Listens for hash-based admin routing: /#adminfoundation
@@ -53,6 +55,21 @@ const HashRouteListener: React.FC<{ children: React.ReactNode }> = ({ children }
 };
 
 export function App() {
+  useEffect(() => {
+    // Attempt automatic cloud synchronization on app mount
+    storageService.syncFromCloud().catch(() => {});
+
+    // Set up real-time cross-device listener
+    const unsubscribe = supabaseService.subscribeToChanges((payload) => {
+      // If another device makes changes in Supabase, auto-pull latest data
+      storageService.syncFromCloud().catch(() => {});
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   return (
     <LanguageProvider>
       <BrowserRouter>

@@ -505,7 +505,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
       {/* 5. Expenses List Table */}
       <div className="bg-white rounded-2xl border border-[#EBE8E0] shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[620px] text-left text-xs">
             <thead className="bg-[#F7F5F0] text-[#5C665F] font-semibold border-b border-[#EBE8E0]">
               <tr>
                 <th className="py-3 px-4">তারিখ</th>

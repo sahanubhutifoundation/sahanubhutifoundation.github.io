@@ -20,6 +20,7 @@ import {
   initialSocialLinks,
   initialExpenses,
 } from '../data/initialData';
+import { supabaseService } from './supabaseService';
 
 const KEYS = {
   CONFIG: 'sf_foundation_config',
@@ -114,6 +115,12 @@ export const storageService = {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: config }));
     }
+    // Asynchronously sync to Supabase Cloud if available
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveConfig(config).catch((err) => {
+        console.warn('Background Supabase config sync notice:', err);
+      });
+    }
   },
 
   // Fund Visibility Settings
@@ -158,12 +165,18 @@ export const storageService = {
       updated = [activity, ...list];
     }
     setLocalItem(KEYS.ACTIVITIES, updated);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveActivity(activity).catch(console.warn);
+    }
     return updated;
   },
 
   deleteActivity(id: string): Activity[] {
     const list = this.getActivities().filter((a) => String(a.id).trim() !== String(id).trim());
     setLocalItem(KEYS.ACTIVITIES, list);
+    if (supabaseService.isAvailable()) {
+      supabaseService.deleteActivity(id).catch(console.warn);
+    }
     return list;
   },
 
@@ -183,12 +196,18 @@ export const storageService = {
       updated = [notice, ...list];
     }
     setLocalItem(KEYS.NOTICES, updated);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveNotice(notice).catch(console.warn);
+    }
     return updated;
   },
 
   deleteNotice(id: string): Notice[] {
     const list = this.getNotices().filter((n) => String(n.id).trim() !== String(id).trim());
     setLocalItem(KEYS.NOTICES, list);
+    if (supabaseService.isAvailable()) {
+      supabaseService.deleteNotice(id).catch(console.warn);
+    }
     return list;
   },
 
@@ -211,6 +230,9 @@ export const storageService = {
       members[existingIndex] = member;
       members.sort((a, b) => a.serial - b.serial);
       setLocalItem(KEYS.MEMBERS, members);
+      if (supabaseService.isAvailable()) {
+        supabaseService.saveMember(member).catch(console.warn);
+      }
       return members;
     }
 
@@ -230,6 +252,10 @@ export const storageService = {
     // Re-index to guarantee 1..N sequence without gaps
     const reindexed = adjustedMembers.map((m, idx) => ({ ...m, serial: idx + 1 }));
     setLocalItem(KEYS.MEMBERS, reindexed);
+    if (supabaseService.isAvailable()) {
+      // Persist the new member and re-sequenced items
+      supabaseService.saveMember(newMember).catch(console.warn);
+    }
     return reindexed;
   },
 
@@ -264,6 +290,9 @@ export const storageService = {
     // Re-sequence 1..N cleanly
     const cleanList = result.map((m, idx) => ({ ...m, serial: idx + 1 }));
     setLocalItem(KEYS.MEMBERS, cleanList);
+    if (supabaseService.isAvailable()) {
+      cleanList.forEach((m) => supabaseService.saveMember(m).catch(console.warn));
+    }
     return cleanList;
   },
 
@@ -272,6 +301,9 @@ export const storageService = {
     // Re-index sequence cleanly
     const reindexed = members.map((m, idx) => ({ ...m, serial: idx + 1 }));
     setLocalItem(KEYS.MEMBERS, reindexed);
+    if (supabaseService.isAvailable()) {
+      supabaseService.deleteMember(id).catch(console.warn);
+    }
     return reindexed;
   },
 
@@ -299,6 +331,9 @@ export const storageService = {
     // Ensure clean 1..N order
     const reordered = updated.map((d, idx) => ({ ...d, sortOrder: idx + 1 }));
     setLocalItem(KEYS.DESIGNATIONS, reordered);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveDesignation(designation).catch(console.warn);
+    }
     return reordered;
   },
 
@@ -323,6 +358,9 @@ export const storageService = {
     const filtered = this.getDesignations().filter((d) => d.id !== id);
     const reordered = filtered.map((d, idx) => ({ ...d, sortOrder: idx + 1 }));
     setLocalItem(KEYS.DESIGNATIONS, reordered);
+    if (supabaseService.isAvailable()) {
+      supabaseService.deleteDesignation(id).catch(console.warn);
+    }
     return { success: true, list: reordered };
   },
 
@@ -347,6 +385,9 @@ export const storageService = {
     });
 
     setLocalItem(KEYS.DESIGNATIONS, result);
+    if (supabaseService.isAvailable()) {
+      result.forEach((d) => supabaseService.saveDesignation(d).catch(console.warn));
+    }
     return result;
   },
 
@@ -366,12 +407,18 @@ export const storageService = {
       updated = [item, ...list];
     }
     setLocalItem(KEYS.GALLERY, updated);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveGalleryItem(item).catch(console.warn);
+    }
     return updated;
   },
 
   deleteGalleryItem(id: string): GalleryItem[] {
     const list = this.getGalleryItems().filter((g) => String(g.id).trim() !== String(id).trim());
     setLocalItem(KEYS.GALLERY, list);
+    if (supabaseService.isAvailable()) {
+      supabaseService.deleteGalleryItem(id).catch(console.warn);
+    }
     return list;
   },
 
@@ -393,6 +440,9 @@ export const storageService = {
     };
     const updated = [newMsg, ...list];
     setLocalItem(KEYS.MESSAGES, updated);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveContactMessage(newMsg).catch(console.warn);
+    }
     return newMsg;
   },
 
@@ -409,12 +459,18 @@ export const storageService = {
       return msg;
     });
     setLocalItem(KEYS.MESSAGES, updated);
+    if (supabaseService.isAvailable()) {
+      supabaseService.updateMessageStatus(id, isRead, isArchived).catch(console.warn);
+    }
     return updated;
   },
 
   deleteContactMessage(id: string): ContactMessage[] {
     const list = this.getContactMessages().filter((m) => String(m.id).trim() !== String(id).trim());
     setLocalItem(KEYS.MESSAGES, list);
+    if (supabaseService.isAvailable()) {
+      supabaseService.deleteContactMessage(id).catch(console.warn);
+    }
     return list;
   },
 
@@ -425,6 +481,9 @@ export const storageService = {
 
   saveSocialLinks(links: SocialLink[]): void {
     setLocalItem(KEYS.SOCIAL, links);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveSocialLinks(links).catch(console.warn);
+    }
   },
 
   saveSocialLink(link: SocialLink): SocialLink[] {
@@ -438,12 +497,18 @@ export const storageService = {
       updated = [...list, link];
     }
     setLocalItem(KEYS.SOCIAL, updated);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveSocialLinks(updated).catch(console.warn);
+    }
     return updated;
   },
 
   deleteSocialLink(id: string): SocialLink[] {
     const list = this.getSocialLinks().filter((s) => String(s.id).trim() !== String(id).trim());
     setLocalItem(KEYS.SOCIAL, list);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveSocialLinks(list).catch(console.warn);
+    }
     return list;
   },
 
@@ -457,42 +522,130 @@ export const storageService = {
     const list = this.getExpenses();
     const existingIndex = list.findIndex((e) => String(e.id).trim() === String(expense.id).trim());
     let updated: ExpenseRecord[];
-    if (existingIndex >= 0) {
-      updated = [...list];
-      updated[existingIndex] = {
-        ...expense,
-        updatedAt: new Date().toISOString(),
-      };
-    } else {
-      updated = [
-        {
+    const itemToSave: ExpenseRecord = existingIndex >= 0
+      ? { ...expense, updatedAt: new Date().toISOString() }
+      : {
           ...expense,
           id: expense.id || `exp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           createdAt: expense.createdAt || new Date().toISOString(),
-        },
-        ...list,
-      ];
+        };
+
+    if (existingIndex >= 0) {
+      updated = [...list];
+      updated[existingIndex] = itemToSave;
+    } else {
+      updated = [itemToSave, ...list];
     }
     setLocalItem(KEYS.EXPENSES, updated);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveExpense(itemToSave).catch(console.warn);
+    }
     return updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   },
 
   deleteExpense(id: string): ExpenseRecord[] {
     const list = this.getExpenses().filter((e) => String(e.id).trim() !== String(id).trim());
     setLocalItem(KEYS.EXPENSES, list);
+    if (supabaseService.isAvailable()) {
+      supabaseService.deleteExpense(id).catch(console.warn);
+    }
     return list;
+  },
+
+  // Cloud Synchronization: Pulls authoritative cloud data into local cache
+  async syncFromCloud(): Promise<{ success: boolean; synced: string[] }> {
+    if (!supabaseService.isAvailable()) {
+      return { success: false, synced: [] };
+    }
+
+    const synced: string[] = [];
+    try {
+      // 1. Config
+      const cloudConfig = await supabaseService.fetchConfig();
+      if (cloudConfig) {
+        setLocalItem(KEYS.CONFIG, cloudConfig);
+        synced.push('config');
+      }
+
+      // 2. Designations
+      const cloudDesignations = await supabaseService.fetchDesignations();
+      if (cloudDesignations && cloudDesignations.length > 0) {
+        setLocalItem(KEYS.DESIGNATIONS, cloudDesignations);
+        synced.push('designations');
+      }
+
+      // 3. Members
+      const cloudMembers = await supabaseService.fetchMembers();
+      if (cloudMembers && cloudMembers.length > 0) {
+        setLocalItem(KEYS.MEMBERS, cloudMembers);
+        synced.push('members');
+      }
+
+      // 4. Activities
+      const cloudActivities = await supabaseService.fetchActivities();
+      if (cloudActivities && cloudActivities.length > 0) {
+        setLocalItem(KEYS.ACTIVITIES, cloudActivities);
+        synced.push('activities');
+      }
+
+      // 5. Notices
+      const cloudNotices = await supabaseService.fetchNotices();
+      if (cloudNotices && cloudNotices.length > 0) {
+        setLocalItem(KEYS.NOTICES, cloudNotices);
+        synced.push('notices');
+      }
+
+      // 6. Gallery
+      const cloudGallery = await supabaseService.fetchGallery();
+      if (cloudGallery && cloudGallery.length > 0) {
+        setLocalItem(KEYS.GALLERY, cloudGallery);
+        synced.push('gallery');
+      }
+
+      // 7. Expenses
+      const cloudExpenses = await supabaseService.fetchExpenses();
+      if (cloudExpenses && cloudExpenses.length > 0) {
+        setLocalItem(KEYS.EXPENSES, cloudExpenses);
+        synced.push('expenses');
+      }
+
+      // 8. Contact Messages
+      const cloudMessages = await supabaseService.fetchContactMessages();
+      if (cloudMessages && cloudMessages.length > 0) {
+        setLocalItem(KEYS.MESSAGES, cloudMessages);
+        synced.push('messages');
+      }
+
+      // 9. Social Links
+      const cloudSocial = await supabaseService.fetchSocialLinks();
+      if (cloudSocial && cloudSocial.length > 0) {
+        setLocalItem(KEYS.SOCIAL, cloudSocial);
+        synced.push('social');
+      }
+
+      if (typeof window !== 'undefined' && synced.length > 0) {
+        window.dispatchEvent(new CustomEvent('sf_cloud_synced', { detail: { synced } }));
+      }
+
+      return { success: synced.length > 0, synced };
+    } catch (err) {
+      console.warn('Sync from cloud notice:', err);
+      return { success: false, synced };
+    }
   },
 
   // Backup & Restore
   exportAllData(): string {
     const data = {
       config: this.getConfig(),
+      designations: this.getDesignations(),
       activities: this.getActivities(),
       notices: this.getNotices(),
       members: this.getMembers(),
       gallery: this.getGalleryItems(),
       social: this.getSocialLinks(),
       expenses: this.getExpenses(),
+      messages: this.getContactMessages(),
       exportedAt: new Date().toISOString(),
     };
     return JSON.stringify(data, null, 2);
@@ -502,12 +655,14 @@ export const storageService = {
     try {
       const parsed = JSON.parse(jsonString);
       if (parsed.config) setLocalItem(KEYS.CONFIG, parsed.config);
+      if (parsed.designations) setLocalItem(KEYS.DESIGNATIONS, parsed.designations);
       if (parsed.activities) setLocalItem(KEYS.ACTIVITIES, parsed.activities);
       if (parsed.notices) setLocalItem(KEYS.NOTICES, parsed.notices);
       if (parsed.members) setLocalItem(KEYS.MEMBERS, parsed.members);
       if (parsed.gallery) setLocalItem(KEYS.GALLERY, parsed.gallery);
       if (parsed.social) setLocalItem(KEYS.SOCIAL, parsed.social);
       if (parsed.expenses) setLocalItem(KEYS.EXPENSES, parsed.expenses);
+      if (parsed.messages) setLocalItem(KEYS.MESSAGES, parsed.messages);
       return true;
     } catch (e) {
       console.error('Failed to import backup data:', e);
