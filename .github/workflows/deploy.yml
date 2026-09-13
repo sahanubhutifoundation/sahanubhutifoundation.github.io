@@ -29,14 +29,14 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+        # এখানে npm ci বদলে npm install --legacy-peer-deps দেওয়া হয়েছে যাতে লক ফাইলের গরমিল এড়িয়ে প্যাকেজ ইনস্টল হতে পারে
+        run: npm install --legacy-peer-deps
 
       - name: Build application
+        # সুপাবেস কানেক্ট করার জন্য গিটহাব সিক্রেটস থেকে এনভায়রনমেন্ট ভ্যারিয়েবল এখানে পাস করা হয়েছে
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
       - name: Upload Pages artifact
