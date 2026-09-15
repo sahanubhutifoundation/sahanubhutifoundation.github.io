@@ -20,9 +20,12 @@ import {
   Clock,
   Sparkles,
   Layers,
+  Code,
+  Terminal,
 } from 'lucide-react';
 import { supabaseService } from '../../services/supabaseService';
 import { storageService } from '../../services/storageService';
+import { SUPABASE_SCHEMA_SQL } from '../../data/supabaseSchemaSql';
 
 interface CloudSyncCardProps {
   onRefreshLocalState: () => void;
@@ -151,12 +154,11 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
     }
   };
 
-  const copySqlSchemaPath = () => {
-    const text = `supabase_schema.sql`;
-    navigator.clipboard?.writeText(text);
+  const copySqlSchemaCode = () => {
+    navigator.clipboard?.writeText(SUPABASE_SCHEMA_SQL);
     setCopiedSql(true);
-    setTimeout(() => setCopiedSql(false), 2500);
-    onShowToast('SQL স্কিমা ফাইলের নাম কপি হয়েছে: supabase_schema.sql');
+    setTimeout(() => setCopiedSql(false), 3000);
+    onShowToast('সম্পূর্ণ SQL কোড ক্লিপবোর্ডে কপি হয়েছে! Supabase SQL Editor-এ পেস্ট করে রান করুন।');
   };
 
   const handleExportBackupJson = () => {
@@ -202,19 +204,36 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
                 <span className="text-sm font-bold text-[#2D3630]">ক্লাউড ব্যাকএন্ড স্ট্যাটাস:</span>
                 <span
                   className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                    isConnected
+                    isCheckingStatus
+                      ? 'bg-amber-50 text-amber-800 border border-amber-300'
+                      : isConnected
                       ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                       : isCloudConfigured
                       ? 'bg-amber-100 text-amber-800 border border-amber-300'
                       : 'bg-rose-100 text-rose-800 border border-rose-300'
                   }`}
                 >
-                  <span
-                    className={`w-1.5 h-1.5 rounded-full ${
-                      isConnected ? 'bg-emerald-600 animate-pulse' : 'bg-amber-600'
-                    }`}
-                  />
-                  {isConnected ? 'Cloud Connected' : isCloudConfigured ? 'Cloud Connection Problem' : 'Cloud Not Configured'}
+                  {isCheckingStatus ? (
+                    <>
+                      <RefreshCw className="w-3 h-3 animate-spin text-amber-700" />
+                      <span>Checking...</span>
+                    </>
+                  ) : isConnected ? (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                      <span>Cloud Connected</span>
+                    </>
+                  ) : isCloudConfigured ? (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
+                      <span>Cloud Connection Problem</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+                      <span>Cloud Not Configured</span>
+                    </>
+                  )}
                 </span>
               </div>
 
@@ -335,24 +354,59 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
 
             {/* If tables are missing, show quick schema copy guide */}
             {cloudStatus && !cloudStatus.allTablesExist && (
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold">ডাটাবেজে প্রয়োজনীয় টেবিল পাওয়া যায়নি:</span>
-                    <p className="text-[11px] text-amber-800 mt-0.5">
-                      Supabase SQL Editor এ রুট ফোল্ডারের <code className="font-mono bg-amber-100 px-1 rounded">supabase_schema.sql</code> কোড রান করুন।
-                    </p>
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-xs text-amber-950">
+                        ক্লাউড ডাটাবেজে প্রয়োজনীয় টেবিল পাওয়া যায়নি:
+                      </span>
+                      <p className="text-[11px] text-amber-800 mt-0.5">
+                        প্রদত্ত Supabase প্রোজেক্টের SQL Editor-এ গিয়ে সম্পূর্ণ স্কিমা কোডটি রান করুন।
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowSqlGuide(!showSqlGuide)}
+                      className="px-2.5 py-1 rounded-lg border border-amber-300 bg-amber-100/60 hover:bg-amber-100 text-amber-900 font-medium text-[11px] transition-colors flex items-center gap-1"
+                    >
+                      <Code className="w-3 h-3" />
+                      <span>{showSqlGuide ? 'SQL লুকান' : 'SQL কোড দেখুন'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={copySqlSchemaCode}
+                      className="px-3 py-1 rounded-lg bg-amber-600 text-white font-semibold text-[11px] hover:bg-amber-700 transition-colors shrink-0 flex items-center gap-1.5 shadow-2xs"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>{copiedSql ? '✓ সম্পূর্ণ SQL কপি হয়েছে!' : 'সম্পূর্ণ SQL কোড কপি'}</span>
+                    </button>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={copySqlSchemaPath}
-                  className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-semibold text-[11px] hover:bg-amber-700 transition-colors shrink-0 flex items-center gap-1"
-                >
-                  <Copy className="w-3 h-3" />
-                  <span>{copiedSql ? 'পাথ কপি হয়েছে!' : 'ফাইলের নাম কপি'}</span>
-                </button>
+
+                {showSqlGuide && (
+                  <div className="mt-2 pt-2 border-t border-amber-200/80 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-mono text-amber-900">
+                      <span className="flex items-center gap-1 font-bold">
+                        <Terminal className="w-3.5 h-3.5 text-amber-700" />
+                        supabase_schema.sql (13 Tables + Storage + RLS)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={copySqlSchemaCode}
+                        className="text-amber-800 hover:text-amber-950 underline font-sans"
+                      >
+                        কপি করুন
+                      </button>
+                    </div>
+                    <pre className="p-3 bg-stone-900 text-stone-100 rounded-lg text-[10px] font-mono max-h-52 overflow-y-auto whitespace-pre leading-relaxed select-all">
+                      {SUPABASE_SCHEMA_SQL}
+                    </pre>
+                  </div>
+                )}
               </div>
             )}
           </div>

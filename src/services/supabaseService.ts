@@ -720,6 +720,18 @@ export const supabaseService = {
     }
   },
 
+  async deleteSocialLink(id: string): Promise<boolean> {
+    const supabase = getSupabase();
+    if (!supabase) return false;
+
+    try {
+      const { error } = await supabase.from('social_links').delete().eq('id', id);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
   // --------------------------------------------------------------------------
   // 10. MEDIA STORAGE UPLOAD & MANAGEMENT
   // --------------------------------------------------------------------------
@@ -870,14 +882,18 @@ export const supabaseService = {
     try {
       const tableNames = [
         'site_settings',
-        'members',
+        'content',
         'designations',
+        'members',
         'activities',
         'notices',
         'gallery_items',
+        'gallery_categories',
         'expenses',
         'contact_messages',
         'social_links',
+        'fund_settings',
+        'admin_profiles',
       ];
 
       const tablesStatus: Record<string, boolean> = {};

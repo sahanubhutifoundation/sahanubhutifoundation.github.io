@@ -1,8 +1,32 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Environment variables for Supabase
-const rawSupabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() || '';
+/**
+ * Strips outer quotes and whitespace from environment variable strings
+ */
+function cleanEnvString(val: unknown): string {
+  if (typeof val !== 'string') return '';
+  let cleaned = val.trim();
+  if (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith("'") && cleaned.endsWith("'"))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  return cleaned;
+}
+
+// Environment variables for Supabase - supports standard anon key and newer publishable key naming
+const rawSupabaseUrl = cleanEnvString(
+  import.meta.env.VITE_SUPABASE_URL ||
+  (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL : '')
+);
+
+const supabaseAnonKey = cleanEnvString(
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_SUPABASE_KEY ||
+  (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_ANON_KEY || process.env?.VITE_SUPABASE_PUBLISHABLE_KEY || process.env?.VITE_SUPABASE_KEY) : '')
+);
 
 /**
  * Normalizes Supabase URL by removing any trailing /rest/v1 or trailing slashes,
@@ -10,7 +34,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() || '';
  */
 function normalizeSupabaseUrl(url: string): string {
   if (!url) return '';
-  let cleaned = url.trim();
+  let cleaned = cleanEnvString(url);
   // Strip trailing slashes
   cleaned = cleaned.replace(/\/+$/, '');
   // Strip /rest/v1 or /rest/v1/
