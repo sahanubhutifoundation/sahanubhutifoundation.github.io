@@ -65,19 +65,22 @@ export const supabaseService = {
     try {
       const { error } = await supabase
         .from('site_settings')
-        .upsert({
-          id: 'foundation_primary_config',
-          config,
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(
+          {
+            id: 'foundation_primary_config',
+            config,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        );
 
       if (error) {
-        console.warn('Supabase saveConfig error:', error.message);
+        console.error('Supabase saveConfig error:', error.message, error.details, error.hint);
         return false;
       }
       return true;
     } catch (e) {
-      console.warn('Supabase saveConfig exception:', e);
+      console.error('Supabase saveConfig exception:', e);
       return false;
     }
   },

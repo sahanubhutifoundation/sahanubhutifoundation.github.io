@@ -26,6 +26,7 @@ interface MediaUploadFieldProps {
   shape?: 'circle' | 'rounded' | 'square';
   previewAspect?: 'square' | 'video' | 'wide' | 'auto';
   objectPosition?: string;
+  bucket?: 'branding' | 'members' | 'gallery' | 'activities' | 'notices' | 'receipts' | string;
 }
 
 export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
@@ -43,6 +44,7 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
   shape = 'rounded',
   previewAspect = isVideo ? 'video' : 'auto',
   objectPosition = 'center',
+  bucket = 'gallery',
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -58,7 +60,12 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
     setIsUploading(true);
 
     try {
-      const res = await mediaService.uploadFile(file, { isVideo, maxSizeBytes });
+      const res = await mediaService.uploadFile(file, {
+        isVideo,
+        maxSizeBytes,
+        bucket,
+        previousUrl: value,
+      });
       if (res.success && res.url) {
         setFileName(file.name);
         onChange(res.url);
@@ -76,6 +83,9 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
   };
 
   const handleConfirmRemove = () => {
+    if (value) {
+      mediaService.deleteMedia(value, bucket).catch(console.warn);
+    }
     onChange('');
     setFileName(null);
     setErrorMsg(null);

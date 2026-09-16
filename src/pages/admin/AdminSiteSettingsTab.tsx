@@ -557,6 +557,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 value={formData.logoUrl || ''}
                 onChange={(url) => setFormData({ ...formData, logoUrl: url })}
                 helperText="ফাউন্ডেশনের অফিসিয়াল হ্যান্ডশেক লোগো (স্বচ্ছ SVG অথবা PNG রিকমেন্ডেড)"
+                bucket="branding"
               />
             </div>
           </div>
@@ -925,6 +926,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 value={formData.logoUrl || ''}
                 onChange={(url) => setFormData({ ...formData, logoUrl: url })}
                 helperText="ফাউন্ডেশনের অফিসিয়াল হ্যান্ডশেক লোগো (স্বচ্ছ SVG অথবা PNG রিকমেন্ডেড)"
+                bucket="branding"
               />
             </div>
 
@@ -934,6 +936,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 value={formData.logoOverrides?.header || ''}
                 onChange={(url) => updateLogoOverride('header', url)}
                 helperText="খালি রাখলে মূল ডিফল্ট লোগো প্রদর্শিত হবে"
+                bucket="branding"
               />
             </div>
 
@@ -943,6 +946,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 value={formData.logoOverrides?.hero || ''}
                 onChange={(url) => updateLogoOverride('hero', url)}
                 helperText="হোমপেজের মূল ব্যানারে বড় আকারে প্রদর্শিত লোগো"
+                bucket="branding"
               />
             </div>
 
@@ -952,6 +956,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 value={formData.logoOverrides?.footer || ''}
                 onChange={(url) => updateLogoOverride('footer', url)}
                 helperText="ফুটারের গাঢ় সবুজ ব্যাকগ্রাউন্ডের জন্য উপযুক্ত লোগো"
+                bucket="branding"
               />
             </div>
           </div>
@@ -1197,6 +1202,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
               value={formData.aboutImage || ''}
               onChange={(url) => setFormData({ ...formData, aboutImage: url })}
               helperText="ফাউন্ডেশনের সভা বা মানবিক উদ্যোগের বাস্তব ছবি"
+              bucket="activities"
             />
           </div>
 

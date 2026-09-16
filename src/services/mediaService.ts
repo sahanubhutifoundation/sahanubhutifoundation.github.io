@@ -1,7 +1,9 @@
+import { supabaseService } from './supabaseService';
+
 /**
  * Persistent Media Storage Service for Sahanubhuti Foundation
  * Handles client-side file upload, image compression, format validation,
- * persistent Data-URL generation, and IndexedDB storage.
+ * persistent Data-URL generation, IndexedDB storage, and Supabase Storage.
  */
 
 const DB_NAME = 'sf_foundation_media_db';
@@ -44,7 +46,15 @@ export const mediaService = {
   /**
    * Validate and upload file persistently
    */
-  async uploadFile(file: File, options?: { maxSizeBytes?: number; isVideo?: boolean }): Promise<UploadResult> {
+  async uploadFile(
+    file: File,
+    options?: {
+      maxSizeBytes?: number;
+      isVideo?: boolean;
+      bucket?: 'branding' | 'members' | 'gallery' | 'activities' | 'notices' | 'receipts' | string;
+      previousUrl?: string;
+    }
+  ): Promise<UploadResult> {
     try {
       if (!file) {
         return { success: false, error: 'কোনো ফাইল নির্বাচন করা হয়নি।' };
@@ -90,7 +100,7 @@ export const mediaService = {
 
       const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
-      // Save to IndexedDB for longevity
+      // Save to IndexedDB for local longevity/offline resilience
       try {
         const db = await openMediaDB();
         const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -108,9 +118,31 @@ export const mediaService = {
         console.warn('IndexedDB persistence notice (data URL still active):', dbErr);
       }
 
+      // Upload to central cloud storage bucket if available
+      let returnUrl = dataUrl;
+      if (supabaseService.isAvailable()) {
+        try {
+          const targetBucket = options?.bucket || (isVideo ? 'gallery' : 'gallery');
+          const cloudUrl = await supabaseService.uploadMedia(file, targetBucket);
+          if (cloudUrl) {
+            returnUrl = cloudUrl;
+            // Clean up old replaced media file to prevent orphaned storage objects
+            if (
+              options?.previousUrl &&
+              !options.previousUrl.startsWith('/assets/') &&
+              options.previousUrl.includes('/storage/v1/object/public/')
+            ) {
+              supabaseService.deleteMedia(options.previousUrl).catch(console.warn);
+            }
+          }
+        } catch (storageErr) {
+          console.warn('Cloud storage upload fallback to local cache:', storageErr);
+        }
+      }
+
       return {
         success: true,
-        url: dataUrl,
+        url: returnUrl,
         id: mediaId,
         fileName: file.name,
         fileSize: file.size,
@@ -182,13 +214,25 @@ export const mediaService = {
   },
 
   /**
-   * Cleanup media from IndexedDB if needed
+   * Cleanup media from cloud storage and IndexedDB if needed.
+   * Protects official assets and logo from deletion.
    */
-  async deleteMedia(id: string): Promise<void> {
+  async deleteMedia(urlOrId: string, bucketName: string = 'gallery'): Promise<void> {
+    if (!urlOrId) return;
+    if (urlOrId.startsWith('/assets/')) return; // Never delete official assets
+
+    if (supabaseService.isAvailable() && urlOrId.includes('/storage/v1/object/public/')) {
+      try {
+        await supabaseService.deleteMedia(urlOrId, bucketName);
+      } catch (err) {
+        console.warn('Could not delete media from cloud storage:', err);
+      }
+    }
+
     try {
       const db = await openMediaDB();
       const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).delete(id);
+      tx.objectStore(STORE_NAME).delete(urlOrId);
     } catch (e) {
       console.warn('Could not delete media from IndexedDB:', e);
     }

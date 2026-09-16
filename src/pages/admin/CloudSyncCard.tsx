@@ -103,7 +103,7 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
 
   const handleSyncFromCloud = async () => {
     if (!supabaseService.isAvailable()) {
-      onShowToast('Supabase ক্রেডেনশিয়াল কনফিগার করা নেই।');
+      onShowToast('ডাটাবেজ সংযোগ কনফিগার করা নেই।');
       return;
     }
 
@@ -128,7 +128,7 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
 
   const handleMigrateToCloud = async () => {
     if (!supabaseService.isAvailable()) {
-      onShowToast('মাইগ্রেশনের পূর্বে .env ফাইলে Supabase ক্রেডেনশিয়াল যুক্ত করুন।');
+      onShowToast('মাইগ্রেশনের পূর্বে ডাটাবেজ ক্রেডেনশিয়াল যুক্ত করুন।');
       return;
     }
 
@@ -141,7 +141,7 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
         onRefreshLocalState();
         runHealthCheck();
         setLocalCounts(supabaseService.getLocalDataCounts());
-        onShowToast('লোকাল ডাটা সফলভাবে Supabase ক্লাউডে মাইগ্রেট ও ভেরিফাই হয়েছে!');
+        onShowToast('লোকাল ডাটা সফলভাবে ক্লাউডে মাইগ্রেট ও ভেরিফাই হয়েছে!');
       } else {
         onShowToast('মাইগ্রেশনের সময় কিছু ত্রুটি ঘটেছে। বিস্তারিত দেখুন।');
       }
@@ -158,7 +158,7 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
     navigator.clipboard?.writeText(SUPABASE_SCHEMA_SQL);
     setCopiedSql(true);
     setTimeout(() => setCopiedSql(false), 3000);
-    onShowToast('সম্পূর্ণ SQL কোড ক্লিপবোর্ডে কপি হয়েছে! Supabase SQL Editor-এ পেস্ট করে রান করুন।');
+    onShowToast('সম্পূর্ণ SQL কোড ক্লিপবোর্ডে কপি হয়েছে! ডাটাবেজ SQL Editor-এ পেস্ট করে রান করুন।');
   };
 
   const handleExportBackupJson = () => {
@@ -201,7 +201,7 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
 
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-bold text-[#2D3630]">ক্লাউড ব্যাকএন্ড স্ট্যাটাস:</span>
+                <span className="text-sm font-bold text-[#2D3630]">System Status:</span>
                 <span
                   className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${
                     isCheckingStatus
@@ -221,17 +221,17 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
                   ) : isConnected ? (
                     <>
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                      <span>Cloud Connected</span>
+                      <span>Connected</span>
                     </>
                   ) : isCloudConfigured ? (
                     <>
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
-                      <span>Cloud Connection Problem</span>
+                      <span>Connection Issue</span>
                     </>
                   ) : (
                     <>
                       <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
-                      <span>Cloud Not Configured</span>
+                      <span>Offline</span>
                     </>
                   )}
                 </span>
@@ -241,9 +241,9 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
                 <span className="flex items-center gap-1">
                   <Server className="w-3.5 h-3.5 text-[#2D5A41]" />
                   <span>
-                    ব্যাকএন্ড:{' '}
+                    Data Connection:{' '}
                     <strong className="text-[#2D3630]">
-                      {isCloudConfigured ? 'Supabase REST & Realtime' : 'Local Storage Cache'}
+                      {isCloudConfigured ? 'সেন্ট্রাল ডাটাবেজ (Live Sync)' : 'লোকাল ক্যাশ'}
                     </strong>
                   </span>
                 </span>
@@ -363,7 +363,7 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
                         ক্লাউড ডাটাবেজে প্রয়োজনীয় টেবিল পাওয়া যায়নি:
                       </span>
                       <p className="text-[11px] text-amber-800 mt-0.5">
-                        প্রদত্ত Supabase প্রোজেক্টের SQL Editor-এ গিয়ে সম্পূর্ণ স্কিমা কোডটি রান করুন।
+                        ডাটাবেজ কনসোল SQL Editor-এ গিয়ে সম্পূর্ণ স্কিমা কোডটি রান করুন।
                       </p>
                     </div>
                   </div>
@@ -392,7 +392,7 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
                     <div className="flex items-center justify-between text-[11px] font-mono text-amber-900">
                       <span className="flex items-center gap-1 font-bold">
                         <Terminal className="w-3.5 h-3.5 text-amber-700" />
-                        supabase_schema.sql (13 Tables + Storage + RLS)
+                        database_schema.sql (13 Tables + Storage + RLS)
                       </span>
                       <button
                         type="button"
@@ -447,7 +447,7 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
               onClick={handleMigrateToCloud}
               disabled={isMigrating || !isCloudConfigured}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-bold shadow-2xs transition-colors disabled:opacity-50"
-              title="লোকাল ডাটা Supabase ক্লাউডে মাইগ্রেট করুন"
+              title="লোকাল ডাটা ক্লাউড ডাটাবেজে মাইগ্রেট করুন"
             >
               <UploadCloud className={`w-3.5 h-3.5 ${isMigrating ? 'animate-bounce' : ''}`} />
               <span>{isMigrating ? 'মাইগ্রেশন চলছে...' : 'Migrate to Cloud'}</span>
@@ -548,7 +548,7 @@ export const CloudSyncCard: React.FC<CloudSyncCardProps> = ({
             {migrationResult.verifiedCounts && Object.keys(migrationResult.verifiedCounts).length > 0 && (
               <div className="pt-2 border-t border-emerald-300/60">
                 <span className="text-[11px] font-semibold text-emerald-800 block mb-1">
-                  Supabase ক্লাউডে সরাসরি ভেরিফাইড মোট সংখ্যা:
+                  ক্লাউড ডাটাবেজে সরাসরি ভেরিফাইড মোট রেকর্ড সংখ্যা:
                 </span>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono text-[11px] text-emerald-900">
                   <div>সদস্য: {migrationResult.verifiedCounts.members ?? '-'}</div>

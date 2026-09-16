@@ -440,6 +440,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
               value={editingExpense.receiptUrl || ''}
               onChange={(url) => setEditingExpense({ ...editingExpense, receiptUrl: url })}
               helperText="জরুরি ক্রয় রসিদ, প্রেসক্রিপশন বা মেমো ছবি (JPG, PNG - সর্বোচ্চ ১০ MB)"
+              bucket="receipts"
             />
 
             <div>

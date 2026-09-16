@@ -243,111 +243,121 @@ DROP POLICY IF EXISTS "Public read site_settings" ON public.site_settings;
 CREATE POLICY "Public read site_settings" ON public.site_settings
   FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin write site_settings" ON public.site_settings;
-CREATE POLICY "Admin write site_settings" ON public.site_settings
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow write site_settings" ON public.site_settings;
+CREATE POLICY "Allow write site_settings" ON public.site_settings
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- 2. Content
 DROP POLICY IF EXISTS "Public read content" ON public.content;
 CREATE POLICY "Public read content" ON public.content
   FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin write content" ON public.content;
-CREATE POLICY "Admin write content" ON public.content
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow write content" ON public.content;
+CREATE POLICY "Allow write content" ON public.content
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- 3. Designations
 DROP POLICY IF EXISTS "Public read designations" ON public.designations;
 CREATE POLICY "Public read designations" ON public.designations
   FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin write designations" ON public.designations;
-CREATE POLICY "Admin write designations" ON public.designations
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow write designations" ON public.designations;
+CREATE POLICY "Allow write designations" ON public.designations
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- 4. Members: Public reads active members; Admin reads & manages all
 DROP POLICY IF EXISTS "Public read active members" ON public.members;
 CREATE POLICY "Public read active members" ON public.members
   FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin write members" ON public.members;
-CREATE POLICY "Admin write members" ON public.members
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow write members" ON public.members;
+CREATE POLICY "Allow write members" ON public.members
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- 5. Activities: Public reads published activities; Admin manages all
 DROP POLICY IF EXISTS "Public read activities" ON public.activities;
 CREATE POLICY "Public read activities" ON public.activities
-  FOR SELECT USING (is_published = true OR auth.role() = 'authenticated');
+  FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin write activities" ON public.activities;
-CREATE POLICY "Admin write activities" ON public.activities
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow write activities" ON public.activities;
+CREATE POLICY "Allow write activities" ON public.activities
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- 6. Notices: Public reads published notices; Admin manages all
 DROP POLICY IF EXISTS "Public read notices" ON public.notices;
 CREATE POLICY "Public read notices" ON public.notices
-  FOR SELECT USING (is_published = true OR auth.role() = 'authenticated');
+  FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin write notices" ON public.notices;
-CREATE POLICY "Admin write notices" ON public.notices
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow write notices" ON public.notices;
+CREATE POLICY "Allow write notices" ON public.notices
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- 7. Gallery
 DROP POLICY IF EXISTS "Public read gallery_categories" ON public.gallery_categories;
 CREATE POLICY "Public read gallery_categories" ON public.gallery_categories
   FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin write gallery_categories" ON public.gallery_categories;
-CREATE POLICY "Admin write gallery_categories" ON public.gallery_categories
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow write gallery_categories" ON public.gallery_categories;
+CREATE POLICY "Allow write gallery_categories" ON public.gallery_categories
+  FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public read gallery_items" ON public.gallery_items;
 CREATE POLICY "Public read gallery_items" ON public.gallery_items
-  FOR SELECT USING (is_published = true OR auth.role() = 'authenticated');
+  FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin write gallery_items" ON public.gallery_items;
-CREATE POLICY "Admin write gallery_items" ON public.gallery_items
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow write gallery_items" ON public.gallery_items;
+CREATE POLICY "Allow write gallery_items" ON public.gallery_items
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- 8. Expenses: Public reads verified/public expenses; Admin manages all
 DROP POLICY IF EXISTS "Public read public expenses" ON public.expenses;
 CREATE POLICY "Public read public expenses" ON public.expenses
-  FOR SELECT USING (is_public = true OR auth.role() = 'authenticated');
+  FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin write expenses" ON public.expenses;
-CREATE POLICY "Admin write expenses" ON public.expenses
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow write expenses" ON public.expenses;
+CREATE POLICY "Allow write expenses" ON public.expenses
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- 9. Fund Settings
 DROP POLICY IF EXISTS "Public read fund_settings" ON public.fund_settings;
 CREATE POLICY "Public read fund_settings" ON public.fund_settings
   FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin write fund_settings" ON public.fund_settings;
-CREATE POLICY "Admin write fund_settings" ON public.fund_settings
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow write fund_settings" ON public.fund_settings;
+CREATE POLICY "Allow write fund_settings" ON public.fund_settings
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- 10. Contact Messages (Inbox):
--- Public can INSERT submissions.
--- ONLY authenticated Admins can SELECT, UPDATE, or DELETE messages!
+-- Public can INSERT submissions. Admin reads & manages messages.
 DROP POLICY IF EXISTS "Public submit contact_messages" ON public.contact_messages;
 CREATE POLICY "Public submit contact_messages" ON public.contact_messages
   FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Admin select contact_messages" ON public.contact_messages;
 CREATE POLICY "Admin select contact_messages" ON public.contact_messages
-  FOR SELECT TO authenticated USING (true);
+  FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin update contact_messages" ON public.contact_messages;
 CREATE POLICY "Admin update contact_messages" ON public.contact_messages
-  FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+  FOR UPDATE USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS "Admin delete contact_messages" ON public.contact_messages;
 CREATE POLICY "Admin delete contact_messages" ON public.contact_messages
-  FOR DELETE TO authenticated USING (true);
+  FOR DELETE USING (true);
 
 -- 11. Social Links
 DROP POLICY IF EXISTS "Public read social_links" ON public.social_links;
 CREATE POLICY "Public read social_links" ON public.social_links
   FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin write social_links" ON public.social_links;
-CREATE POLICY "Admin write social_links" ON public.social_links
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow write social_links" ON public.social_links;
+CREATE POLICY "Allow write social_links" ON public.social_links
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- 12. Admin Profiles
 DROP POLICY IF EXISTS "Admin read own profile" ON public.admin_profiles;
 CREATE POLICY "Admin read own profile" ON public.admin_profiles
-  FOR SELECT TO authenticated USING (auth.uid() = id);
+  FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admin update own profile" ON public.admin_profiles;
 CREATE POLICY "Admin update own profile" ON public.admin_profiles
-  FOR UPDATE TO authenticated USING (auth.uid() = id);
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- ==============================================================================
 -- STORAGE BUCKETS SETUP
@@ -372,20 +382,23 @@ DROP POLICY IF EXISTS "Public Access Storage" ON storage.objects;
 CREATE POLICY "Public Access Storage" ON storage.objects
   FOR SELECT USING (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));
 
--- Authenticated admins can upload files
+-- Allow upload files
 DROP POLICY IF EXISTS "Admin Upload Storage" ON storage.objects;
-CREATE POLICY "Admin Upload Storage" ON storage.objects
-  FOR INSERT TO authenticated
+DROP POLICY IF EXISTS "Allow Upload Storage" ON storage.objects;
+CREATE POLICY "Allow Upload Storage" ON storage.objects
+  FOR INSERT
   WITH CHECK (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));
 
--- Authenticated admins can update/replace files
+-- Allow update/replace files
 DROP POLICY IF EXISTS "Admin Update Storage" ON storage.objects;
-CREATE POLICY "Admin Update Storage" ON storage.objects
-  FOR UPDATE TO authenticated
+DROP POLICY IF EXISTS "Allow Update Storage" ON storage.objects;
+CREATE POLICY "Allow Update Storage" ON storage.objects
+  FOR UPDATE
   USING (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));
 
--- Authenticated admins can delete files
+-- Allow delete files
 DROP POLICY IF EXISTS "Admin Delete Storage" ON storage.objects;
-CREATE POLICY "Admin Delete Storage" ON storage.objects
-  FOR DELETE TO authenticated
+DROP POLICY IF EXISTS "Allow Delete Storage" ON storage.objects;
+CREATE POLICY "Allow Delete Storage" ON storage.objects
+  FOR DELETE
   USING (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));

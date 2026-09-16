@@ -62,6 +62,8 @@ import {
   PhoneCall,
   Languages,
   LayoutDashboard,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 
 export const AdminPage: React.FC = () => {
@@ -148,12 +150,43 @@ export const AdminPage: React.FC = () => {
     setTimeout(() => setToastMsg(null), 3500);
   };
 
+  // Small, unobtrusive operation status indicator (Requirement 10)
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'checking' | 'saving' | 'success' | 'error'>('idle');
+  const [syncStatusText, setSyncStatusText] = useState<string>('');
+
+  const triggerSyncStatus = (status: 'idle' | 'checking' | 'saving' | 'success' | 'error', text?: string) => {
+    setSyncStatus(status);
+    if (text) setSyncStatusText(text);
+    if (status === 'success') {
+      setTimeout(() => setSyncStatus('idle'), 2500);
+    } else if (status === 'error') {
+      setTimeout(() => setSyncStatus('idle'), 4000);
+    }
+  };
+
   useEffect(() => {
     const authed = authService.isAuthenticated();
     setIsAuthenticated(authed);
     if (authed) {
       loadAllData();
     }
+
+    // Auto-refresh when cloud changes are pushed or synced
+    const handleExternalUpdate = () => {
+      if (authService.isAuthenticated()) {
+        loadAllData();
+      }
+    };
+
+    window.addEventListener('sf_cloud_synced', handleExternalUpdate);
+    window.addEventListener('sf_data_updated', handleExternalUpdate);
+    window.addEventListener('sf_config_updated', handleExternalUpdate);
+
+    return () => {
+      window.removeEventListener('sf_cloud_synced', handleExternalUpdate);
+      window.removeEventListener('sf_data_updated', handleExternalUpdate);
+      window.removeEventListener('sf_config_updated', handleExternalUpdate);
+    };
   }, []);
 
   // Scroll to top on navigation/section switch
@@ -211,6 +244,7 @@ export const AdminPage: React.FC = () => {
     e.preventDefault();
     if (!editingMember || !editingMember.name) return;
 
+    triggerSyncStatus('saving', 'সদস্য সংরক্ষণ হচ্ছে...');
     const newMember: Member = {
       id: editingMember.id || `mem-${Date.now()}`,
       serial: Number(editingMember.serial) || members.length + 1,
@@ -233,13 +267,16 @@ export const AdminPage: React.FC = () => {
     const updated = storageService.saveMember(newMember);
     setMembers(updated);
     setEditingMember(null);
+    triggerSyncStatus('success', 'সদস্য সংরক্ষিত');
     showToast('সদস্য তথ্য সফলভাবে সংরক্ষিত হয়েছে!');
   };
 
   const handleDeleteMember = (id: string) => {
     requestConfirm('সদস্য মুছে ফেলুন', 'আপনি কি নিশ্চিতভাবে এই সদস্যকে তালিকা থেকে মুছে ফেলতে চান?', () => {
+      triggerSyncStatus('saving', 'সদস্য মুছে ফেলা হচ্ছে...');
       const updated = storageService.deleteMember(id);
       setMembers(updated);
+      triggerSyncStatus('success', 'সদস্য মুছে ফেলা হয়েছে');
       showToast('সদস্য মুছে ফেলা হয়েছে।');
     });
   };
@@ -249,6 +286,7 @@ export const AdminPage: React.FC = () => {
     e.preventDefault();
     if (!editingActivity || !editingActivity.title) return;
 
+    triggerSyncStatus('saving', 'কার্যক্রম সংরক্ষণ হচ্ছে...');
     const titleStr = typeof editingActivity.title === 'string' ? editingActivity.title : editingActivity.title.bn || '';
     const newAct: Activity = {
       id: editingActivity.id || `act-${Date.now()}`,
@@ -266,13 +304,16 @@ export const AdminPage: React.FC = () => {
     const updated = storageService.saveActivity(newAct);
     setActivities(updated);
     setEditingActivity(null);
+    triggerSyncStatus('success', 'কার্যক্রম সংরক্ষিত');
     showToast('কার্যক্রম সংরক্ষিত হয়েছে!');
   };
 
   const handleDeleteActivity = (id: string) => {
     requestConfirm('কার্যক্রম মুছে ফেলুন', 'আপনি কি এই কার্যক্রম মুছে ফেলতে চান?', () => {
+      triggerSyncStatus('saving', 'কার্যক্রম মুছে ফেলা হচ্ছে...');
       const updated = storageService.deleteActivity(id);
       setActivities(updated);
+      triggerSyncStatus('success', 'কার্যক্রম মুছে ফেলা হয়েছে');
       showToast('কার্যক্রম মুছে ফেলা হয়েছে।');
     });
   };
@@ -282,6 +323,7 @@ export const AdminPage: React.FC = () => {
     e.preventDefault();
     if (!editingNotice || !editingNotice.title) return;
 
+    triggerSyncStatus('saving', 'নোটিশ সংরক্ষণ হচ্ছে...');
     const titleStr = typeof editingNotice.title === 'string' ? editingNotice.title : editingNotice.title.bn || '';
     const bodyStr = typeof editingNotice.body === 'string' ? editingNotice.body : editingNotice.body.bn || '';
 
@@ -299,13 +341,16 @@ export const AdminPage: React.FC = () => {
     const updated = storageService.saveNotice(newNotice);
     setNotices(updated);
     setEditingNotice(null);
+    triggerSyncStatus('success', 'নোটিশ সংরক্ষিত');
     showToast('নোটিশ সংরক্ষিত হয়েছে!');
   };
 
   const handleDeleteNotice = (id: string) => {
     requestConfirm('নোটিশ মুছে ফেলুন', 'আপনি কি এই নোটিশ মুছে ফেলতে চান?', () => {
+      triggerSyncStatus('saving', 'নোটিশ মুছে ফেলা হচ্ছে...');
       const updated = storageService.deleteNotice(id);
       setNotices(updated);
+      triggerSyncStatus('success', 'নোটিশ মুছে ফেলা হয়েছে');
       showToast('নোটিশ মুছে ফেলা হয়েছে।');
     });
   };
@@ -315,6 +360,7 @@ export const AdminPage: React.FC = () => {
     e.preventDefault();
     if (!editingGallery || !editingGallery.url) return;
 
+    triggerSyncStatus('saving', 'গ্যালারি আইটেম সংরক্ষণ হচ্ছে...');
     const titleStr = typeof editingGallery.title === 'string' ? editingGallery.title : editingGallery.title?.bn || '';
     const newG: GalleryItem = {
       id: editingGallery.id || `gal-${Date.now()}`,
@@ -332,13 +378,16 @@ export const AdminPage: React.FC = () => {
     const updated = storageService.saveGalleryItem(newG);
     setGallery(updated);
     setEditingGallery(null);
+    triggerSyncStatus('success', 'গ্যালারি আইটেম সংরক্ষিত');
     showToast('গ্যালারি আইটেম সংরক্ষিত হয়েছে!');
   };
 
   const handleDeleteGallery = (id: string) => {
     requestConfirm('গ্যালারি আইটেম মুছে ফেলুন', 'আপনি কি এই ছবি/ভিডিও মুছে ফেলতে চান?', () => {
+      triggerSyncStatus('saving', 'মুছে ফেলা হচ্ছে...');
       const updated = storageService.deleteGalleryItem(id);
       setGallery(updated);
+      triggerSyncStatus('success', 'মুছে ফেলা হয়েছে');
       showToast('গ্যালারি আইটেম মুছে ফেলা হয়েছে।');
     });
   };
@@ -577,6 +626,62 @@ export const AdminPage: React.FC = () => {
 
         {/* Main Content Area */}
         <main className="flex-1 min-w-0 w-full space-y-6">
+
+          {/* Unobtrusive Operation & Sync Indicator (Requirement 10) */}
+          <div className="flex items-center justify-between px-3.5 py-2 bg-white rounded-xl border border-[#EBE8E0] shadow-2xs text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-[#5C665F]">সিস্টেম স্ট্যাটাস:</span>
+              {syncStatus === 'checking' && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-800 border border-blue-200">
+                  <RefreshCw className="w-3 h-3 animate-spin text-blue-600" />
+                  <span>{syncStatusText || 'যাচাই করা হচ্ছে...'}</span>
+                </span>
+              )}
+              {syncStatus === 'saving' && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                  <Loader2 className="w-3 h-3 animate-spin text-amber-600" />
+                  <span>{syncStatusText || 'সংরক্ষণ হচ্ছে...'}</span>
+                </span>
+              )}
+              {syncStatus === 'success' && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 animate-in fade-in">
+                  <Check className="w-3 h-3 text-emerald-600" />
+                  <span>{syncStatusText || 'সফলভাবে সংরক্ষিত'}</span>
+                </span>
+              )}
+              {syncStatus === 'error' && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-800 border border-rose-200">
+                  <AlertCircle className="w-3 h-3 text-rose-600" />
+                  <span>{syncStatusText || 'ত্রুটি ঘটেছে'}</span>
+                </span>
+              )}
+              {syncStatus === 'idle' && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#F7F5F0] text-[#5C665F] border border-[#EBE8E0]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                  <span>সক্রিয় ও প্রস্তুত</span>
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                triggerSyncStatus('checking', 'ডাটা সিঙ্ক যাচাই...');
+                const res = await storageService.syncFromCloud();
+                if (res.success) {
+                  loadAllData();
+                  triggerSyncStatus('success', 'সিঙ্ক সম্পন্ন');
+                } else {
+                  triggerSyncStatus('idle');
+                }
+              }}
+              className="inline-flex items-center gap-1 text-[11px] text-[#5C665F] hover:text-[#2D3630] font-medium transition-colors"
+              title="ম্যানুয়াল ডাটা রিফ্রেশ"
+            >
+              <RefreshCw className="w-3 h-3 text-[#2D5A41]" />
+              <span className="hidden sm:inline">রিফ্রেশ</span>
+            </button>
+          </div>
 
       {/* SECTION 1: OVERVIEW STATS & DASHBOARD */}
       {activeSection === 'overview' && (
@@ -1182,6 +1287,7 @@ export const AdminPage: React.FC = () => {
                     value={editingMember.photoUrl || ''}
                     onChange={(url) => setEditingMember({ ...editingMember, photoUrl: url })}
                     helperText="সদস্যের পোর্ট্রেট ছবি (JPG, PNG - সর্বোচ্চ ১০ MB)"
+                    bucket="members"
                   />
                 </div>
 
@@ -1409,6 +1515,7 @@ export const AdminPage: React.FC = () => {
                   value={editingActivity.coverImage || ''}
                   onChange={(url) => setEditingActivity({ ...editingActivity, coverImage: url })}
                   helperText="কার্যক্রমের ব্যানার বা ফটো (JPG, PNG - সর্বোচ্চ ১০ MB)"
+                  bucket="activities"
                 />
 
                 <div>
@@ -1580,6 +1687,7 @@ export const AdminPage: React.FC = () => {
                   value={editingNotice.attachmentUrl || ''}
                   onChange={(url) => setEditingNotice({ ...editingNotice, attachmentUrl: url })}
                   helperText="নোটিশের অফিসিয়াল সার্কুলার বা মেমো ছবি (JPG, PNG - সর্বোচ্চ ১০ MB)"
+                  bucket="notices"
                 />
 
                 <div className="flex items-center gap-4">
@@ -1717,6 +1825,7 @@ export const AdminPage: React.FC = () => {
                   onChange={(url) => setEditingGallery({ ...editingGallery, url })}
                   required
                   helperText={editingGallery.type === 'video' ? 'ভিডিও ফাইল (MP4) বা ইউটিউব/ভিডিও ইউআরএল' : 'গ্যালারি ফটো (JPG, PNG - সর্বোচ্চ ১০ MB)'}
+                  bucket="gallery"
                 />
 
                 <div>
