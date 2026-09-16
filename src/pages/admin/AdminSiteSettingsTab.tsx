@@ -18,6 +18,7 @@ import {
   Eye,
   EyeOff,
   User,
+  Loader2,
 } from 'lucide-react';
 import { FoundationConfig, MultilingualText, LogoOverrides, FooterVisibilitySettings } from '../../types';
 import { storageService } from '../../services/storageService';
@@ -95,11 +96,22 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    storageService.saveConfig(formData);
-    onConfigChange(formData);
-    onShowToast('সাইট সেটিংস ও CMS কনফিগারেশন সফলভাবে সংরক্ষিত হয়েছে!');
+    setIsSaving(true);
+    try {
+      const res = await storageService.saveConfigAsync(formData);
+      if (res.success && res.data) {
+        onConfigChange(res.data);
+        onShowToast('সাইট সেটিংস ও CMS কনফিগারেশন সেন্ট্রাল ডাটাবেজে সফলভাবে সংরক্ষিত ও নিশ্চিত হয়েছে!');
+      } else {
+        onShowToast(`সংরক্ষণ ব্যর্থ: ${res.error || 'সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি'}`);
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -1410,10 +1422,11 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
       <div className="sticky bottom-6 z-20 flex justify-end p-4 rounded-2xl bg-white/90 backdrop-blur-md border border-[#EBE8E0] shadow-lg">
         <button
           type="submit"
-          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white font-semibold text-xs shadow-2xs active:scale-98 transition-all"
+          disabled={isSaving}
+          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white font-semibold text-xs shadow-2xs active:scale-98 transition-all disabled:opacity-60"
         >
-          <Save className="w-4 h-4" />
-          <span>সকল সাইট সেটিংস পরিবর্তন সংরক্ষণ করুন</span>
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          <span>{isSaving ? 'সংরক্ষণ ও যাচাই হচ্ছে...' : 'সকল সাইট সেটিংস পরিবর্তন সংরক্ষণ করুন'}</span>
         </button>
       </div>
     </form>

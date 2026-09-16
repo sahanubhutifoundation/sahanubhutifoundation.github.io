@@ -20,7 +20,7 @@ import {
   initialSocialLinks,
   initialExpenses,
 } from '../data/initialData';
-import { supabaseService } from './supabaseService';
+import { supabaseService, OperationResult } from './supabaseService';
 
 const KEYS = {
   CONFIG: 'sf_foundation_config',
@@ -552,6 +552,396 @@ export const storageService = {
     return list;
   },
 
+  // --------------------------------------------------------------------------
+  // ASYNCHRONOUS PRIMARY PRODUCTION BACKEND PERSISTENCE (Requirement 1 & 2)
+  // Direct save -> verify -> local cache update -> dispatch event
+  // --------------------------------------------------------------------------
+
+  async saveConfigAsync(config: FoundationConfig): Promise<OperationResult<FoundationConfig>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.saveConfigDetailed(config);
+      if (res.success && res.data) {
+        setLocalItem(KEYS.CONFIG, res.data);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: res.data }));
+          window.dispatchEvent(new Event('sf_data_updated'));
+        }
+        return res;
+      }
+      return res;
+    }
+
+    setLocalItem(KEYS.CONFIG, config);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: config }));
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: config };
+  },
+
+  async saveMemberAsync(member: Member): Promise<OperationResult<Member[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.saveMemberDetailed(member);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'সদস্য তথ্য সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      // Verified in database, now update local cache
+      const updated = this.saveMember(res.data || member);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: updated };
+    }
+
+    const updated = this.saveMember(member);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async deleteMemberAsync(id: string): Promise<OperationResult<Member[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.deleteMemberDetailed(id);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'সদস্য সেন্ট্রাল ডাটাবেজ থেকে মুছে ফেলা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const updated = this.deleteMember(id);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: updated };
+    }
+
+    const updated = this.deleteMember(id);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async saveDesignationAsync(d: Designation): Promise<OperationResult<Designation[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.saveDesignationDetailed(d);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'পদবী সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const updated = this.saveDesignation(res.data || d);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: updated };
+    }
+
+    const updated = this.saveDesignation(d);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async deleteDesignationAsync(id: string): Promise<OperationResult<Designation[]>> {
+    // Safety validation
+    const members = this.getMembers();
+    const target = this.getDesignations().find((d) => d.id === id);
+    const inUse = members.some(
+      (m) =>
+        m.designationId === id ||
+        (target && m.role && (m.role === target.name.bn || m.role === target.name.en || m.role === target.name.ar))
+    );
+
+    if (inUse) {
+      return {
+        success: false,
+        error: 'এই পদবীটি বর্তমানে এক বা একাধিক সদস্যের প্রোফাইলে ব্যবহৃত হচ্ছে। পদবীটি মুছে ফেলার পূর্বে সংশ্লিষ্ট সদস্যদের পদবী পরিবর্তন করুন।',
+      };
+    }
+
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.deleteDesignationDetailed(id);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'পদবী সেন্ট্রাল ডাটাবেজ থেকে মুছে ফেলা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+    }
+
+    const res = this.deleteDesignation(id);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: res.list };
+  },
+
+  async saveActivityAsync(activity: Activity): Promise<OperationResult<Activity[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.saveActivityDetailed(activity);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'কার্যক্রম সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const updated = this.saveActivity(res.data || activity);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: updated };
+    }
+
+    const updated = this.saveActivity(activity);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async deleteActivityAsync(id: string): Promise<OperationResult<Activity[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.deleteActivityDetailed(id);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'কার্যক্রম সেন্ট্রাল ডাটাবেজ থেকে মুছে ফেলা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const updated = this.deleteActivity(id);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: updated };
+    }
+
+    const updated = this.deleteActivity(id);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async saveNoticeAsync(notice: Notice): Promise<OperationResult<Notice[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.saveNoticeDetailed(notice);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'বিজ্ঞপ্তি সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const updated = this.saveNotice(res.data || notice);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: updated };
+    }
+
+    const updated = this.saveNotice(notice);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async deleteNoticeAsync(id: string): Promise<OperationResult<Notice[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.deleteNoticeDetailed(id);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'বিজ্ঞপ্তি সেন্ট্রাল ডাটাবেজ থেকে মুছে ফেলা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const updated = this.deleteNotice(id);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: updated };
+    }
+
+    const updated = this.deleteNotice(id);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async saveGalleryItemAsync(item: GalleryItem): Promise<OperationResult<GalleryItem[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.saveGalleryItemDetailed(item);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'গ্যালারি আইটেম সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const updated = this.saveGalleryItem(res.data || item);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: updated };
+    }
+
+    const updated = this.saveGalleryItem(item);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async deleteGalleryItemAsync(id: string): Promise<OperationResult<GalleryItem[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.deleteGalleryItemDetailed(id);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'গ্যালারি আইটেম সেন্ট্রাল ডাটাবেজ থেকে মুছে ফেলা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const updated = this.deleteGalleryItem(id);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: updated };
+    }
+
+    const updated = this.deleteGalleryItem(id);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async saveExpenseAsync(expense: ExpenseRecord): Promise<OperationResult<ExpenseRecord[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.saveExpenseDetailed(expense);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'ব্যয় হিসাব সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const updated = this.saveExpense(res.data || expense);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: updated };
+    }
+
+    const updated = this.saveExpense(expense);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async deleteExpenseAsync(id: string): Promise<OperationResult<ExpenseRecord[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.deleteExpenseDetailed(id);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'ব্যয় হিসাব সেন্ট্রাল ডাটাবেজ থেকে মুছে ফেলা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const updated = this.deleteExpense(id);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: updated };
+    }
+
+    const updated = this.deleteExpense(id);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async saveSocialLinksAsync(links: SocialLink[]): Promise<OperationResult<SocialLink[]>> {
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.saveSocialLinksDetailed(links);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'সোশ্যাল লিংক সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      this.saveSocialLinks(res.data || links);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sf_data_updated'));
+      }
+      return { success: true, data: res.data || links };
+    }
+
+    this.saveSocialLinks(links);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+    }
+    return { success: true, data: links };
+  },
+
+  // Bulk Local Setters for Restore Operations
+  setDesignations(list: Designation[]): void {
+    setLocalItem(KEYS.DESIGNATIONS, list);
+  },
+  setMembers(list: Member[]): void {
+    setLocalItem(KEYS.MEMBERS, list);
+  },
+  setActivities(list: Activity[]): void {
+    setLocalItem(KEYS.ACTIVITIES, list);
+  },
+  setNotices(list: Notice[]): void {
+    setLocalItem(KEYS.NOTICES, list);
+  },
+  setGalleryItems(list: GalleryItem[]): void {
+    setLocalItem(KEYS.GALLERY, list);
+  },
+  setExpenses(list: ExpenseRecord[]): void {
+    setLocalItem(KEYS.EXPENSES, list);
+  },
+  setContactMessages(list: ContactMessage[]): void {
+    setLocalItem(KEYS.MESSAGES, list);
+  },
+  setSocialLinks(list: SocialLink[]): void {
+    setLocalItem(KEYS.SOCIAL, list);
+  },
+
   // Cloud Synchronization: Pulls authoritative cloud data into local cache
   async syncFromCloud(): Promise<{ success: boolean; synced: string[] }> {
     if (!supabaseService.isAvailable()) {
@@ -636,17 +1026,81 @@ export const storageService = {
 
   // Backup & Restore
   exportAllData(): string {
+    const rawConfig = this.getConfig();
+    const cleanConfig = { ...rawConfig };
+    // Sanitize any secrets
+    delete (cleanConfig as any).password;
+    delete (cleanConfig as any).adminPassword;
+    delete (cleanConfig as any).salt;
+    delete (cleanConfig as any).hash;
+    delete (cleanConfig as any).token;
+    delete (cleanConfig as any).secret;
+
+    const designations = this.getDesignations();
+    const activities = this.getActivities();
+    const notices = this.getNotices();
+    const members = this.getMembers();
+    const gallery = this.getGalleryItems();
+    const social = this.getSocialLinks();
+    const expenses = this.getExpenses();
+    const messages = this.getContactMessages();
+    const nowIso = new Date().toISOString();
+
+    const counts = {
+      config: cleanConfig ? 1 : 0,
+      designations: designations.length,
+      members: members.length,
+      activities: activities.length,
+      notices: notices.length,
+      gallery: gallery.length,
+      expenses: expenses.length,
+      messages: messages.length,
+      social: social.length,
+      total:
+        (cleanConfig ? 1 : 0) +
+        designations.length +
+        members.length +
+        activities.length +
+        notices.length +
+        gallery.length +
+        expenses.length +
+        messages.length +
+        social.length,
+    };
+
     const data = {
-      config: this.getConfig(),
-      designations: this.getDesignations(),
-      activities: this.getActivities(),
-      notices: this.getNotices(),
-      members: this.getMembers(),
-      gallery: this.getGalleryItems(),
-      social: this.getSocialLinks(),
-      expenses: this.getExpenses(),
-      messages: this.getContactMessages(),
-      exportedAt: new Date().toISOString(),
+      format: 'sahanubhuti_cms_backup',
+      version: '2.0',
+      exportedAt: nowIso,
+      source: 'local_cache',
+      meta: {
+        appName: cleanConfig?.nameBn || 'সহানুভূতি ফাউন্ডেশন',
+        description: 'Sahanubhuti Foundation complete CMS and database structured backup',
+        mediaNote:
+          'স্ট্রাকচার্ড ডাটা ব্যাকআপ: এতে সকল কনফিগারেশন, সদস্য, নোটিশ, হিসাব ও মিডিয়া URL সংরক্ষিত থাকে। মূল বাইনারি ইমেজ ফাইল সেন্ট্রাল স্টোরেজে আলাদা সংরক্ষিত থাকে।',
+        counts,
+      },
+      data: {
+        config: cleanConfig,
+        designations,
+        activities,
+        notices,
+        members,
+        gallery,
+        social,
+        expenses,
+        messages,
+      },
+      // Backward-compatibility flat keys
+      config: cleanConfig,
+      designations,
+      activities,
+      notices,
+      members,
+      gallery,
+      social,
+      expenses,
+      messages,
     };
     return JSON.stringify(data, null, 2);
   },
@@ -654,15 +1108,16 @@ export const storageService = {
   importAllData(jsonString: string): boolean {
     try {
       const parsed = JSON.parse(jsonString);
-      if (parsed.config) setLocalItem(KEYS.CONFIG, parsed.config);
-      if (parsed.designations) setLocalItem(KEYS.DESIGNATIONS, parsed.designations);
-      if (parsed.activities) setLocalItem(KEYS.ACTIVITIES, parsed.activities);
-      if (parsed.notices) setLocalItem(KEYS.NOTICES, parsed.notices);
-      if (parsed.members) setLocalItem(KEYS.MEMBERS, parsed.members);
-      if (parsed.gallery) setLocalItem(KEYS.GALLERY, parsed.gallery);
-      if (parsed.social) setLocalItem(KEYS.SOCIAL, parsed.social);
-      if (parsed.expenses) setLocalItem(KEYS.EXPENSES, parsed.expenses);
-      if (parsed.messages) setLocalItem(KEYS.MESSAGES, parsed.messages);
+      const data = parsed.data || parsed;
+      if (data.config) setLocalItem(KEYS.CONFIG, data.config);
+      if (data.designations) setLocalItem(KEYS.DESIGNATIONS, data.designations);
+      if (data.activities) setLocalItem(KEYS.ACTIVITIES, data.activities);
+      if (data.notices) setLocalItem(KEYS.NOTICES, data.notices);
+      if (data.members) setLocalItem(KEYS.MEMBERS, data.members);
+      if (data.gallery) setLocalItem(KEYS.GALLERY, data.gallery);
+      if (data.social) setLocalItem(KEYS.SOCIAL, data.social);
+      if (data.expenses) setLocalItem(KEYS.EXPENSES, data.expenses);
+      if (data.messages) setLocalItem(KEYS.MESSAGES, data.messages);
       return true;
     } catch (e) {
       console.error('Failed to import backup data:', e);

@@ -11,6 +11,8 @@ import { AdminSiteSettingsTab } from './AdminSiteSettingsTab';
 import { AdminDesignationsManager } from './AdminDesignationsManager';
 import { AdminSidebar, AdminSection } from './AdminSidebar';
 import { CloudSyncCard } from './CloudSyncCard';
+import { backupService } from '../../services/backupService';
+import { BackupRestoreModal } from '../../components/admin/BackupRestoreModal';
 import {
   FoundationConfig,
   Activity,
@@ -139,6 +141,9 @@ export const AdminPage: React.FC = () => {
   const [confirmPass, setConfirmPass] = useState('');
   const [passMsg, setPassMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
+  // Restore Modal State
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+
   // Fund URL input state
   const [fundUrlInput, setFundUrlInput] = useState('');
 
@@ -240,7 +245,7 @@ export const AdminPage: React.FC = () => {
   };
 
   // Member operations
-  const handleSaveMember = (e: React.FormEvent) => {
+  const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMember || !editingMember.name) return;
 
@@ -264,25 +269,35 @@ export const AdminPage: React.FC = () => {
       createdAt: editingMember.createdAt || new Date().toISOString(),
     };
 
-    const updated = storageService.saveMember(newMember);
-    setMembers(updated);
-    setEditingMember(null);
-    triggerSyncStatus('success', 'সদস্য সংরক্ষিত');
-    showToast('সদস্য তথ্য সফলভাবে সংরক্ষিত হয়েছে!');
+    const res = await storageService.saveMemberAsync(newMember);
+    if (res.success && res.data) {
+      setMembers(res.data);
+      setEditingMember(null);
+      triggerSyncStatus('success', 'সদস্য সংরক্ষিত ও ভেরিফাইড');
+      showToast('সদস্য তথ্য সফলভাবে সেন্ট্রাল ডাটাবেজে সংরক্ষিত হয়েছে!');
+    } else {
+      triggerSyncStatus('error', 'সংরক্ষণ ব্যর্থ');
+      showToast(`সংরক্ষণ ব্যর্থ: ${res.error || 'সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি'}`);
+    }
   };
 
   const handleDeleteMember = (id: string) => {
-    requestConfirm('সদস্য মুছে ফেলুন', 'আপনি কি নিশ্চিতভাবে এই সদস্যকে তালিকা থেকে মুছে ফেলতে চান?', () => {
+    requestConfirm('সদস্য মুছে ফেলুন', 'আপনি কি নিশ্চিতভাবে এই সদস্যকে তালিকা থেকে মুছে ফেলতে চান?', async () => {
       triggerSyncStatus('saving', 'সদস্য মুছে ফেলা হচ্ছে...');
-      const updated = storageService.deleteMember(id);
-      setMembers(updated);
-      triggerSyncStatus('success', 'সদস্য মুছে ফেলা হয়েছে');
-      showToast('সদস্য মুছে ফেলা হয়েছে।');
+      const res = await storageService.deleteMemberAsync(id);
+      if (res.success && res.data) {
+        setMembers(res.data);
+        triggerSyncStatus('success', 'সদস্য মুছে ফেলা হয়েছে');
+        showToast('সদস্য সেন্ট্রাল ডাটাবেজ থেকে মুছে ফেলা হয়েছে।');
+      } else {
+        triggerSyncStatus('error', 'মুছে ফেলা ব্যর্থ');
+        showToast(`মুছে ফেলা ব্যর্থ: ${res.error || 'অপ্রত্যাশিত ত্রুটি'}`);
+      }
     });
   };
 
   // Activity operations
-  const handleSaveActivity = (e: React.FormEvent) => {
+  const handleSaveActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingActivity || !editingActivity.title) return;
 
@@ -301,25 +316,35 @@ export const AdminPage: React.FC = () => {
       createdAt: editingActivity.createdAt || new Date().toISOString(),
     };
 
-    const updated = storageService.saveActivity(newAct);
-    setActivities(updated);
-    setEditingActivity(null);
-    triggerSyncStatus('success', 'কার্যক্রম সংরক্ষিত');
-    showToast('কার্যক্রম সংরক্ষিত হয়েছে!');
+    const res = await storageService.saveActivityAsync(newAct);
+    if (res.success && res.data) {
+      setActivities(res.data);
+      setEditingActivity(null);
+      triggerSyncStatus('success', 'কার্যক্রম সংরক্ষিত ও ভেরিফাইড');
+      showToast('কার্যক্রম সফলভাবে সেন্ট্রাল ডাটাবেজে সংরক্ষিত হয়েছে!');
+    } else {
+      triggerSyncStatus('error', 'সংরক্ষণ ব্যর্থ');
+      showToast(`সংরক্ষণ ব্যর্থ: ${res.error || 'সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি'}`);
+    }
   };
 
   const handleDeleteActivity = (id: string) => {
-    requestConfirm('কার্যক্রম মুছে ফেলুন', 'আপনি কি এই কার্যক্রম মুছে ফেলতে চান?', () => {
+    requestConfirm('কার্যক্রম মুছে ফেলুন', 'আপনি কি এই কার্যক্রম মুছে ফেলতে চান?', async () => {
       triggerSyncStatus('saving', 'কার্যক্রম মুছে ফেলা হচ্ছে...');
-      const updated = storageService.deleteActivity(id);
-      setActivities(updated);
-      triggerSyncStatus('success', 'কার্যক্রম মুছে ফেলা হয়েছে');
-      showToast('কার্যক্রম মুছে ফেলা হয়েছে।');
+      const res = await storageService.deleteActivityAsync(id);
+      if (res.success && res.data) {
+        setActivities(res.data);
+        triggerSyncStatus('success', 'কার্যক্রম মুছে ফেলা হয়েছে');
+        showToast('কার্যক্রম মুছে ফেলা হয়েছে।');
+      } else {
+        triggerSyncStatus('error', 'মুছে ফেলা ব্যর্থ');
+        showToast(`মুছে ফেলা ব্যর্থ: ${res.error || 'অপ্রত্যাশিত ত্রুটি'}`);
+      }
     });
   };
 
   // Notice operations
-  const handleSaveNotice = (e: React.FormEvent) => {
+  const handleSaveNotice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingNotice || !editingNotice.title) return;
 
@@ -338,25 +363,35 @@ export const AdminPage: React.FC = () => {
       createdAt: editingNotice.createdAt || new Date().toISOString(),
     };
 
-    const updated = storageService.saveNotice(newNotice);
-    setNotices(updated);
-    setEditingNotice(null);
-    triggerSyncStatus('success', 'নোটিশ সংরক্ষিত');
-    showToast('নোটিশ সংরক্ষিত হয়েছে!');
+    const res = await storageService.saveNoticeAsync(newNotice);
+    if (res.success && res.data) {
+      setNotices(res.data);
+      setEditingNotice(null);
+      triggerSyncStatus('success', 'নোটিশ সংরক্ষিত ও ভেরিফাইড');
+      showToast('বিজ্ঞপ্তি সফলভাবে সেন্ট্রাল ডাটাবেজে সংরক্ষিত হয়েছে!');
+    } else {
+      triggerSyncStatus('error', 'সংরক্ষণ ব্যর্থ');
+      showToast(`সংরক্ষণ ব্যর্থ: ${res.error || 'সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি'}`);
+    }
   };
 
   const handleDeleteNotice = (id: string) => {
-    requestConfirm('নোটিশ মুছে ফেলুন', 'আপনি কি এই নোটিশ মুছে ফেলতে চান?', () => {
+    requestConfirm('নোটিশ মুছে ফেলুন', 'আপনি কি এই নোটিশ মুছে ফেলতে চান?', async () => {
       triggerSyncStatus('saving', 'নোটিশ মুছে ফেলা হচ্ছে...');
-      const updated = storageService.deleteNotice(id);
-      setNotices(updated);
-      triggerSyncStatus('success', 'নোটিশ মুছে ফেলা হয়েছে');
-      showToast('নোটিশ মুছে ফেলা হয়েছে।');
+      const res = await storageService.deleteNoticeAsync(id);
+      if (res.success && res.data) {
+        setNotices(res.data);
+        triggerSyncStatus('success', 'নোটিশ মুছে ফেলা হয়েছে');
+        showToast('বিজ্ঞপ্তি মুছে ফেলা হয়েছে।');
+      } else {
+        triggerSyncStatus('error', 'মুছে ফেলা ব্যর্থ');
+        showToast(`মুছে ফেলা ব্যর্থ: ${res.error || 'অপ্রত্যাশিত ত্রুটি'}`);
+      }
     });
   };
 
   // Gallery operations
-  const handleSaveGallery = (e: React.FormEvent) => {
+  const handleSaveGallery = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingGallery || !editingGallery.url) return;
 
@@ -375,20 +410,30 @@ export const AdminPage: React.FC = () => {
       createdAt: editingGallery.createdAt || new Date().toISOString(),
     };
 
-    const updated = storageService.saveGalleryItem(newG);
-    setGallery(updated);
-    setEditingGallery(null);
-    triggerSyncStatus('success', 'গ্যালারি আইটেম সংরক্ষিত');
-    showToast('গ্যালারি আইটেম সংরক্ষিত হয়েছে!');
+    const res = await storageService.saveGalleryItemAsync(newG);
+    if (res.success && res.data) {
+      setGallery(res.data);
+      setEditingGallery(null);
+      triggerSyncStatus('success', 'গ্যালারি আইটেম সংরক্ষিত ও ভেরিফাইড');
+      showToast('গ্যালারি আইটেম সফলভাবে সেন্ট্রাল ডাটাবেজে সংরক্ষিত হয়েছে!');
+    } else {
+      triggerSyncStatus('error', 'সংরক্ষণ ব্যর্থ');
+      showToast(`সংরক্ষণ ব্যর্থ: ${res.error || 'সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি'}`);
+    }
   };
 
   const handleDeleteGallery = (id: string) => {
-    requestConfirm('গ্যালারি আইটেম মুছে ফেলুন', 'আপনি কি এই ছবি/ভিডিও মুছে ফেলতে চান?', () => {
+    requestConfirm('গ্যালারি আইটেম মুছে ফেলুন', 'আপনি কি এই ছবি/ভিডিও মুছে ফেলতে চান?', async () => {
       triggerSyncStatus('saving', 'মুছে ফেলা হচ্ছে...');
-      const updated = storageService.deleteGalleryItem(id);
-      setGallery(updated);
-      triggerSyncStatus('success', 'মুছে ফেলা হয়েছে');
-      showToast('গ্যালারি আইটেম মুছে ফেলা হয়েছে।');
+      const res = await storageService.deleteGalleryItemAsync(id);
+      if (res.success && res.data) {
+        setGallery(res.data);
+        triggerSyncStatus('success', 'মুছে ফেলা হয়েছে');
+        showToast('গ্যালারি আইটেম মুছে ফেলা হয়েছে।');
+      } else {
+        triggerSyncStatus('error', 'মুছে ফেলা ব্যর্থ');
+        showToast(`মুছে ফেলা ব্যর্থ: ${res.error || 'অপ্রত্যাশিত ত্রুটি'}`);
+      }
     });
   };
 
@@ -411,12 +456,19 @@ export const AdminPage: React.FC = () => {
   };
 
   // Fund connection update
-  const handleSaveFundSource = (e: React.FormEvent) => {
+  const handleSaveFundSource = async (e: React.FormEvent) => {
     e.preventDefault();
+    triggerSyncStatus('saving', 'তহবিল ডাটা সোর্স সংরক্ষণ হচ্ছে...');
     const updatedConfig = { ...config, fundSourceUrl: fundUrlInput.trim() };
-    storageService.saveConfig(updatedConfig);
-    setConfig(updatedConfig);
-    showToast('তহবিল ডাটা সোর্স URL সংরক্ষিত হয়েছে!');
+    const res = await storageService.saveConfigAsync(updatedConfig);
+    if (res.success && res.data) {
+      setConfig(res.data);
+      triggerSyncStatus('success', 'তহবিল সোর্স সংরক্ষিত');
+      showToast('তহবিল ডাটা সোর্স URL সেন্ট্রাল ডাটাবেজে সংরক্ষিত হয়েছে!');
+    } else {
+      triggerSyncStatus('error', 'সংরক্ষণ ব্যর্থ');
+      showToast(`সংরক্ষণ ব্যর্থ: ${res.error || 'সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি'}`);
+    }
   };
 
   const handleTestFundSource = async () => {
@@ -455,15 +507,8 @@ export const AdminPage: React.FC = () => {
 
   // Data backup export
   const handleExportBackup = () => {
-    const jsonStr = storageService.exportAllData();
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sahanubhuti-backup-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('ব্যাকআপ ফাইল সফলভাবে ডাউনলোড হয়েছে!');
+    backupService.exportFullBackup(true);
+    showToast('সম্পূর্ণ ডাটাবেজ ব্যাকআপ ফাইল সফলভাবে ডাউনলোড হয়েছে!');
   };
 
   // Data backup restore
@@ -2604,26 +2649,24 @@ export const AdminPage: React.FC = () => {
 
               <div className="space-y-3 pt-2">
                 <button
+                  id="btn-admin-export-backup"
                   type="button"
                   onClick={handleExportBackup}
                   className="w-full py-2.5 px-4 rounded-xl border border-[#EBE8E0] bg-[#F7F5F0] hover:bg-[#EBE8E0] text-xs font-semibold text-[#2D3630] flex items-center justify-center gap-2 transition-colors"
                 >
-                  <Download className="w-4 h-4 text-[#5C665F]" />
+                  <Download className="w-4 h-4 text-[#2D5A41]" />
                   <span>সম্পূর্ণ ডাটাবেজ ডাউনলোড করুন (.json)</span>
                 </button>
 
-                <div>
-                  <label className="w-full py-2.5 px-4 rounded-xl border-2 border-dashed border-[#EBE8E0] hover:border-[#2D5A41]/40 text-xs font-semibold text-[#5C665F] flex items-center justify-center gap-2 cursor-pointer transition-colors bg-[#FDFCF9]">
-                    <Upload className="w-4 h-4 text-[#7A877E]" />
-                    <span>ব্যাকআপ ফাইল নির্বাচন করে রিস্টোর করুন</span>
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handleImportBackup}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
+                <button
+                  id="btn-admin-open-restore-modal"
+                  type="button"
+                  onClick={() => setIsRestoreModalOpen(true)}
+                  className="w-full py-2.5 px-4 rounded-xl border border-[#2D5A41]/30 bg-[#E8EFEA] hover:bg-[#D5E4D9] text-xs font-bold text-[#2D5A41] flex items-center justify-center gap-2 transition-colors shadow-2xs"
+                >
+                  <Upload className="w-4 h-4 text-[#2D5A41]" />
+                  <span>রিস্টোর ব্যাকআপ (Restore Backup)</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2659,6 +2702,16 @@ export const AdminPage: React.FC = () => {
         confirmText={confirmModal.confirmText}
         onConfirm={confirmModal.onConfirm}
         onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Backup and Restore Modal */}
+      <BackupRestoreModal
+        isOpen={isRestoreModalOpen}
+        onClose={() => setIsRestoreModalOpen(false)}
+        onRestoreComplete={() => {
+          loadAllData();
+          showToast('ব্যাকআপ সফলভাবে রিস্টোর হয়েছে!');
+        }}
       />
     </div>
   );

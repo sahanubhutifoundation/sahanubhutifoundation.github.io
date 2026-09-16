@@ -16,6 +16,7 @@ import {
   Layers,
   AlertCircle,
   HelpCircle,
+  Loader2,
 } from 'lucide-react';
 
 interface AdminDesignationsManagerProps {
@@ -48,13 +49,16 @@ export const AdminDesignationsManager: React.FC<AdminDesignationsManagerProps> =
     isEnabled: true,
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem || !editingItem.name?.bn?.trim()) {
       setErrorMessage('অনুগ্রহ করে অন্তত বাংলা পদবীর নাম প্রদান করুন।');
       return;
     }
 
+    setIsSaving(true);
     const newDesignation: Designation = {
       id: editingItem.id || `des-${Date.now()}`,
       name: {
@@ -73,25 +77,35 @@ export const AdminDesignationsManager: React.FC<AdminDesignationsManagerProps> =
       isPredefined: editingItem.isPredefined || false,
     };
 
-    const updated = storageService.saveDesignation(newDesignation);
-    onDesignationsUpdated(updated);
-    setEditingItem(null);
-    setErrorMessage('');
-    showToast('পদবী সফলভাবে সংরক্ষিত হয়েছে!');
+    try {
+      const res = await storageService.saveDesignationAsync(newDesignation);
+      if (res.success && res.data) {
+        onDesignationsUpdated(res.data);
+        setEditingItem(null);
+        setErrorMessage('');
+        showToast('পদবী সেন্ট্রাল ডাটাবেজে সফলভাবে সংরক্ষিত হয়েছে!');
+      } else {
+        setErrorMessage(res.error || 'পদবী সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা সম্ভব হয়নি।');
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = (id: string, nameBn: string) => {
     requestConfirm(
       'পদবী মুছে ফেলুন',
       `আপনি কি নিশ্চিতভাবে "${nameBn}" পদবীটি মুছে ফেলতে চান?`,
-      () => {
-        const res = storageService.deleteDesignation(id);
+      async () => {
+        const res = await storageService.deleteDesignationAsync(id);
         if (!res.success) {
           alert(res.error || 'এই পদবীটি মোছা যাচ্ছে না।');
           return;
         }
-        onDesignationsUpdated(res.list);
-        showToast('পদবী মুছে ফেলা হয়েছে।');
+        if (res.data) {
+          onDesignationsUpdated(res.data);
+        }
+        showToast('পদবী সেন্ট্রাল ডাটাবেজ থেকে মুছে ফেলা হয়েছে।');
       }
     );
   };
@@ -401,9 +415,11 @@ export const AdminDesignationsManager: React.FC<AdminDesignationsManagerProps> =
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-[#2D5A41] text-white font-semibold hover:bg-[#234733] shadow-2xs"
+                  disabled={isSaving}
+                  className="px-5 py-2 rounded-lg bg-[#2D5A41] text-white font-semibold hover:bg-[#234733] shadow-2xs disabled:opacity-60 flex items-center gap-2"
                 >
-                  সংরক্ষণ করুন
+                  {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isSaving ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
                 </button>
               </div>
             </div>

@@ -104,12 +104,15 @@ CREATE INDEX IF NOT EXISTS idx_activities_published ON public.activities(is_publ
 CREATE TABLE IF NOT EXISTS public.notices (
   id TEXT PRIMARY KEY,
   title JSONB NOT NULL,
-  content JSONB NOT NULL,
+  content JSONB,
+  body JSONB,
   date TEXT NOT NULL,
+  link TEXT,
   is_pinned BOOLEAN DEFAULT false,
   is_published BOOLEAN DEFAULT true,
   is_important BOOLEAN DEFAULT false,
   attachment TEXT,
+  attachment_url TEXT,
   created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
@@ -137,8 +140,12 @@ CREATE TABLE IF NOT EXISTS public.gallery_items (
   type TEXT DEFAULT 'image',
   category TEXT DEFAULT 'general',
   date TEXT,
+  year INT,
+  description JSONB,
+  caption JSONB,
   is_published BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_gallery_date ON public.gallery_items(created_at DESC);
@@ -151,13 +158,17 @@ CREATE TABLE IF NOT EXISTS public.expenses (
   id TEXT PRIMARY KEY,
   date TEXT NOT NULL,
   amount NUMERIC NOT NULL DEFAULT 0,
-  purpose JSONB NOT NULL,
+  title TEXT,
+  purpose JSONB NOT NULL DEFAULT '{"bn": "", "en": "", "ar": ""}'::jsonb,
   category TEXT NOT NULL DEFAULT 'other',
   custom_category TEXT,
   description JSONB,
+  recipient TEXT,
+  is_recipient_public BOOLEAN DEFAULT false,
   location JSONB,
   receipt_url TEXT,
   verified_by TEXT,
+  is_verified BOOLEAN DEFAULT false,
   is_public BOOLEAN DEFAULT true,
   year INT,
   created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
@@ -219,6 +230,29 @@ CREATE TABLE IF NOT EXISTS public.admin_profiles (
   created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
+-- Ensure all backwards/forwards compatible columns exist on existing databases
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS config JSONB;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS slug TEXT;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS summary JSONB;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS cover_image TEXT;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS gallery_images JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS body JSONB;
+ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS content JSONB;
+ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS link TEXT;
+ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS attachment_url TEXT;
+ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS is_important BOOLEAN DEFAULT false;
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS media_url TEXT;
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS year TEXT;
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS description JSONB;
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS caption JSONB;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS purpose JSONB DEFAULT '{"bn": "", "en": "", "ar": ""}'::jsonb;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS recipient TEXT;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS is_recipient_public BOOLEAN DEFAULT false;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false;
+
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
@@ -242,6 +276,19 @@ ALTER TABLE public.admin_profiles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public read site_settings" ON public.site_settings;
 CREATE POLICY "Public read site_settings" ON public.site_settings
   FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public insert site_settings" ON public.site_settings;
+CREATE POLICY "Public insert site_settings" ON public.site_settings
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public update site_settings" ON public.site_settings;
+CREATE POLICY "Public update site_settings" ON public.site_settings
+  FOR UPDATE USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public delete site_settings" ON public.site_settings;
+CREATE POLICY "Public delete site_settings" ON public.site_settings
+  FOR DELETE USING (true);
+
 DROP POLICY IF EXISTS "Admin write site_settings" ON public.site_settings;
 DROP POLICY IF EXISTS "Allow write site_settings" ON public.site_settings;
 CREATE POLICY "Allow write site_settings" ON public.site_settings

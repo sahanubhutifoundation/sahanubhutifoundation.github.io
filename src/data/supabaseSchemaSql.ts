@@ -1,2 +1,459 @@
 // Auto-generated schema export for one-click in-admin execution and copying
-export const SUPABASE_SCHEMA_SQL = "-- ==============================================================================\n-- SAHANUBHUTI FOUNDATION (সহানুভূতি ফাউন্ডেশন)\n-- Complete Production PostgreSQL Database Schema & Security Policies for Supabase\n-- ==============================================================================\n\n-- 1. Enable required extensions\nCREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";\n\n-- ------------------------------------------------------------------------------\n-- 1. SITE SETTINGS & CMS TABLE\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.site_settings (\n  id TEXT PRIMARY KEY DEFAULT 'foundation_primary_config',\n  config JSONB NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL\n);\n\n-- ------------------------------------------------------------------------------\n-- 2. CONTENT (Dynamic Page Sections / CMS Texts)\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.content (\n  key TEXT PRIMARY KEY,\n  section TEXT NOT NULL DEFAULT 'general',\n  content JSONB NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS idx_content_section ON public.content(section);\n\n-- ------------------------------------------------------------------------------\n-- 3. DESIGNATIONS TABLE\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.designations (\n  id TEXT PRIMARY KEY,\n  name JSONB NOT NULL,\n  short_code TEXT,\n  sort_order INT NOT NULL DEFAULT 1,\n  text_color TEXT DEFAULT '#2D3630',\n  bg_color TEXT DEFAULT '#F7F5F0',\n  border_color TEXT DEFAULT '#EBE8E0',\n  accent_color TEXT DEFAULT '#2D5A41',\n  badge_style TEXT DEFAULT 'soft',\n  font_weight TEXT DEFAULT 'semibold',\n  is_enabled BOOLEAN DEFAULT true,\n  is_predefined BOOLEAN DEFAULT false,\n  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS idx_designations_sort_order ON public.designations(sort_order);\n\n-- ------------------------------------------------------------------------------\n-- 4. MEMBERS TABLE\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.members (\n  id TEXT PRIMARY KEY,\n  serial INT NOT NULL,\n  name JSONB NOT NULL,\n  gender TEXT,\n  designation_id TEXT REFERENCES public.designations(id) ON DELETE SET NULL,\n  role TEXT,\n  photo_url TEXT,\n  image TEXT,\n  phone TEXT,\n  email TEXT,\n  location JSONB,\n  address JSONB,\n  joining_date TEXT,\n  bio JSONB,\n  responsibilities JSONB,\n  is_active BOOLEAN DEFAULT true,\n  is_family_member BOOLEAN DEFAULT false,\n  image_shape TEXT DEFAULT 'rounded',\n  image_fit TEXT DEFAULT 'cover',\n  image_position TEXT,\n  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS idx_members_serial ON public.members(serial);\nCREATE INDEX IF NOT EXISTS idx_members_is_active ON public.members(is_active);\n\n-- ------------------------------------------------------------------------------\n-- 5. ACTIVITIES TABLE\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.activities (\n  id TEXT PRIMARY KEY,\n  title JSONB NOT NULL,\n  description JSONB NOT NULL,\n  date TEXT NOT NULL,\n  category TEXT DEFAULT 'humanitarian',\n  image TEXT,\n  is_published BOOLEAN DEFAULT true,\n  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS idx_activities_date ON public.activities(date DESC);\nCREATE INDEX IF NOT EXISTS idx_activities_published ON public.activities(is_published);\n\n-- ------------------------------------------------------------------------------\n-- 6. NOTICES TABLE\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.notices (\n  id TEXT PRIMARY KEY,\n  title JSONB NOT NULL,\n  content JSONB NOT NULL,\n  date TEXT NOT NULL,\n  is_pinned BOOLEAN DEFAULT false,\n  is_published BOOLEAN DEFAULT true,\n  is_important BOOLEAN DEFAULT false,\n  attachment TEXT,\n  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS idx_notices_date ON public.notices(date DESC);\nCREATE INDEX IF NOT EXISTS idx_notices_pinned ON public.notices(is_pinned);\n\n-- ------------------------------------------------------------------------------\n-- 7. GALLERY CATEGORIES TABLE\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.gallery_categories (\n  id TEXT PRIMARY KEY,\n  name JSONB NOT NULL,\n  sort_order INT NOT NULL DEFAULT 1,\n  is_active BOOLEAN DEFAULT true\n);\n\n-- ------------------------------------------------------------------------------\n-- 8. GALLERY ITEMS TABLE\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.gallery_items (\n  id TEXT PRIMARY KEY,\n  title JSONB NOT NULL,\n  url TEXT NOT NULL,\n  type TEXT DEFAULT 'image',\n  category TEXT DEFAULT 'general',\n  date TEXT,\n  is_published BOOLEAN DEFAULT true,\n  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS idx_gallery_date ON public.gallery_items(created_at DESC);\nCREATE INDEX IF NOT EXISTS idx_gallery_published ON public.gallery_items(is_published);\n\n-- ------------------------------------------------------------------------------\n-- 9. EXPENSES LEDGER TABLE\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.expenses (\n  id TEXT PRIMARY KEY,\n  date TEXT NOT NULL,\n  amount NUMERIC NOT NULL DEFAULT 0,\n  purpose JSONB NOT NULL,\n  category TEXT NOT NULL DEFAULT 'other',\n  custom_category TEXT,\n  description JSONB,\n  location JSONB,\n  receipt_url TEXT,\n  verified_by TEXT,\n  is_public BOOLEAN DEFAULT true,\n  year INT,\n  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS idx_expenses_date ON public.expenses(date DESC);\nCREATE INDEX IF NOT EXISTS idx_expenses_public ON public.expenses(is_public);\n\n-- ------------------------------------------------------------------------------\n-- 10. FUND SETTINGS TABLE\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.fund_settings (\n  id TEXT PRIMARY KEY DEFAULT 'primary_fund_settings',\n  settings JSONB NOT NULL,\n  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL\n);\n\n-- ------------------------------------------------------------------------------\n-- 11. CONTACT MESSAGES / INBOX TABLE\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.contact_messages (\n  id TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  email TEXT NOT NULL,\n  phone TEXT,\n  subject TEXT,\n  message TEXT NOT NULL,\n  submitted_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,\n  is_read BOOLEAN DEFAULT false,\n  is_archived BOOLEAN DEFAULT false\n);\n\nCREATE INDEX IF NOT EXISTS idx_messages_submitted ON public.contact_messages(submitted_at DESC);\nCREATE INDEX IF NOT EXISTS idx_messages_unread ON public.contact_messages(is_read);\n\n-- ------------------------------------------------------------------------------\n-- 12. SOCIAL LINKS TABLE\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.social_links (\n  id TEXT PRIMARY KEY,\n  platform TEXT NOT NULL,\n  label TEXT,\n  url TEXT NOT NULL,\n  icon TEXT,\n  is_enabled BOOLEAN DEFAULT true,\n  sort_order INT NOT NULL DEFAULT 0,\n  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL\n);\n\n-- ------------------------------------------------------------------------------\n-- 13. ADMIN PROFILES TABLE (Linked to auth.users)\n-- ------------------------------------------------------------------------------\nCREATE TABLE IF NOT EXISTS public.admin_profiles (\n  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,\n  email TEXT NOT NULL,\n  full_name TEXT,\n  role TEXT DEFAULT 'admin',\n  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL\n);\n\n-- ==============================================================================\n-- ROW LEVEL SECURITY (RLS) POLICIES\n-- ==============================================================================\n\n-- Enable RLS on all tables\nALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.content ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.designations ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.members ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.notices ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.gallery_categories ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.gallery_items ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.fund_settings ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.social_links ENABLE ROW LEVEL SECURITY;\nALTER TABLE public.admin_profiles ENABLE ROW LEVEL SECURITY;\n\n-- 1. Site Settings\nDROP POLICY IF EXISTS \"Public read site_settings\" ON public.site_settings;\nCREATE POLICY \"Public read site_settings\" ON public.site_settings\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin write site_settings\" ON public.site_settings;\nDROP POLICY IF EXISTS \"Allow write site_settings\" ON public.site_settings;\nCREATE POLICY \"Allow write site_settings\" ON public.site_settings\n  FOR ALL USING (true) WITH CHECK (true);\n\n-- 2. Content\nDROP POLICY IF EXISTS \"Public read content\" ON public.content;\nCREATE POLICY \"Public read content\" ON public.content\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin write content\" ON public.content;\nDROP POLICY IF EXISTS \"Allow write content\" ON public.content;\nCREATE POLICY \"Allow write content\" ON public.content\n  FOR ALL USING (true) WITH CHECK (true);\n\n-- 3. Designations\nDROP POLICY IF EXISTS \"Public read designations\" ON public.designations;\nCREATE POLICY \"Public read designations\" ON public.designations\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin write designations\" ON public.designations;\nDROP POLICY IF EXISTS \"Allow write designations\" ON public.designations;\nCREATE POLICY \"Allow write designations\" ON public.designations\n  FOR ALL USING (true) WITH CHECK (true);\n\n-- 4. Members: Public reads active members; Admin reads & manages all\nDROP POLICY IF EXISTS \"Public read active members\" ON public.members;\nCREATE POLICY \"Public read active members\" ON public.members\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin write members\" ON public.members;\nDROP POLICY IF EXISTS \"Allow write members\" ON public.members;\nCREATE POLICY \"Allow write members\" ON public.members\n  FOR ALL USING (true) WITH CHECK (true);\n\n-- 5. Activities: Public reads published activities; Admin manages all\nDROP POLICY IF EXISTS \"Public read activities\" ON public.activities;\nCREATE POLICY \"Public read activities\" ON public.activities\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin write activities\" ON public.activities;\nDROP POLICY IF EXISTS \"Allow write activities\" ON public.activities;\nCREATE POLICY \"Allow write activities\" ON public.activities\n  FOR ALL USING (true) WITH CHECK (true);\n\n-- 6. Notices: Public reads published notices; Admin manages all\nDROP POLICY IF EXISTS \"Public read notices\" ON public.notices;\nCREATE POLICY \"Public read notices\" ON public.notices\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin write notices\" ON public.notices;\nDROP POLICY IF EXISTS \"Allow write notices\" ON public.notices;\nCREATE POLICY \"Allow write notices\" ON public.notices\n  FOR ALL USING (true) WITH CHECK (true);\n\n-- 7. Gallery\nDROP POLICY IF EXISTS \"Public read gallery_categories\" ON public.gallery_categories;\nCREATE POLICY \"Public read gallery_categories\" ON public.gallery_categories\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin write gallery_categories\" ON public.gallery_categories;\nDROP POLICY IF EXISTS \"Allow write gallery_categories\" ON public.gallery_categories;\nCREATE POLICY \"Allow write gallery_categories\" ON public.gallery_categories\n  FOR ALL USING (true) WITH CHECK (true);\n\nDROP POLICY IF EXISTS \"Public read gallery_items\" ON public.gallery_items;\nCREATE POLICY \"Public read gallery_items\" ON public.gallery_items\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin write gallery_items\" ON public.gallery_items;\nDROP POLICY IF EXISTS \"Allow write gallery_items\" ON public.gallery_items;\nCREATE POLICY \"Allow write gallery_items\" ON public.gallery_items\n  FOR ALL USING (true) WITH CHECK (true);\n\n-- 8. Expenses: Public reads verified/public expenses; Admin manages all\nDROP POLICY IF EXISTS \"Public read public expenses\" ON public.expenses;\nCREATE POLICY \"Public read public expenses\" ON public.expenses\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin write expenses\" ON public.expenses;\nDROP POLICY IF EXISTS \"Allow write expenses\" ON public.expenses;\nCREATE POLICY \"Allow write expenses\" ON public.expenses\n  FOR ALL USING (true) WITH CHECK (true);\n\n-- 9. Fund Settings\nDROP POLICY IF EXISTS \"Public read fund_settings\" ON public.fund_settings;\nCREATE POLICY \"Public read fund_settings\" ON public.fund_settings\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin write fund_settings\" ON public.fund_settings;\nDROP POLICY IF EXISTS \"Allow write fund_settings\" ON public.fund_settings;\nCREATE POLICY \"Allow write fund_settings\" ON public.fund_settings\n  FOR ALL USING (true) WITH CHECK (true);\n\n-- 10. Contact Messages (Inbox):\n-- Public can INSERT submissions. Admin reads & manages messages.\nDROP POLICY IF EXISTS \"Public submit contact_messages\" ON public.contact_messages;\nCREATE POLICY \"Public submit contact_messages\" ON public.contact_messages\n  FOR INSERT WITH CHECK (true);\nDROP POLICY IF EXISTS \"Admin select contact_messages\" ON public.contact_messages;\nCREATE POLICY \"Admin select contact_messages\" ON public.contact_messages\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin update contact_messages\" ON public.contact_messages;\nCREATE POLICY \"Admin update contact_messages\" ON public.contact_messages\n  FOR UPDATE USING (true) WITH CHECK (true);\nDROP POLICY IF EXISTS \"Admin delete contact_messages\" ON public.contact_messages;\nCREATE POLICY \"Admin delete contact_messages\" ON public.contact_messages\n  FOR DELETE USING (true);\n\n-- 11. Social Links\nDROP POLICY IF EXISTS \"Public read social_links\" ON public.social_links;\nCREATE POLICY \"Public read social_links\" ON public.social_links\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin write social_links\" ON public.social_links;\nDROP POLICY IF EXISTS \"Allow write social_links\" ON public.social_links;\nCREATE POLICY \"Allow write social_links\" ON public.social_links\n  FOR ALL USING (true) WITH CHECK (true);\n\n-- 12. Admin Profiles\nDROP POLICY IF EXISTS \"Admin read own profile\" ON public.admin_profiles;\nCREATE POLICY \"Admin read own profile\" ON public.admin_profiles\n  FOR SELECT USING (true);\nDROP POLICY IF EXISTS \"Admin update own profile\" ON public.admin_profiles;\nCREATE POLICY \"Admin update own profile\" ON public.admin_profiles\n  FOR ALL USING (true) WITH CHECK (true);\n\n-- ==============================================================================\n-- STORAGE BUCKETS SETUP\n-- ==============================================================================\n-- Create logical buckets with public read access\nINSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)\nVALUES\n  ('branding', 'branding', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp', 'image/x-icon']),\n  ('members', 'members', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/webp']),\n  ('gallery', 'gallery', true, 10485760, ARRAY['image/png', 'image/jpeg', 'image/webp', 'video/mp4']),\n  ('activities', 'activities', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/webp']),\n  ('notices', 'notices', true, 10485760, ARRAY['image/png', 'image/jpeg', 'application/pdf', 'image/webp']),\n  ('receipts', 'receipts', true, 5242880, ARRAY['image/png', 'image/jpeg', 'application/pdf', 'image/webp'])\nON CONFLICT (id) DO UPDATE SET\n  public = true,\n  file_size_limit = EXCLUDED.file_size_limit,\n  allowed_mime_types = EXCLUDED.allowed_mime_types;\n\n-- Storage RLS:\n-- Public can view files in these buckets\nDROP POLICY IF EXISTS \"Public Access Storage\" ON storage.objects;\nCREATE POLICY \"Public Access Storage\" ON storage.objects\n  FOR SELECT USING (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));\n\n-- Allow upload files\nDROP POLICY IF EXISTS \"Admin Upload Storage\" ON storage.objects;\nDROP POLICY IF EXISTS \"Allow Upload Storage\" ON storage.objects;\nCREATE POLICY \"Allow Upload Storage\" ON storage.objects\n  FOR INSERT\n  WITH CHECK (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));\n\n-- Allow update/replace files\nDROP POLICY IF EXISTS \"Admin Update Storage\" ON storage.objects;\nDROP POLICY IF EXISTS \"Allow Update Storage\" ON storage.objects;\nCREATE POLICY \"Allow Update Storage\" ON storage.objects\n  FOR UPDATE\n  USING (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));\n\n-- Allow delete files\nDROP POLICY IF EXISTS \"Admin Delete Storage\" ON storage.objects;\nDROP POLICY IF EXISTS \"Allow Delete Storage\" ON storage.objects;\nCREATE POLICY \"Allow Delete Storage\" ON storage.objects\n  FOR DELETE\n  USING (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));\n";
+export const SUPABASE_SCHEMA_SQL = `-- ==============================================================================
+-- SAHANUBHUTI FOUNDATION (সহানুভূতি ফাউন্ডেশন)
+-- Complete Production PostgreSQL Database Schema & Security Policies for Supabase
+-- ==============================================================================
+
+-- 1. Enable required extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ------------------------------------------------------------------------------
+-- 1. SITE SETTINGS & CMS TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.site_settings (
+  id TEXT PRIMARY KEY DEFAULT 'foundation_primary_config',
+  config JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- ------------------------------------------------------------------------------
+-- 2. CONTENT (Dynamic Page Sections / CMS Texts)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.content (
+  key TEXT PRIMARY KEY,
+  section TEXT NOT NULL DEFAULT 'general',
+  content JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_content_section ON public.content(section);
+
+-- ------------------------------------------------------------------------------
+-- 3. DESIGNATIONS TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.designations (
+  id TEXT PRIMARY KEY,
+  name JSONB NOT NULL,
+  short_code TEXT,
+  sort_order INT NOT NULL DEFAULT 1,
+  text_color TEXT DEFAULT '#2D3630',
+  bg_color TEXT DEFAULT '#F7F5F0',
+  border_color TEXT DEFAULT '#EBE8E0',
+  accent_color TEXT DEFAULT '#2D5A41',
+  badge_style TEXT DEFAULT 'soft',
+  font_weight TEXT DEFAULT 'semibold',
+  is_enabled BOOLEAN DEFAULT true,
+  is_predefined BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_designations_sort_order ON public.designations(sort_order);
+
+-- ------------------------------------------------------------------------------
+-- 4. MEMBERS TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.members (
+  id TEXT PRIMARY KEY,
+  serial INT NOT NULL,
+  name JSONB NOT NULL,
+  gender TEXT,
+  designation_id TEXT REFERENCES public.designations(id) ON DELETE SET NULL,
+  role TEXT,
+  photo_url TEXT,
+  image TEXT,
+  phone TEXT,
+  email TEXT,
+  location JSONB,
+  address JSONB,
+  joining_date TEXT,
+  bio JSONB,
+  responsibilities JSONB,
+  is_active BOOLEAN DEFAULT true,
+  is_family_member BOOLEAN DEFAULT false,
+  image_shape TEXT DEFAULT 'rounded',
+  image_fit TEXT DEFAULT 'cover',
+  image_position TEXT,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_members_serial ON public.members(serial);
+CREATE INDEX IF NOT EXISTS idx_members_is_active ON public.members(is_active);
+
+-- ------------------------------------------------------------------------------
+-- 5. ACTIVITIES TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.activities (
+  id TEXT PRIMARY KEY,
+  slug TEXT,
+  title JSONB NOT NULL,
+  summary JSONB,
+  description JSONB NOT NULL,
+  date TEXT NOT NULL,
+  category TEXT DEFAULT 'humanitarian',
+  image TEXT,
+  cover_image TEXT,
+  images JSONB DEFAULT '[]'::jsonb,
+  gallery_images JSONB DEFAULT '[]'::jsonb,
+  is_published BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_activities_date ON public.activities(date DESC);
+CREATE INDEX IF NOT EXISTS idx_activities_published ON public.activities(is_published);
+
+-- ------------------------------------------------------------------------------
+-- 6. NOTICES TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.notices (
+  id TEXT PRIMARY KEY,
+  title JSONB NOT NULL,
+  content JSONB,
+  body JSONB,
+  date TEXT NOT NULL,
+  link TEXT,
+  is_pinned BOOLEAN DEFAULT false,
+  is_published BOOLEAN DEFAULT true,
+  is_important BOOLEAN DEFAULT false,
+  attachment TEXT,
+  attachment_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_notices_date ON public.notices(date DESC);
+CREATE INDEX IF NOT EXISTS idx_notices_pinned ON public.notices(is_pinned);
+
+-- ------------------------------------------------------------------------------
+-- 7. GALLERY CATEGORIES TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.gallery_categories (
+  id TEXT PRIMARY KEY,
+  name JSONB NOT NULL,
+  sort_order INT NOT NULL DEFAULT 1,
+  is_active BOOLEAN DEFAULT true
+);
+
+-- ------------------------------------------------------------------------------
+-- 8. GALLERY ITEMS TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.gallery_items (
+  id TEXT PRIMARY KEY,
+  title JSONB NOT NULL,
+  url TEXT NOT NULL,
+  media_url TEXT,
+  thumbnail_url TEXT,
+  type TEXT DEFAULT 'image',
+  category TEXT DEFAULT 'general',
+  date TEXT,
+  year TEXT,
+  description JSONB,
+  caption JSONB,
+  is_published BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_gallery_date ON public.gallery_items(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_gallery_published ON public.gallery_items(is_published);
+
+-- ------------------------------------------------------------------------------
+-- 9. EXPENSES LEDGER TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.expenses (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL,
+  amount NUMERIC NOT NULL DEFAULT 0,
+  purpose JSONB NOT NULL DEFAULT '{"bn": "", "en": "", "ar": ""}'::jsonb,
+  title TEXT,
+  category TEXT NOT NULL DEFAULT 'other',
+  custom_category TEXT,
+  description JSONB,
+  recipient TEXT,
+  is_recipient_public BOOLEAN DEFAULT false,
+  location JSONB,
+  receipt_url TEXT,
+  verified_by TEXT,
+  is_verified BOOLEAN DEFAULT false,
+  is_public BOOLEAN DEFAULT true,
+  year INT,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON public.expenses(date DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_public ON public.expenses(is_public);
+
+-- ------------------------------------------------------------------------------
+-- 10. FUND SETTINGS TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.fund_settings (
+  id TEXT PRIMARY KEY DEFAULT 'primary_fund_settings',
+  settings JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- ------------------------------------------------------------------------------
+-- 11. CONTACT MESSAGES / INBOX TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.contact_messages (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT,
+  subject TEXT,
+  message TEXT NOT NULL,
+  submitted_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  is_read BOOLEAN DEFAULT false,
+  is_archived BOOLEAN DEFAULT false
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_submitted ON public.contact_messages(submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_unread ON public.contact_messages(is_read);
+
+-- ------------------------------------------------------------------------------
+-- 12. SOCIAL LINKS TABLE
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.social_links (
+  id TEXT PRIMARY KEY,
+  platform TEXT NOT NULL,
+  label TEXT,
+  url TEXT NOT NULL,
+  icon TEXT,
+  is_enabled BOOLEAN DEFAULT true,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- ------------------------------------------------------------------------------
+-- 13. ADMIN PROFILES TABLE (Linked to auth.users)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.admin_profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  full_name TEXT,
+  role TEXT DEFAULT 'admin',
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Ensure all backwards/forwards compatible columns exist on existing databases
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS config JSONB;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS slug TEXT;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS summary JSONB;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS cover_image TEXT;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS gallery_images JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS body JSONB;
+ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS content JSONB;
+ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS link TEXT;
+ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS attachment_url TEXT;
+ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS is_important BOOLEAN DEFAULT false;
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS media_url TEXT;
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS year TEXT;
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS description JSONB;
+ALTER TABLE public.gallery_items ADD COLUMN IF NOT EXISTS caption JSONB;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS purpose JSONB DEFAULT '{"bn": "", "en": "", "ar": ""}'::jsonb;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS recipient TEXT;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS is_recipient_public BOOLEAN DEFAULT false;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false;
+
+-- ==============================================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- ==============================================================================
+
+-- Enable RLS on all tables
+ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.content ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.designations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gallery_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gallery_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.fund_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.social_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_profiles ENABLE ROW LEVEL SECURITY;
+
+-- 1. Site Settings
+DROP POLICY IF EXISTS "Public read site_settings" ON public.site_settings;
+CREATE POLICY "Public read site_settings" ON public.site_settings
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Public insert site_settings" ON public.site_settings;
+CREATE POLICY "Public insert site_settings" ON public.site_settings
+  FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public update site_settings" ON public.site_settings;
+CREATE POLICY "Public update site_settings" ON public.site_settings
+  FOR UPDATE USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public delete site_settings" ON public.site_settings;
+CREATE POLICY "Public delete site_settings" ON public.site_settings
+  FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS "Admin write site_settings" ON public.site_settings;
+DROP POLICY IF EXISTS "Allow write site_settings" ON public.site_settings;
+CREATE POLICY "Allow write site_settings" ON public.site_settings
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 2. Content
+DROP POLICY IF EXISTS "Public read content" ON public.content;
+CREATE POLICY "Public read content" ON public.content
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin write content" ON public.content;
+DROP POLICY IF EXISTS "Allow write content" ON public.content;
+CREATE POLICY "Allow write content" ON public.content
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 3. Designations
+DROP POLICY IF EXISTS "Public read designations" ON public.designations;
+CREATE POLICY "Public read designations" ON public.designations
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin write designations" ON public.designations;
+DROP POLICY IF EXISTS "Allow write designations" ON public.designations;
+CREATE POLICY "Allow write designations" ON public.designations
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 4. Members: Public reads active members; Admin reads & manages all
+DROP POLICY IF EXISTS "Public read active members" ON public.members;
+CREATE POLICY "Public read active members" ON public.members
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin write members" ON public.members;
+DROP POLICY IF EXISTS "Allow write members" ON public.members;
+CREATE POLICY "Allow write members" ON public.members
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 5. Activities: Public reads published activities; Admin manages all
+DROP POLICY IF EXISTS "Public read activities" ON public.activities;
+CREATE POLICY "Public read activities" ON public.activities
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin write activities" ON public.activities;
+DROP POLICY IF EXISTS "Allow write activities" ON public.activities;
+CREATE POLICY "Allow write activities" ON public.activities
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 6. Notices: Public reads published notices; Admin manages all
+DROP POLICY IF EXISTS "Public read notices" ON public.notices;
+CREATE POLICY "Public read notices" ON public.notices
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin write notices" ON public.notices;
+DROP POLICY IF EXISTS "Allow write notices" ON public.notices;
+CREATE POLICY "Allow write notices" ON public.notices
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 7. Gallery
+DROP POLICY IF EXISTS "Public read gallery_categories" ON public.gallery_categories;
+CREATE POLICY "Public read gallery_categories" ON public.gallery_categories
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin write gallery_categories" ON public.gallery_categories;
+DROP POLICY IF EXISTS "Allow write gallery_categories" ON public.gallery_categories;
+CREATE POLICY "Allow write gallery_categories" ON public.gallery_categories
+  FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public read gallery_items" ON public.gallery_items;
+CREATE POLICY "Public read gallery_items" ON public.gallery_items
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin write gallery_items" ON public.gallery_items;
+DROP POLICY IF EXISTS "Allow write gallery_items" ON public.gallery_items;
+CREATE POLICY "Allow write gallery_items" ON public.gallery_items
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 8. Expenses: Public reads verified/public expenses; Admin manages all
+DROP POLICY IF EXISTS "Public read public expenses" ON public.expenses;
+CREATE POLICY "Public read public expenses" ON public.expenses
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin write expenses" ON public.expenses;
+DROP POLICY IF EXISTS "Allow write expenses" ON public.expenses;
+CREATE POLICY "Allow write expenses" ON public.expenses
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 9. Fund Settings
+DROP POLICY IF EXISTS "Public read fund_settings" ON public.fund_settings;
+CREATE POLICY "Public read fund_settings" ON public.fund_settings
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin write fund_settings" ON public.fund_settings;
+DROP POLICY IF EXISTS "Allow write fund_settings" ON public.fund_settings;
+CREATE POLICY "Allow write fund_settings" ON public.fund_settings
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 10. Contact Messages (Inbox):
+-- Public can INSERT submissions. Admin reads & manages messages.
+DROP POLICY IF EXISTS "Public submit contact_messages" ON public.contact_messages;
+CREATE POLICY "Public submit contact_messages" ON public.contact_messages
+  FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Admin select contact_messages" ON public.contact_messages;
+CREATE POLICY "Admin select contact_messages" ON public.contact_messages
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin update contact_messages" ON public.contact_messages;
+CREATE POLICY "Admin update contact_messages" ON public.contact_messages
+  FOR UPDATE USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Admin delete contact_messages" ON public.contact_messages;
+CREATE POLICY "Admin delete contact_messages" ON public.contact_messages
+  FOR DELETE USING (true);
+
+-- 11. Social Links
+DROP POLICY IF EXISTS "Public read social_links" ON public.social_links;
+CREATE POLICY "Public read social_links" ON public.social_links
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin write social_links" ON public.social_links;
+DROP POLICY IF EXISTS "Allow write social_links" ON public.social_links;
+CREATE POLICY "Allow write social_links" ON public.social_links
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- 12. Admin Profiles
+DROP POLICY IF EXISTS "Admin read own profile" ON public.admin_profiles;
+CREATE POLICY "Admin read own profile" ON public.admin_profiles
+  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin update own profile" ON public.admin_profiles;
+CREATE POLICY "Admin update own profile" ON public.admin_profiles
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- ==============================================================================
+-- STORAGE BUCKETS SETUP
+-- ==============================================================================
+-- Create logical buckets with public read access
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES
+  ('branding', 'branding', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp', 'image/x-icon']),
+  ('members', 'members', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/webp']),
+  ('gallery', 'gallery', true, 10485760, ARRAY['image/png', 'image/jpeg', 'image/webp', 'video/mp4']),
+  ('activities', 'activities', true, 5242880, ARRAY['image/png', 'image/jpeg', 'image/webp']),
+  ('notices', 'notices', true, 10485760, ARRAY['image/png', 'image/jpeg', 'application/pdf', 'image/webp']),
+  ('receipts', 'receipts', true, 5242880, ARRAY['image/png', 'image/jpeg', 'application/pdf', 'image/webp'])
+ON CONFLICT (id) DO UPDATE SET
+  public = true,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- Storage RLS:
+-- Public can view files in these buckets
+DROP POLICY IF EXISTS "Public Access Storage" ON storage.objects;
+CREATE POLICY "Public Access Storage" ON storage.objects
+  FOR SELECT USING (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));
+
+-- Allow upload files
+DROP POLICY IF EXISTS "Admin Upload Storage" ON storage.objects;
+DROP POLICY IF EXISTS "Allow Upload Storage" ON storage.objects;
+CREATE POLICY "Allow Upload Storage" ON storage.objects
+  FOR INSERT
+  WITH CHECK (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));
+
+-- Allow update/replace files
+DROP POLICY IF EXISTS "Admin Update Storage" ON storage.objects;
+DROP POLICY IF EXISTS "Allow Update Storage" ON storage.objects;
+CREATE POLICY "Allow Update Storage" ON storage.objects
+  FOR UPDATE
+  USING (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));
+
+-- Allow delete files
+DROP POLICY IF EXISTS "Admin Delete Storage" ON storage.objects;
+DROP POLICY IF EXISTS "Allow Delete Storage" ON storage.objects;
+CREATE POLICY "Allow Delete Storage" ON storage.objects
+  FOR DELETE
+  USING (bucket_id IN ('branding', 'members', 'gallery', 'activities', 'notices', 'receipts'));
+`;

@@ -19,6 +19,7 @@ import {
   MapPin,
   User,
   FileSpreadsheet,
+  Loader2,
 } from 'lucide-react';
 import { ExpenseRecord, FundVisibilitySettings, FundData } from '../../types';
 import { storageService } from '../../services/storageService';
@@ -66,6 +67,8 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
   const currentAvailableBalance = sheetReceived - totalExpenseAmount;
   const hasDiscrepancy = Math.abs(currentAvailableBalance - sheetSummaryBalance) > 0.01;
 
+  const [isSaving, setIsSaving] = useState(false);
+
   // Filtered expenses
   const filteredExpenses = expenses.filter((item) => {
     const matchesSearch =
@@ -79,10 +82,11 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
     return matchesSearch && matchesCategory;
   });
 
-  const handleSaveExpense = (e: React.FormEvent) => {
+  const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingExpense || !editingExpense.title || !editingExpense.amount) return;
 
+    setIsSaving(true);
     const newExpense: ExpenseRecord = {
       id: editingExpense.id || `exp-${Date.now()}`,
       title: editingExpense.title.trim(),
@@ -100,17 +104,29 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
       createdAt: editingExpense.createdAt || new Date().toISOString(),
     };
 
-    const updated = storageService.saveExpense(newExpense);
-    onExpensesChange(updated);
-    setEditingExpense(null);
-    onShowToast('ব্যয়ের বিবরণ সফলভাবে সংরক্ষিত হয়েছে!');
+    try {
+      const res = await storageService.saveExpenseAsync(newExpense);
+      if (res.success && res.data) {
+        onExpensesChange(res.data);
+        setEditingExpense(null);
+        onShowToast('ব্যয়ের বিবরণ সেন্ট্রাল ডাটাবেজে সফলভাবে সংরক্ষিত হয়েছে!');
+      } else {
+        onShowToast(`সংরক্ষণ ব্যর্থ: ${res.error || 'সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা সম্ভব হয়নি'}`);
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteExpense = (id: string) => {
-    onRequestConfirm('ব্যয় মুছে ফেলুন', 'আপনি কি নিশ্চিতভাবে এই ব্যয়ের হিসাবটি মুছে ফেলতে চান?', () => {
-      const updated = storageService.deleteExpense(id);
-      onExpensesChange(updated);
-      onShowToast('ব্যয় মুছে ফেলা হয়েছে।');
+    onRequestConfirm('ব্যয় মুছে ফেলুন', 'আপনি কি নিশ্চিতভাবে এই ব্যয়ের হিসাবটি মুছে ফেলতে চান?', async () => {
+      const res = await storageService.deleteExpenseAsync(id);
+      if (res.success && res.data) {
+        onExpensesChange(res.data);
+        onShowToast('ব্যয় সেন্ট্রাল ডাটাবেজ থেকে মুছে ফেলা হয়েছে।');
+      } else {
+        onShowToast(`মুছে ফেলা ব্যর্থ: ${res.error || 'ব্যয় মুছে ফেলা সম্ভব হয়নি'}`);
+      }
     });
   };
 
@@ -464,9 +480,11 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white font-semibold shadow-2xs"
+                disabled={isSaving}
+                className="px-5 py-2 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white font-semibold shadow-2xs disabled:opacity-60 flex items-center gap-2"
               >
-                ব্যয় সংরক্ষণ করুন
+                {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isSaving ? 'সংরক্ষণ হচ্ছে...' : 'ব্যয় সংরক্ষণ করুন'}
               </button>
             </div>
           </form>
