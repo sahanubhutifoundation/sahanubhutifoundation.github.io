@@ -6,19 +6,34 @@ import { EmptyState } from '../components/EmptyState';
 import { DesignationBadge } from '../components/DesignationBadge';
 import { storageService } from '../services/storageService';
 import { Member, Designation } from '../types';
-import { Users, User, ArrowRight, MapPin, HeartHandshake } from 'lucide-react';
+import { Users, User, ArrowRight, MapPin, HeartHandshake, Calendar } from 'lucide-react';
+import { toBengaliDigits, formatFoundingDate } from '../utils/foundationHelpers';
 
 export const MembersPage: React.FC = () => {
   const { t, language, isRTL } = useLanguage();
   const [members, setMembers] = useState<Member[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
-  const config = storageService.getConfig();
+  const [config, setConfig] = useState(() => storageService.getConfig());
 
-  useEffect(() => {
-    // Only active members sorted by serial
+  const loadData = () => {
     const list = storageService.getMembers().filter((m) => m.isActive);
     setMembers(list);
     setDesignations(storageService.getDesignations());
+    setConfig(storageService.getConfig());
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('sf_data_updated', loadData);
+    window.addEventListener('sf_config_updated', loadData);
+    window.addEventListener('sf_cloud_synced', loadData);
+    window.addEventListener('storage', loadData);
+    return () => {
+      window.removeEventListener('sf_data_updated', loadData);
+      window.removeEventListener('sf_config_updated', loadData);
+      window.removeEventListener('sf_cloud_synced', loadData);
+      window.removeEventListener('storage', loadData);
+    };
   }, []);
 
   const getMemberDesignation = (member: Member): Designation | undefined => {
@@ -92,9 +107,9 @@ export const MembersPage: React.FC = () => {
                   to={`/members/${member.id}`}
                   className="bg-white rounded-2xl border border-[#EBE8E0] shadow-2xs hover:shadow-xs hover:border-[#2D5A41]/40 transition-all p-5 flex flex-col items-center text-center group relative overflow-hidden"
                 >
-                  {/* Serial Badge */}
-                  <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-[#F7F5F0] text-[#5C665F] text-[11px] font-mono font-bold group-hover:bg-[#E8EFEA] group-hover:text-[#2D5A41] transition-colors">
-                    #{member.serial}
+                  {/* Refined Serial Indicator Badge */}
+                  <div className="absolute top-3 left-3 px-2 py-0.5 rounded-md bg-[#F7F5F0] border border-[#EBE8E0] text-[#5C665F] text-[10px] sm:text-[11px] font-semibold group-hover:bg-[#E8EFEA] group-hover:text-[#2D5A41] group-hover:border-[#2D5A41]/30 transition-colors shadow-3xs">
+                    {language === 'bn' ? `ক্রমিক ${toBengaliDigits(member.serial)}` : `#${member.serial}`}
                   </div>
 
                   {/* Profile Photo */}
@@ -128,9 +143,21 @@ export const MembersPage: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Join Date (if set and enabled) */}
+                  {member.joiningDate && member.showJoiningDate !== false && (
+                    <div className="flex items-center justify-center gap-1 text-[11px] text-[#7A877E] mt-1.5 max-w-full">
+                      <Calendar className="w-3 h-3 text-[#A4B3A8] shrink-0" />
+                      <span>
+                        {language === 'bn'
+                          ? `সদস্য: ${toBengaliDigits(member.joiningDate)}`
+                          : `Member since: ${member.joiningDate}`}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Location / Address */}
                   {member.address && (
-                    <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs text-[#7A877E] mt-2 max-w-full">
+                    <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs text-[#7A877E] mt-1.5 max-w-full">
                       <MapPin className="w-3 h-3 text-[#A4B3A8] shrink-0" />
                       <span className="line-clamp-1">{member.address}</span>
                     </div>

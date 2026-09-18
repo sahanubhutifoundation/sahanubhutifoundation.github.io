@@ -96,6 +96,66 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
     });
   };
 
+  const updateFeatureCard = (index: number, field: 'title' | 'description', lang: 'bn' | 'en', value: string) => {
+    const defaultCards = [
+      {
+        id: 'feat-1',
+        title: { bn: 'শতভাগ আর্থিক স্বচ্ছতা', en: '100% Financial Transparency', ar: 'الشفافية المالية التامة' },
+        description: { bn: 'তহবিলের প্রতিটি টাকা ও ব্যয়ের হিসাব সবার জন্য দৃশ্যমান ও উন্মুক্ত।', en: 'Every single penny received and spent is completely open.', ar: 'كل قرش يدخل ويصرف مسجل ومتاح للجميع.' },
+        icon: 'ShieldCheck',
+      },
+      {
+        id: 'feat-2',
+        title: { bn: 'পারিবারিক বাইতুল মাল', en: 'Family Baytul Mal', ar: 'بيت المال العائلي' },
+        description: { bn: 'মাসিক ক্ষুদ্র সঞ্চয়ের মাধ্যমে আপৎকালীন বিপদে স্বজনদের সহায়তার স্থায়ী তহবিল।', en: 'Permanent safety fund built through small monthly member contributions.', ar: 'صندوق أمان دائم تم إنشاؤه من خلال المساهمات الشهرية المنتظمة.' },
+        icon: 'HeartHandshake',
+      },
+      {
+        id: 'feat-3',
+        title: { bn: 'বাস্তবধর্মী ও সততাপূর্ণ পথচলা', en: 'Realistic & Sincere Journey', ar: 'مسيرة واقعية ومخلصة' },
+        description: { bn: 'কোনো অতিরঞ্জন বা অসত্য দাবি নয়; সামর্থ্য অনুযায়ী নিবেদিত সেবা।', en: 'No exaggerated claims; honest service true to our actual capacity.', ar: 'خدمة مخلصة وفق قدراتنا الحقيقية دون أي ادعاءات مبالغ فيها.' },
+        icon: 'UserCheck',
+      },
+    ];
+    const currentCards = [...(formData.featureCards && formData.featureCards.length === 3 ? formData.featureCards : defaultCards)];
+    const card = { ...currentCards[index] };
+    const multiObj = { ...(card[field] as any) };
+    multiObj[lang] = value;
+    (card as any)[field] = multiObj;
+    currentCards[index] = card;
+    setFormData({ ...formData, featureCards: currentCards });
+  };
+
+  const updateFundSnapshotCard = (index: number, field: 'title' | 'description', lang: 'bn' | 'en', value: string) => {
+    const defaultCards = [
+      {
+        id: 'fund-snap-1',
+        title: { bn: 'মাসিক অঙ্গীকার ও বাইতুল মাল', en: 'Monthly Pledges & Baytul Mal', ar: 'التعهدات الشهرية وبيت المال' },
+        description: { bn: 'পরিবারের সদস্যদের নিয়মিত মাসিক অঙ্গীকারে গঠিত স্থায়ী বাইতুল মাল সঞ্চয়।', en: 'Permanent Baytul Mal reserve built through regular monthly member pledges.', ar: 'مدخرات بيت المال الدائمة الناتجة عن التعهدات الشهرية المنتظمة.' },
+        icon: 'CheckCircle2',
+      },
+      {
+        id: 'fund-snap-2',
+        title: { bn: 'জরুরি মানবিক ও চিকিৎসা সহায়তা', en: 'Emergency & Medical Assistance', ar: 'المساعدات الطبية والإنسانية العاجلة' },
+        description: { bn: 'পরিবারের সদস্য ও স্বজনদের জরুরি চিকিৎসা ও মানবিক প্রয়োজনে তাৎক্ষণিক পাশে থাকা।', en: 'Instant verified assistance for prescription medicine and emergency treatments.', ar: 'مساعدات مالية معتمدة وفورية للأدوية والعلاج للحالات الحرجة.' },
+        icon: 'ShieldCheck',
+      },
+      {
+        id: 'fund-snap-3',
+        title: { bn: 'লাইভ গুগল শিট জবাবদিহিতা', en: 'Live Google Sheet Accountability', ar: 'المساءلة المباشرة عبر جداول بيانات جوجل' },
+        description: { bn: 'প্রতিটি জমা ও ব্যয়ের হিসাব সার্বক্ষণিক গুগল শিটের মাধ্যমে উন্মুক্ত ও যাচাইযোগ্য।', en: 'Financial ledger openly accessible to all contributors and well-wishers.', ar: 'سجل مالي شفاف ومتاح لجميع المساهمين والمهتمين.' },
+        icon: 'Wallet',
+      },
+    ];
+    const currentCards = [...(formData.fundSnapshotCards && formData.fundSnapshotCards.length === 3 ? formData.fundSnapshotCards : defaultCards)];
+    const card = { ...currentCards[index] };
+    const multiObj = { ...(card[field] as any) };
+    multiObj[lang] = value;
+    (card as any)[field] = multiObj;
+    currentCards[index] = card;
+    setFormData({ ...formData, fundSnapshotCards: currentCards });
+  };
+
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -913,6 +973,154 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 />
                 <span className="font-semibold text-[#2D3630] text-xs">ছবি গ্যালারি প্রিভিউ</span>
               </label>
+
+              <label className="flex items-center gap-2.5 p-3 rounded-xl border border-[#EBE8E0] bg-white cursor-pointer hover:border-[#2D5A41] transition-colors">
+                <input
+                  type="checkbox"
+                  checked={formData.showFeatureCards !== false}
+                  onChange={(e) => setFormData({ ...formData, showFeatureCards: e.target.checked })}
+                  className="w-4 h-4 rounded text-[#2D5A41] focus:ring-[#2D5A41]"
+                />
+                <span className="font-semibold text-[#2D3630] text-xs">মূল স্তম্ভ / ফিচার কার্ডস</span>
+              </label>
+            </div>
+          </div>
+
+          {/* 6. Key Pillars / Feature Cards CMS */}
+          <div className="p-4 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] space-y-4">
+            <div className="pb-2 border-b border-[#EBE8E0]">
+              <label className="block font-bold text-[#2D3630]">
+                ৬. মূল স্তম্ভ / ফিচার কার্ডস সম্পাদনা (Key Pillars / Feature Cards CMS)
+              </label>
+              <p className="text-[11px] text-[#7A877E] mt-0.5">
+                হোমপেজে প্রদর্শিত ৩টি মূল স্তম্ভের শিরোনাম ও বিবরণ বাংলা ও ইংরেজিতে সম্পাদনা করুন।
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[0, 1, 2].map((idx) => {
+                const card = formData.featureCards?.[idx] || {
+                  id: `feat-${idx + 1}`,
+                  title: {
+                    bn: idx === 0 ? 'শতভাগ আর্থিক স্বচ্ছতা' : idx === 1 ? 'পারিবারিক বাইতুল মাল' : 'বাস্তবধর্মী ও সততাপূর্ণ পথচলা',
+                    en: idx === 0 ? '100% Financial Transparency' : idx === 1 ? 'Family Baytul Mal' : 'Realistic & Sincere Journey',
+                  },
+                  description: {
+                    bn: idx === 0 ? 'তহবিলের প্রতিটি টাকা ও ব্যয়ের হিসাব সবার জন্য দৃশ্যমান ও উন্মুক্ত।' : idx === 1 ? 'মাসিক ক্ষুদ্র সঞ্চয়ের মাধ্যমে আপৎকালীন বিপদে স্বজনদের সহায়তার স্থায়ী তহবিল।' : 'কোনো অতিরঞ্জন বা অসত্য দাবি নয়; সামর্থ্য অনুযায়ী নিবেদিত সেবা।',
+                    en: idx === 0 ? 'Every single penny received and spent is completely open.' : idx === 1 ? 'Permanent safety fund built through small monthly member contributions.' : 'No exaggerated claims; honest service true to our actual capacity.',
+                  },
+                };
+
+                return (
+                  <div key={idx} className="p-3.5 rounded-xl bg-white border border-[#EBE8E0] space-y-2.5">
+                    <div className="font-bold text-[#2D5A41] text-xs">কার্ড {idx + 1}</div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">শিরোনাম (বাংলা)</label>
+                      <input
+                        type="text"
+                        value={card.title?.bn || ''}
+                        onChange={(e) => updateFeatureCard(idx, 'title', 'bn', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">Title (English)</label>
+                      <input
+                        type="text"
+                        value={card.title?.en || ''}
+                        onChange={(e) => updateFeatureCard(idx, 'title', 'en', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">বিবরণ (বাংলা)</label>
+                      <textarea
+                        rows={2}
+                        value={card.description?.bn || ''}
+                        onChange={(e) => updateFeatureCard(idx, 'description', 'bn', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">Description (English)</label>
+                      <textarea
+                        rows={2}
+                        value={card.description?.en || ''}
+                        onChange={(e) => updateFeatureCard(idx, 'description', 'en', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 7. Fund Snapshot Cards CMS */}
+          <div className="p-4 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] space-y-4">
+            <div className="pb-2 border-b border-[#EBE8E0]">
+              <label className="block font-bold text-[#2D3630]">
+                ৭. হোমপেজ তহবিল স্ন্যাপশট কার্ডস সম্পাদনা (Fund Snapshot Preview Cards CMS)
+              </label>
+              <p className="text-[11px] text-[#7A877E] mt-0.5">
+                হোমপেজের ডার্ক তহবিল সেকশনের নিচের ৩টি পয়েন্টের শিরোনাম ও বিবরণ বাংলা ও ইংরেজিতে নির্ধারণ করুন।
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[0, 1, 2].map((idx) => {
+                const snap = formData.fundSnapshotCards?.[idx] || {
+                  id: `fund-snap-${idx + 1}`,
+                  title: {
+                    bn: idx === 0 ? 'মাসিক অঙ্গীকার ও বাইতুল মাল' : idx === 1 ? 'জরুরি মানবিক ও চিকিৎসা সহায়তা' : 'লাইভ গুগল শিট জবাবদিহিতা',
+                    en: idx === 0 ? 'Monthly Pledges & Baytul Mal' : idx === 1 ? 'Emergency & Medical Assistance' : 'Live Google Sheet Accountability',
+                  },
+                  description: {
+                    bn: idx === 0 ? 'পরিবারের সদস্যদের নিয়মিত মাসিক অঙ্গীকারে গঠিত স্থায়ী বাইতুল মাল সঞ্চয়।' : idx === 1 ? 'পরিবারের সদস্য ও স্বজনদের জরুরি চিকিৎসা ও মানবিক প্রয়োজনে তাৎক্ষণিক পাশে থাকা।' : 'প্রতিটি জমা ও ব্যয়ের হিসাব সার্বক্ষণিক গুগল শিটের মাধ্যমে উন্মুক্ত ও যাচাইযোগ্য।',
+                    en: idx === 0 ? 'Permanent Baytul Mal reserve built through regular monthly member pledges.' : idx === 1 ? 'Instant verified assistance for prescription medicine and emergency treatments.' : 'Financial ledger openly accessible to all contributors and well-wishers.',
+                  },
+                };
+
+                return (
+                  <div key={idx} className="p-3.5 rounded-xl bg-white border border-[#EBE8E0] space-y-2.5">
+                    <div className="font-bold text-[#2D5A41] text-xs">স্ন্যাপশট পয়েন্ট {idx + 1}</div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">শিরোনাম (বাংলা)</label>
+                      <input
+                        type="text"
+                        value={snap.title?.bn || ''}
+                        onChange={(e) => updateFundSnapshotCard(idx, 'title', 'bn', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">Title (English)</label>
+                      <input
+                        type="text"
+                        value={snap.title?.en || ''}
+                        onChange={(e) => updateFundSnapshotCard(idx, 'title', 'en', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">বিবরণ (বাংলা)</label>
+                      <textarea
+                        rows={2}
+                        value={snap.description?.bn || ''}
+                        onChange={(e) => updateFundSnapshotCard(idx, 'description', 'bn', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">Description (English)</label>
+                      <textarea
+                        rows={2}
+                        value={snap.description?.en || ''}
+                        onChange={(e) => updateFundSnapshotCard(idx, 'description', 'en', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1414,6 +1622,26 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="pt-4 border-t border-[#EBE8E0]">
+            <label className="block font-bold text-[#2D3630] mb-1">
+              হোমপেজে সদস্য প্রিভিউ সংখ্যা (Homepage Member Preview Count):
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="1"
+                max="30"
+                value={formData.homeMembersCount || 4}
+                onChange={(e) => setFormData({ ...formData, homeMembersCount: parseInt(e.target.value, 10) || 4 })}
+                className="w-28 px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] text-xs font-semibold"
+              />
+              <span className="text-xs text-[#5C665F]">জন সদস্য হোমপেজে প্রদর্শিত হবে (ডিফল্ট: ৪ জন)</span>
+            </div>
+            <p className="text-[11px] text-[#7A877E] mt-1">
+              হোমপেজের &apos;ফাউন্ডেশনের নিবেদিত সদস্যবৃন্দ&apos; সেকশনে সর্বোচ্চ কতজন সদস্য অগ্রাধিকারভিত্তিতে দৃশ্যমান থাকবে।
+            </p>
           </div>
         </div>
       )}

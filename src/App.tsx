@@ -60,13 +60,24 @@ export function App() {
     storageService.syncFromCloud().catch(() => {});
 
     // Set up real-time cross-device listener
-    const unsubscribe = supabaseService.subscribeToChanges((payload) => {
+    const unsubscribe = supabaseService.subscribeToChanges(() => {
       // If another device makes changes in Supabase, auto-pull latest data
       storageService.syncFromCloud().catch(() => {});
     });
 
+    // Auto-sync when user returns to the tab or every 60 seconds
+    const handleFocus = () => {
+      storageService.syncFromCloud().catch(() => {});
+    };
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(() => {
+      storageService.syncFromCloud().catch(() => {});
+    }, 60000);
+
     return () => {
       unsubscribe();
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
     };
   }, []);
 

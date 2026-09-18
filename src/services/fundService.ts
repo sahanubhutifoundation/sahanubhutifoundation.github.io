@@ -335,19 +335,42 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string): FundData {
   // Authoritative Expense Ledger Reconciliation
   // 1. Google Sheet summary cost (e.g. 4,950) is retained as sheetSummaryCost
   // 2. Database expenses ledger provides audited granular expenses
+  const config = storageService.getConfig();
   const dbExpenses = storageService.getExpenses();
-  const dbExpenseTotal = dbExpenses.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
 
-  // If database expenses exist, their sum is the authoritative total cost.
-  // Otherwise fall back to the sheet summary cost (or opening balance).
-  const effectiveTotalCost = dbExpenseTotal > 0 ? dbExpenseTotal : totalCost;
+  // Calculate fund-deducted expenses (only deducting when deductionMode !== 'separate' && deductionMode !== 'display_only')
+  const fundDeductedExpenses = dbExpenses.filter(
+    (e) => e.deductionMode !== 'separate' && e.deductionMode !== 'display_only'
+  );
+  const dbDeductedExpenseTotal = fundDeductedExpenses.reduce(
+    (acc, item) => acc + (Number(item.amount) || 0),
+    0
+  );
 
-  // Reconciled Available Net Balance = Total Received - Total Cost
+  // Check reconciliation mode preference
+  const reconciliationMode = config.fundReconciliationMode || 'detailed_ledger';
+  let effectiveTotalCost = dbDeductedExpenseTotal;
+
+  if (reconciliationMode === 'summary_authority' && totalCost > 0) {
+    effectiveTotalCost = totalCost;
+  } else if (reconciliationMode === 'detailed_ledger') {
+    effectiveTotalCost = dbDeductedExpenseTotal > 0 ? dbDeductedExpenseTotal : totalCost;
+  } else {
+    // Reconciled mode
+    effectiveTotalCost = dbDeductedExpenseTotal > 0 ? dbDeductedExpenseTotal : totalCost;
+  }
+
+  // Reconciled Available Net Balance = Total Received - Effective Deducted Cost
   const effectiveBalance = totalReceived > 0 ? totalReceived - effectiveTotalCost : 0;
 
   // Discrepancy audit check against Google Sheet's static summary cell
-  const balanceDiscrepancy = availableBalance > 0 && Math.abs(effectiveBalance - availableBalance) > 0.01;
-  const discrepancyDiff = effectiveBalance - availableBalance;
+  const balanceDiscrepancy =
+    totalCost > 0 && Math.abs(dbDeductedExpenseTotal - totalCost) > 0.01;
+  const discrepancyDiff = dbDeductedExpenseTotal - totalCost;
+
+  const expenseRatio =
+    totalReceived > 0 ? (effectiveTotalCost / totalReceived) * 100 : 0;
+  const safetyRatio = Math.max(0, 100 - expenseRatio);
 
   return {
     totalFund: totalReceived,
@@ -358,6 +381,8 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string): FundData {
     sheetSummaryBalance: availableBalance,
     balanceDiscrepancy,
     discrepancyDiff,
+    expenseRatio,
+    safetyRatio,
     contributorCount: members.length,
     yearlyReceived,
     monthlyTotals,
@@ -472,11 +497,21 @@ export function getCachedFundData(): FundData | null {
     if (cached) {
       const data = JSON.parse(cached) as FundData;
       const dbExpenses = storageService.getExpenses();
-      const dbExpenseTotal = dbExpenses.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
-      const effectiveSpent = dbExpenseTotal > 0 ? dbExpenseTotal : (data.sheetSummaryCost || 4950);
+      const fundDeductedExpenses = dbExpenses.filter(
+        (e) => e.deductionMode !== 'separate' && e.deductionMode !== 'display_only'
+      );
+      const dbExpenseTotal = fundDeductedExpenses.reduce(
+        (acc, item) => acc + (Number(item.amount) || 0),
+        0
+      );
+      const effectiveSpent =
+        dbExpenseTotal > 0 ? dbExpenseTotal : (data.sheetSummaryCost || 4950);
       data.expenses = dbExpenses;
       data.amountSpent = effectiveSpent;
       data.currentBalance = (data.amountReceived || 0) - effectiveSpent;
+      data.expenseRatio =
+        data.amountReceived > 0 ? (effectiveSpent / data.amountReceived) * 100 : 0;
+      data.safetyRatio = Math.max(0, 100 - (data.expenseRatio || 0));
       return {
         ...data,
         status: 'fallback',
@@ -491,13 +526,56 @@ export function getCachedFundData(): FundData | null {
 /**
  * Fetches real fund data from Google Sheet with fallback and local caching
  */
-export async function fetchFundData(rawSourceUrl: string): Promise<FundData> {
-  const { exportUrl, gvizUrl } = normalizeFundSourceUrl(rawSourceUrl);
+export async function fetchFundData(
+  rawSourceUrl: string,
+  forceFresh = false,
+  selectedYear?: string
+): Promise<FundData> {
+  // If the sheet source URL is not configured or empty, return clean 'not_found' status
+  if (!rawSourceUrl || !rawSourceUrl.trim()) {
+    return {
+      totalFund: 0,
+      amountReceived: 0,
+      amountSpent: 0,
+      currentBalance: 0,
+      contributorCount: 0,
+      yearlyReceived: {},
+      monthlyTotals: {},
+      transactions: [],
+      expenses: [],
+      lastUpdated: new Date().toISOString(),
+      sourceUrl: '',
+      sourceType: 'google_sheet',
+      status: 'not_found',
+      year: selectedYear,
+      errorMessage: selectedYear
+        ? `${selectedYear} আর্থিক বছরের জন্য গুগল স্প্রেডশিট বা ডাটাবেজ লিংক কনফিগার করা হয়নি।`
+        : 'তহবিলের জন্য কোনো গুগল স্প্রেডশিট লিংক কনফিগার করা হয়নি।',
+    };
+  }
+
+  const { exportUrl: baseExportUrl, gvizUrl: baseGvizUrl } = normalizeFundSourceUrl(rawSourceUrl);
+
+  const exportUrl =
+    forceFresh && baseExportUrl
+      ? `${baseExportUrl}${baseExportUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`
+      : baseExportUrl;
+  const gvizUrl =
+    forceFresh && baseGvizUrl
+      ? `${baseGvizUrl}${baseGvizUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`
+      : baseGvizUrl;
 
   const dbExpenses = storageService.getExpenses();
-  const dbExpenseTotal = dbExpenses.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+  const fundDeductedExpenses = dbExpenses.filter(
+    (e) => e.deductionMode !== 'separate' && e.deductionMode !== 'display_only'
+  );
+  const dbExpenseTotal = fundDeductedExpenses.reduce(
+    (acc, item) => acc + (Number(item.amount) || 0),
+    0
+  );
   const spent = dbExpenseTotal > 0 ? dbExpenseTotal : 4950;
   const received = 23320;
+  const ratio = received > 0 ? (spent / received) * 100 : 0;
 
   const emptyFallback: FundData = {
     totalFund: received,
@@ -506,6 +584,8 @@ export async function fetchFundData(rawSourceUrl: string): Promise<FundData> {
     currentBalance: received - spent,
     sheetSummaryCost: 4950,
     sheetSummaryBalance: 18370,
+    expenseRatio: ratio,
+    safetyRatio: Math.max(0, 100 - ratio),
     contributorCount: 26,
     yearlyReceived: { '2024': 1210, '2025': 10120, '2026': 11990 },
     monthlyTotals: {
@@ -528,6 +608,7 @@ export async function fetchFundData(rawSourceUrl: string): Promise<FundData> {
     sourceUrl: rawSourceUrl,
     sourceType: 'google_sheet',
     status: 'fallback',
+    year: selectedYear,
     errorMessage: 'সার্ভার সংযোগ বিচ্ছিন্ন থাকায় অফলাইন হিসাব প্রদর্শিত হচ্ছে।',
   };
 
@@ -540,6 +621,7 @@ export async function fetchFundData(rawSourceUrl: string): Promise<FundData> {
     const res = await fetch(exportUrl, {
       method: 'GET',
       headers: { Accept: 'text/csv, text/plain, */*' },
+      cache: forceFresh ? 'no-store' : 'default',
     });
 
     if (res.ok) {
@@ -548,6 +630,7 @@ export async function fetchFundData(rawSourceUrl: string): Promise<FundData> {
         const rows = parseCSV(text);
         if (rows.length >= 3) {
           const result = parseFundSheet(rows, rawSourceUrl);
+          result.year = selectedYear;
           cacheFundData(result);
           return result;
         }
@@ -562,6 +645,7 @@ export async function fetchFundData(rawSourceUrl: string): Promise<FundData> {
     const res = await fetch(gvizUrl, {
       method: 'GET',
       headers: { Accept: 'text/csv, text/plain, */*' },
+      cache: forceFresh ? 'no-store' : 'default',
     });
 
     if (res.ok) {
@@ -570,6 +654,7 @@ export async function fetchFundData(rawSourceUrl: string): Promise<FundData> {
         const rows = parseCSV(text);
         if (rows.length >= 3) {
           const result = parseFundSheet(rows, rawSourceUrl);
+          result.year = selectedYear;
           cacheFundData(result);
           return result;
         }
@@ -585,6 +670,7 @@ export async function fetchFundData(rawSourceUrl: string): Promise<FundData> {
     return {
       ...cached,
       status: 'fallback',
+      year: selectedYear,
       errorMessage: 'সর্বশেষ সংগৃহীত অফলাইন তথ্য প্রদর্শিত হচ্ছে।',
     };
   }

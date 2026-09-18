@@ -40,6 +40,7 @@ export interface Member {
   location?: string;
   address?: string;
   joiningDate?: string;
+  showJoiningDate?: boolean;
   bio?: string;
   responsibilities?: string;
   isActive: boolean;
@@ -48,6 +49,21 @@ export interface Member {
   imageFit?: 'cover' | 'contain';
   imagePosition?: string;
   createdAt: string;
+}
+
+export interface ActivityFinancialRecord {
+  hasExpense: boolean;
+  expenseId?: string;
+  amount?: number;
+  fundingSource?: 'foundation_fund' | 'external_donation' | 'personal_contribution';
+  deductionMode?: 'deduct' | 'separate' | 'display_only';
+  category?: string;
+  title?: string;
+  date?: string;
+  location?: string;
+  description?: string;
+  receiptUrl?: string;
+  isPublic?: boolean;
 }
 
 export interface Activity {
@@ -62,6 +78,8 @@ export interface Activity {
   images?: string[];
   galleryImages?: string[];
   isPublished: boolean;
+  linkedExpenseId?: string;
+  financialRecord?: ActivityFinancialRecord;
   createdAt: string;
 }
 
@@ -94,6 +112,9 @@ export interface GalleryItem {
   createdAt: string;
 }
 
+export type FundingSourceType = 'foundation_fund' | 'external_donation' | 'personal_contribution';
+export type DeductionModeType = 'deduct' | 'separate' | 'display_only';
+
 export interface ExpenseRecord {
   id: string;
   date: string;
@@ -109,6 +130,10 @@ export interface ExpenseRecord {
   isVerified?: boolean;
   year?: string | number;
   isPublic?: boolean;
+  activityId?: string;
+  linkedActivityId?: string;
+  fundingSource?: FundingSourceType;
+  deductionMode?: DeductionModeType;
   createdAt: string;
   updatedAt?: string;
 }
@@ -120,6 +145,67 @@ export interface FundVisibilitySettings {
   showExpenseDetails: boolean;
   showMonthlyFundDetails: boolean;
   showMemberContributionDetails: boolean;
+  showExpenseRatio?: boolean;
+  showSafetyRatio?: boolean;
+  showYearlyOverview?: boolean;
+  showHistoricalYears?: boolean;
+  showActivityLinkedExpenses?: boolean;
+  showSourceLinks?: boolean;
+}
+
+export interface YearlyFundSource {
+  year: string;
+  url: string;
+  gid?: string;
+  label?: string;
+  enabled: boolean;
+  isPublic: boolean;
+  notes?: string;
+}
+
+export interface FundExpenseHeadings {
+  title?: string;
+  subtitle?: string;
+  totalSpentLabel?: string;
+  columnDate?: string;
+  columnTitle?: string;
+  columnCategory?: string;
+  columnLocation?: string;
+  columnReceipt?: string;
+  columnAmount?: string;
+  emptyState?: string;
+  sourceLabel?: string;
+  verifiedLabel?: string;
+}
+
+export interface FundMemberLinkSettings {
+  showMemberName: boolean;
+  makeProfileLink: boolean;
+  showContributionDetail: boolean;
+}
+
+export interface ContactPageConfig {
+  pageTitle?: MultilingualText;
+  pageSubtitle?: MultilingualText;
+  formTitle?: MultilingualText;
+  formSubtitle?: MultilingualText;
+  nameLabel?: string;
+  namePlaceholder?: string;
+  emailLabel?: string;
+  emailPlaceholder?: string;
+  phoneLabel?: string;
+  phonePlaceholder?: string;
+  isPhoneRequired?: boolean;
+  subjectLabel?: string;
+  subjectPlaceholder?: string;
+  isSubjectRequired?: boolean;
+  messageLabel?: string;
+  messagePlaceholder?: string;
+  submitButtonText?: string;
+  submittingText?: string;
+  successTitle?: string;
+  successMessage?: string;
+  sendAnotherText?: string;
 }
 
 export interface FundTransaction {
@@ -160,8 +246,11 @@ export interface FundData {
   lastUpdated: string;
   sourceUrl: string;
   sourceType: 'google_sheet' | 'api' | 'manual';
-  status: 'live' | 'fallback' | 'error';
+  status: 'live' | 'fallback' | 'error' | 'not_found';
   errorMessage?: string;
+  expenseRatio?: number;
+  safetyRatio?: number;
+  year?: string;
 }
 
 export interface ContactMessage {
@@ -187,6 +276,20 @@ export interface SocialLink {
   icon: string;
   isEnabled: boolean;
   sortOrder: number;
+}
+
+export interface FeatureCard {
+  id: string;
+  title: MultilingualText;
+  description: MultilingualText;
+  icon?: string;
+}
+
+export interface FundSnapshotCard {
+  id: string;
+  title: MultilingualText;
+  description: MultilingualText;
+  icon?: string;
 }
 
 export interface LogoOverrides {
@@ -257,6 +360,9 @@ export interface FoundationConfig {
   showHomeFundSummary?: boolean;
   showHomeMembersPreview?: boolean;
   showHomeGalleryPreview?: boolean;
+  showFeatureCards?: boolean;
+  featureCards?: FeatureCard[];
+  fundSnapshotCards?: FundSnapshotCard[];
   mission: MultilingualText;
   vision: MultilingualText;
   values: MultilingualText;
@@ -268,6 +374,12 @@ export interface FoundationConfig {
   footerCopyright?: MultilingualText;
   footerVisibility?: FooterVisibilitySettings;
   memberImageShape?: 'circle' | 'rounded' | 'square';
+  homeMembersCount?: number;
+  yearlyFundSources?: YearlyFundSource[];
+  fundReconciliationMode?: 'detailed_ledger' | 'summary_authority' | 'reconciled';
+  fundExpenseHeadings?: FundExpenseHeadings;
+  fundMemberLinkSettings?: FundMemberLinkSettings;
+  contactPageConfig?: ContactPageConfig;
   customTranslations?: {
     [key: string]: MultilingualText;
   };

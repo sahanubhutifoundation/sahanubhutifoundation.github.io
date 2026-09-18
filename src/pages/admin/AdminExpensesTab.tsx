@@ -100,6 +100,9 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
       location: editingExpense.location || '',
       receiptUrl: editingExpense.receiptUrl || '',
       isVerified: editingExpense.isVerified !== false,
+      deductionMode: editingExpense.deductionMode || 'deduct',
+      fundingSource: editingExpense.fundingSource || 'foundation_fund',
+      linkedActivityId: editingExpense.linkedActivityId || '',
       year: editingExpense.year || (editingExpense.date ? editingExpense.date.split('-')[0] : '2026'),
       createdAt: editingExpense.createdAt || new Date().toISOString(),
     };
@@ -277,6 +280,26 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
               label: 'সদস্যদের জমার তালিকা',
               desc: 'সদস্যদের অনুদান স্ট্যাটাস টেবিল প্রদর্শন করবে',
             },
+            {
+              key: 'showExpenseRatio' as keyof FundVisibilitySettings,
+              label: 'ব্যয় অনুপাত বার (Expense Ratio)',
+              desc: 'মোট জমার বিপরীতে মানবিক ব্যয়ের শতকরা হার প্রদর্শন করবে',
+            },
+            {
+              key: 'showSafetyRatio' as keyof FundVisibilitySettings,
+              label: 'তহবিল নিরাপত্তা হার (Safety Ratio)',
+              desc: 'বাইতুল মালের অবশিষ্ট নগদ স্থিতির হার প্রদর্শন করবে',
+            },
+            {
+              key: 'showYearlyOverview' as keyof FundVisibilitySettings,
+              label: 'বার্ষিক তুলনামূলক চিত্র (Yearly Overview)',
+              desc: 'বিভিন্ন বছরের তহবিলের তুলনামূলক গ্রাফ প্রদর্শন করবে',
+            },
+            {
+              key: 'showSourceLinks' as keyof FundVisibilitySettings,
+              label: 'গুগল শিট উৎস লিংক (Source Links)',
+              desc: 'পাবলিক পেজে মূল স্প্রেডশিটের লিংক বাটন দেখাবে',
+            },
           ].map((item) => {
             const isEnabled = visibilitySettings[item.key] !== false;
             return (
@@ -417,6 +440,57 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
                   placeholder="যেমন: মৌলভী বাড়ি, মোহাম্মদ আলী বাজার"
                   className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                 />
+              </div>
+            </div>
+
+            {/* Financial Deduction Mode & Funding Source */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+              <div>
+                <label className="block font-bold text-[#2D3630] mb-1">
+                  তহবিল সমন্বয় মোড (Deduction Mode)
+                </label>
+                <select
+                  value={editingExpense.deductionMode || 'deduct'}
+                  onChange={(e) =>
+                    setEditingExpense({
+                      ...editingExpense,
+                      deductionMode: e.target.value as any,
+                    })
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                >
+                  <option value="deduct">তহবিল হতে বিয়োজিত (Deduct from Foundation Fund)</option>
+                  <option value="separate">পৃথক আর্থিক উৎস (Separate Project Budget - তহবিলে বিয়োগ হবে না)</option>
+                  <option value="display_only">শুধুমাত্র প্রদর্শনী (Display Only - কোনো বিয়োগ নয়)</option>
+                </select>
+                <span className="text-[10px] text-[#7A877E] block mt-1">
+                  {editingExpense.deductionMode === 'separate'
+                    ? 'এই ব্যয়টি প্রদর্শিত হবে কিন্তু মূল বাইতুল মাল তহবিলের ব্যালেন্স থেকে কাটা যাবে না।'
+                    : editingExpense.deductionMode === 'display_only'
+                    ? 'শুধুমাত্র তথ্যের জন্য রেকর্ড থাকবে, মোট হিসেবে হাত পড়বে না।'
+                    : 'ডিফল্ট: মূল বাইতুল মাল থেকে স্বয়ংক্রিয়ভাবে বিয়োগ হয়ে ব্যালেন্স হালনাগাদ হবে।'}
+                </span>
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#2D3630] mb-1">
+                  আর্থিক উৎস (Funding Source)
+                </label>
+                <select
+                  value={editingExpense.fundingSource || 'foundation_fund'}
+                  onChange={(e) =>
+                    setEditingExpense({
+                      ...editingExpense,
+                      fundingSource: e.target.value as any,
+                    })
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                >
+                  <option value="foundation_fund">সহানুভূতি ফাউন্ডেশন বাইতুল মাল ফান্ড</option>
+                  <option value="special_donation">বিশেষ অনুদান / নির্দিষ্ট সহায়তা</option>
+                  <option value="sponsor">ব্যক্তিগত বা পরিবার স্বজন স্পনসর</option>
+                  <option value="other">অন্যান্য উৎস</option>
+                </select>
               </div>
             </div>
 

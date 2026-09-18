@@ -1,23 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { PageHero } from '../components/PageHero';
 import { FoundationLocationDisplay } from '../components/FoundationLocationDisplay';
 import { storageService } from '../services/storageService';
+import { ContactPageConfig } from '../types';
 import {
   Mail,
   Facebook,
   Phone,
-  MapPin,
   Send,
   CheckCircle2,
-  Calendar,
   HeartHandshake,
-  Clock,
 } from 'lucide-react';
 
 export const ContactPage: React.FC = () => {
   const { t, language } = useLanguage();
-  const [config] = useState(storageService.getConfig());
+  const [config, setConfig] = useState(storageService.getConfig());
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -27,9 +25,55 @@ export const ContactPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'sahanubhuti_config') {
+        setConfig(storageService.getConfig());
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  const contactCfg: ContactPageConfig = config.contactPageConfig || {};
+
+  const pageTitle =
+    (language === 'en'
+      ? contactCfg.pageTitle?.en
+      : language === 'ar'
+      ? contactCfg.pageTitle?.ar
+      : contactCfg.pageTitle?.bn) || t('contactTitle');
+
+  const pageSubtitle =
+    (language === 'en'
+      ? contactCfg.pageSubtitle?.en
+      : language === 'ar'
+      ? contactCfg.pageSubtitle?.ar
+      : contactCfg.pageSubtitle?.bn) || t('contactSubtitle');
+
+  const formTitle =
+    (language === 'en'
+      ? contactCfg.formTitle?.en
+      : language === 'ar'
+      ? contactCfg.formTitle?.ar
+      : contactCfg.formTitle?.bn) ||
+    (language === 'bn' ? 'আমাদের বার্তা পাঠান' : 'Send Us a Message');
+
+  const formSubtitle =
+    (language === 'en'
+      ? contactCfg.formSubtitle?.en
+      : language === 'ar'
+      ? contactCfg.formSubtitle?.ar
+      : contactCfg.formSubtitle?.bn) ||
+    (language === 'bn'
+      ? 'ফর্মটি পূরণ করে সাবমিট করলে এটি সরাসরি অ্যাডমিন ইনবক্সে সংরক্ষিত হবে।'
+      : 'Submitting this form stores your inquiry directly in our administrator inbox.');
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim() || !message.trim()) return;
+    if (contactCfg.isPhoneRequired && !phone.trim()) return;
+    if (contactCfg.isSubjectRequired && !subject.trim()) return;
 
     setSubmitting(true);
     try {
@@ -61,8 +105,8 @@ export const ContactPage: React.FC = () => {
   return (
     <div className="space-y-10 sm:space-y-12 pb-16">
       <PageHero
-        title={t('contactTitle')}
-        subtitle={t('contactSubtitle')}
+        title={pageTitle}
+        subtitle={pageSubtitle}
         breadcrumb={[{ label: t('navContact') }]}
         tag="সরাসরি সংযোগ"
       />
@@ -166,12 +210,10 @@ export const ContactPage: React.FC = () => {
           <div className="lg:col-span-7">
             <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs">
               <h2 className="text-lg font-bold text-[#2D3630] mb-1">
-                {language === 'bn' ? 'আমাদের বার্তা পাঠান' : 'Send Us a Message'}
+                {formTitle}
               </h2>
               <p className="text-xs sm:text-sm text-[#5C665F] mb-6">
-                {language === 'bn'
-                  ? 'ফর্মটি পূরণ করে সাবমিট করলে এটি সরাসরি অ্যাডমিন ইনবক্সে সংরক্ষিত হবে।'
-                  : 'Submitting this form stores your inquiry directly in our administrator inbox.'}
+                {formSubtitle}
               </p>
 
               {submitted ? (
@@ -180,16 +222,18 @@ export const ContactPage: React.FC = () => {
                     <CheckCircle2 className="w-6 h-6" />
                   </div>
                   <h3 className="text-base font-bold text-[#234733]">
-                    {t('contactSuccessMessage')}
+                    {contactCfg.successTitle || t('contactSuccessMessage')}
                   </h3>
                   <p className="text-xs text-[#2D5A41] max-w-md mx-auto">
-                    আপনার প্রেরিত বার্তাটি নিরাপদে সংরক্ষিত হয়েছে। ইনশাআল্লাহ দ্রুত যোগাযোগ করা হবে।
+                    {contactCfg.successMessage ||
+                      'আপনার প্রেরিত বার্তাটি নিরাপদে সংরক্ষিত হয়েছে। ইনশাআল্লাহ দ্রুত যোগাযোগ করা হবে।'}
                   </p>
                   <button
+                    type="button"
                     onClick={() => setSubmitted(false)}
                     className="mt-2 px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#2D5A41] text-white hover:bg-[#234733] transition-colors"
                   >
-                    আরেকটি বার্তা পাঠান
+                    {contactCfg.sendAnotherText || 'আরেকটি বার্তা পাঠান'}
                   </button>
                 </div>
               ) : (
@@ -197,14 +241,15 @@ export const ContactPage: React.FC = () => {
                   {/* Name */}
                   <div>
                     <label className="block text-xs font-bold text-[#2D3630] mb-1">
-                      {t('contactFormName')} <span className="text-rose-500">*</span>
+                      {contactCfg.nameLabel || t('contactFormName')}{' '}
+                      <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="যেমন: মোহাম্মদ আবদুল্লাহ"
+                      placeholder={contactCfg.namePlaceholder || 'যেমন: মোহাম্মদ আবদুল্লাহ'}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-sm text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                     />
                   </div>
@@ -213,26 +258,29 @@ export const ContactPage: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-[#2D3630] mb-1">
-                        {t('contactFormEmail')} <span className="text-rose-500">*</span>
+                        {contactCfg.emailLabel || t('contactFormEmail')}{' '}
+                        <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="email"
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="yourname@example.com"
+                        placeholder={contactCfg.emailPlaceholder || 'yourname@example.com'}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-sm text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-[#2D3630] mb-1">
-                        {t('contactFormPhone')}
+                        {contactCfg.phoneLabel || t('contactFormPhone')}{' '}
+                        {contactCfg.isPhoneRequired && <span className="text-rose-500">*</span>}
                       </label>
                       <input
                         type="tel"
+                        required={contactCfg.isPhoneRequired}
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+880 1..."
+                        placeholder={contactCfg.phonePlaceholder || '+880 1...'}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-sm text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                       />
                     </div>
@@ -241,13 +289,18 @@ export const ContactPage: React.FC = () => {
                   {/* Subject */}
                   <div>
                     <label className="block text-xs font-bold text-[#2D3630] mb-1">
-                      {t('contactFormSubject')}
+                      {contactCfg.subjectLabel || t('contactFormSubject')}{' '}
+                      {contactCfg.isSubjectRequired && <span className="text-rose-500">*</span>}
                     </label>
                     <input
                       type="text"
+                      required={contactCfg.isSubjectRequired}
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
-                      placeholder="যেমন: সদস্য হওয়ার আবেদন / আর্থিক পরামর্শ"
+                      placeholder={
+                        contactCfg.subjectPlaceholder ||
+                        'যেমন: সদস্য হওয়ার আবেদন / আর্থিক পরামর্শ'
+                      }
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-sm text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                     />
                   </div>
@@ -255,14 +308,17 @@ export const ContactPage: React.FC = () => {
                   {/* Message */}
                   <div>
                     <label className="block text-xs font-bold text-[#2D3630] mb-1">
-                      {t('contactFormMessage')} <span className="text-rose-500">*</span>
+                      {contactCfg.messageLabel || t('contactFormMessage')}{' '}
+                      <span className="text-rose-500">*</span>
                     </label>
                     <textarea
                       required
                       rows={5}
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
-                      placeholder="আপনার বার্তা বিস্তারিত লিখুন..."
+                      placeholder={
+                        contactCfg.messagePlaceholder || 'আপনার বার্তা বিস্তারিত লিখুন...'
+                      }
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-sm text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41] resize-y"
                     />
                   </div>
@@ -274,7 +330,11 @@ export const ContactPage: React.FC = () => {
                     className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-[#2D5A41] hover:bg-[#234733] shadow-2xs transition-all flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50"
                   >
                     <Send className="w-4 h-4" />
-                    <span>{submitting ? t('contactFormSubmitting') : t('contactFormSubmit')}</span>
+                    <span>
+                      {submitting
+                        ? contactCfg.submittingText || t('contactFormSubmitting')
+                        : contactCfg.submitButtonText || t('contactFormSubmit')}
+                    </span>
                   </button>
                 </form>
               )}

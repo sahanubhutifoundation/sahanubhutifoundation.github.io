@@ -972,14 +972,43 @@ export const supabaseService = {
 
       let { error } = await supabase.from('notices').upsert(payload, { onConflict: 'id' });
 
-      // Schema mismatch progressive fallback
-      if (error && (error.message?.includes('column') || error.code === 'PGRST204')) {
+      // Schema mismatch progressive fallback for missing columns
+      while (error && (error.message?.includes('column') || error.code === 'PGRST204' || (error as any).code === '42703')) {
         const errMsg = error.message.toLowerCase();
-        if (errMsg.includes('attachment_url')) delete payload.attachment_url;
-        if (errMsg.includes('body')) delete payload.body;
-        if (errMsg.includes('link')) delete payload.link;
-        if (errMsg.includes('is_important')) delete payload.is_important;
-        if (errMsg.includes('is_pinned')) delete payload.is_pinned;
+        let stripped = false;
+        if (errMsg.includes('attachment_url') && 'attachment_url' in payload) {
+          delete payload.attachment_url;
+          stripped = true;
+        }
+        if (errMsg.includes('attachment') && 'attachment' in payload) {
+          delete payload.attachment;
+          stripped = true;
+        }
+        if (errMsg.includes('body') && 'body' in payload) {
+          delete payload.body;
+          stripped = true;
+        }
+        if (errMsg.includes('link') && 'link' in payload) {
+          delete payload.link;
+          stripped = true;
+        }
+        if (errMsg.includes('is_important') && 'is_important' in payload) {
+          delete payload.is_important;
+          stripped = true;
+        }
+        if (errMsg.includes('is_pinned') && 'is_pinned' in payload) {
+          delete payload.is_pinned;
+          stripped = true;
+        }
+        if (!stripped) {
+          const match = error.message.match(/column ['"]?([a-zA-Z0-9_]+)['"]?/i);
+          if (match && match[1] && match[1] in payload) {
+            delete payload[match[1]];
+            stripped = true;
+          } else {
+            break;
+          }
+        }
         const retry = await supabase.from('notices').upsert(payload, { onConflict: 'id' });
         error = retry.error;
       }
@@ -1345,16 +1374,50 @@ export const supabaseService = {
       let { error } = await supabase.from('expenses').upsert(payload, { onConflict: 'id' });
 
       // Progressive fallback if live Postgres table doesn't have certain columns
-      if (error && (error.message?.includes('column') || error.code === 'PGRST204')) {
+      while (error && (error.message?.includes('column') || error.code === 'PGRST204' || (error as any).code === '42703')) {
         const errMsg = error.message.toLowerCase();
-        if (errMsg.includes('is_recipient_public')) delete payload.is_recipient_public;
-        if (errMsg.includes('purpose')) delete payload.purpose;
-        if (errMsg.includes('verified_by')) delete payload.verified_by;
-        if (errMsg.includes('receipt_url')) delete payload.receipt_url;
-        if (errMsg.includes('custom_category')) delete payload.custom_category;
-        if (errMsg.includes('is_verified')) delete payload.is_verified;
-        if (errMsg.includes('is_public')) delete payload.is_public;
-        if (errMsg.includes('year')) delete payload.year;
+        let stripped = false;
+        if (errMsg.includes('is_recipient_public') && 'is_recipient_public' in payload) {
+          delete payload.is_recipient_public;
+          stripped = true;
+        }
+        if (errMsg.includes('purpose') && 'purpose' in payload) {
+          delete payload.purpose;
+          stripped = true;
+        }
+        if (errMsg.includes('verified_by') && 'verified_by' in payload) {
+          delete payload.verified_by;
+          stripped = true;
+        }
+        if (errMsg.includes('receipt_url') && 'receipt_url' in payload) {
+          delete payload.receipt_url;
+          stripped = true;
+        }
+        if (errMsg.includes('custom_category') && 'custom_category' in payload) {
+          delete payload.custom_category;
+          stripped = true;
+        }
+        if (errMsg.includes('is_verified') && 'is_verified' in payload) {
+          delete payload.is_verified;
+          stripped = true;
+        }
+        if (errMsg.includes('is_public') && 'is_public' in payload) {
+          delete payload.is_public;
+          stripped = true;
+        }
+        if (errMsg.includes('year') && 'year' in payload) {
+          delete payload.year;
+          stripped = true;
+        }
+        if (!stripped) {
+          const match = error.message.match(/column ['"]?([a-zA-Z0-9_]+)['"]?/i);
+          if (match && match[1] && match[1] in payload) {
+            delete payload[match[1]];
+            stripped = true;
+          } else {
+            break;
+          }
+        }
         const retry = await supabase.from('expenses').upsert(payload, { onConflict: 'id' });
         error = retry.error;
       }

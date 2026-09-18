@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { storageService } from '../services/storageService';
 import { Logo } from '../components/Logo';
 import { FoundationLocationDisplay } from '../components/FoundationLocationDisplay';
-import { formatFoundingDate } from '../utils/foundationHelpers';
+import { formatFoundingDate, toBengaliDigits } from '../utils/foundationHelpers';
 import {
   FoundationConfig,
   Activity,
@@ -41,19 +41,25 @@ export const HomePage: React.FC = () => {
 
   useEffect(() => {
     const refreshData = () => {
-      setConfig(storageService.getConfig());
+      const currentConfig = storageService.getConfig();
+      setConfig(currentConfig);
       setActivities(storageService.getActivities().filter((a) => a.isPublished).slice(0, 3));
       setNotices(storageService.getNotices().filter((n) => n.isPublished).slice(0, 3));
-      setMembers(storageService.getMembers().filter((m) => m.isActive).slice(0, 4));
+      const count = currentConfig.homeMembersCount && currentConfig.homeMembersCount > 0 ? currentConfig.homeMembersCount : 4;
+      setMembers(storageService.getMembers().filter((m) => m.isActive).slice(0, count));
       setDesignations(storageService.getDesignations());
       setGallery(storageService.getGalleryItems().filter((g) => g.isPublished).slice(0, 4));
     };
 
     refreshData();
     window.addEventListener('sf_config_updated', refreshData);
+    window.addEventListener('sf_data_updated', refreshData);
+    window.addEventListener('sf_cloud_synced', refreshData);
     window.addEventListener('storage', refreshData);
     return () => {
       window.removeEventListener('sf_config_updated', refreshData);
+      window.removeEventListener('sf_data_updated', refreshData);
+      window.removeEventListener('sf_cloud_synced', refreshData);
       window.removeEventListener('storage', refreshData);
     };
   }, []);
@@ -211,56 +217,82 @@ export const HomePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Key Pillars Highlights */}
-          <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3.5">
-            <div className="p-4 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-[#E8EFEA] border border-[#2D5A41]/20 flex items-center justify-center text-[#2D5A41] shrink-0">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-[#2D3630]">
-                  {language === 'bn' ? 'শতভাগ আর্থিক স্বচ্ছতা' : '100% Financial Transparency'}
-                </h3>
-                <p className="text-xs text-[#7A877E] mt-0.5 leading-relaxed">
-                  {language === 'bn'
-                    ? 'তহবিলের প্রতিটি টাকা ও ব্যয়ের হিসাব সবার জন্য দৃশ্যমান ও উন্মুক্ত।'
-                    : 'Every single penny received and spent is completely open.'}
-                </p>
-              </div>
-            </div>
+          {/* Key Pillars Highlights / Feature Cards */}
+          {config.showFeatureCards !== false && (
+            <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3.5">
+              {(config.featureCards && config.featureCards.length > 0
+                ? config.featureCards
+                : [
+                    {
+                      id: 'feat-1',
+                      title: {
+                        bn: 'শতভাগ আর্থিক স্বচ্ছতা',
+                        en: '100% Financial Transparency',
+                        ar: 'الشفافية المالية التامة',
+                      },
+                      description: {
+                        bn: 'তহবিলের প্রতিটি টাকা ও ব্যয়ের হিসাব সবার জন্য দৃশ্যমান ও উন্মুক্ত।',
+                        en: 'Every single penny received and spent is completely open.',
+                        ar: 'كل قرش يدخل ويصرف مسجل ومتاح للجميع.',
+                      },
+                      icon: 'ShieldCheck',
+                    },
+                    {
+                      id: 'feat-2',
+                      title: {
+                        bn: 'পারিবারিক বাইতুল মাল',
+                        en: 'Family Baytul Mal',
+                        ar: 'بيت المال العائلي',
+                      },
+                      description: {
+                        bn: 'মাসিক ক্ষুদ্র সঞ্চয়ের মাধ্যমে আপৎকালীন বিপদে স্বজনদের সহায়তার স্থায়ী তহবিল।',
+                        en: 'Permanent safety fund built through small monthly member contributions.',
+                        ar: 'صندوق أمان دائم تم إنشاؤه من خلال المساهمات الشهرية المنتظمة.',
+                      },
+                      icon: 'HeartHandshake',
+                    },
+                    {
+                      id: 'feat-3',
+                      title: {
+                        bn: 'বাস্তবধর্মী ও সততাপূর্ণ পথচলা',
+                        en: 'Realistic & Sincere Journey',
+                        ar: 'مسيرة واقعية ومخلصة',
+                      },
+                      description: {
+                        bn: 'কোনো অতিরঞ্জন বা অসত্য দাবি নয়; সামর্থ্য অনুযায়ী নিবেদিত সেবা।',
+                        en: 'No exaggerated claims; honest service true to our actual capacity.',
+                        ar: 'خدمة مخلصة وفق قدراتنا الحقيقية دون أي ادعاءات مبالغ فيها.',
+                      },
+                      icon: 'UserCheck',
+                    },
+                  ]
+              ).map((card, idx) => {
+                const cardTitle = tMulti(card.title) || (typeof card.title === 'string' ? card.title : '');
+                const cardDesc = tMulti(card.description) || (typeof card.description === 'string' ? card.description : '');
+                const IconComponent =
+                  card.icon === 'HeartHandshake' || idx === 1
+                    ? HeartHandshake
+                    : card.icon === 'UserCheck' || idx === 2
+                    ? UserCheck
+                    : ShieldCheck;
 
-            <div className="p-4 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-[#E8EFEA] border border-[#2D5A41]/20 flex items-center justify-center text-[#2D5A41] shrink-0">
-                <HeartHandshake className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-[#2D3630]">
-                  {language === 'bn' ? 'পারিবারিক বাইতুল মাল' : 'Family Baytul Mal'}
-                </h3>
-                <p className="text-xs text-[#7A877E] mt-0.5 leading-relaxed">
-                  {language === 'bn'
-                    ? 'মাসিক ক্ষুদ্র সঞ্চয়ের মাধ্যমে আপৎকালীন বিপদে স্বজনদের সহায়তার স্থায়ী তহবিল।'
-                    : 'Permanent safety fund built through small monthly member contributions.'}
-                </p>
-              </div>
+                return (
+                  <div
+                    key={card.id || idx}
+                    className="p-4 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs flex items-start gap-3"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-[#E8EFEA] border border-[#2D5A41]/20 flex items-center justify-center text-[#2D5A41] shrink-0">
+                      <IconComponent className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-[#2D3630]">{cardTitle}</h3>
+                      <p className="text-xs text-[#7A877E] mt-0.5 leading-relaxed">{cardDesc}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-
-            <div className="p-4 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-[#E8EFEA] border border-[#2D5A41]/20 flex items-center justify-center text-[#2D5A41] shrink-0">
-                <UserCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-[#2D3630]">
-                  {language === 'bn' ? 'বাস্তবধর্মী ও সততাপূর্ণ পথচলা' : 'Realistic & Sincere Journey'}
-                </h3>
-                <p className="text-xs text-[#7A877E] mt-0.5 leading-relaxed">
-                  {language === 'bn'
-                    ? 'কোনো অতিরঞ্জন বা অসত্য দাবি নয়; সামর্থ্য অনুযায়ী নিবেদিত সেবা।'
-                    : 'No exaggerated claims; honest service true to our actual capacity.'}
-                </p>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -298,35 +330,75 @@ export const HomePage: React.FC = () => {
 
             {/* Fund Transparency Principles Snapshot */}
             <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
-              <div className="p-4 rounded-xl bg-[#202C23] border border-[#28382C] space-y-1.5">
-                <div className="flex items-center gap-2 text-[#82CCA3] text-xs font-bold">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>মাসিক অঙ্গীকার ও বাইতুল মাল</span>
-                </div>
-                <p className="text-xs text-[#A4B3A8] leading-relaxed">
-                  পরিবারের সদস্যদের নিয়মিত মাসিক অঙ্গীকারে গঠিত স্থায়ী বাইতুল মাল সঞ্চয়।
-                </p>
-              </div>
+              {(config.fundSnapshotCards && config.fundSnapshotCards.length > 0
+                ? config.fundSnapshotCards
+                : [
+                    {
+                      id: 'fund-snap-1',
+                      title: {
+                        bn: 'মাসিক অঙ্গীকার ও বাইতুল মাল',
+                        en: 'Monthly Pledges & Baytul Mal',
+                        ar: 'التعهدات الشهرية وبيت المال',
+                      },
+                      description: {
+                        bn: 'পরিবারের সদস্যদের নিয়মিত মাসিক অঙ্গীকারে গঠিত স্থায়ী বাইতুল মাল সঞ্চয়।',
+                        en: 'Permanent Baytul Mal reserve built through regular monthly member pledges.',
+                        ar: 'مدخرات بيت المال الدائمة الناتجة عن التعهدات الشهرية المنتظمة.',
+                      },
+                      icon: 'CheckCircle2',
+                    },
+                    {
+                      id: 'fund-snap-2',
+                      title: {
+                        bn: 'জরুরি মানবিক ও চিকিৎসা সহায়তা',
+                        en: 'Emergency & Medical Assistance',
+                        ar: 'المساعدات الطبية والإنسانية العاجلة',
+                      },
+                      description: {
+                        bn: 'পরিবারের সদস্য ও স্বজনদের জরুরি চিকিৎসা ও মানবিক প্রয়োজনে তাৎক্ষণিক পাশে থাকা।',
+                        en: 'Instant verified assistance for prescription medicine and emergency treatments.',
+                        ar: 'مساعدات مالية معتمدة وفورية للأدوية والعلاج للحالات الحرجة.',
+                      },
+                      icon: 'ShieldCheck',
+                    },
+                    {
+                      id: 'fund-snap-3',
+                      title: {
+                        bn: 'লাইভ গুগল শিট জবাবদিহিতা',
+                        en: 'Live Google Sheet Accountability',
+                        ar: 'المساءلة المباشرة عبر جداول بيانات جوجل',
+                      },
+                      description: {
+                        bn: 'প্রতিটি জমা ও ব্যয়ের হিসাব সার্বক্ষণিক গুগল শিটের মাধ্যমে উন্মুক্ত ও যাচাইযোগ্য।',
+                        en: 'Financial ledger openly accessible to all contributors and well-wishers.',
+                        ar: 'سجل مالي شفاف ومتاح لجميع المساهمين والمهتمين.',
+                      },
+                      icon: 'Wallet',
+                    },
+                  ]
+              ).map((snap, idx) => {
+                const snapTitle = tMulti(snap.title) || (typeof snap.title === 'string' ? snap.title : '');
+                const snapDesc = tMulti(snap.description) || (typeof snap.description === 'string' ? snap.description : '');
+                const IconComponent =
+                  snap.icon === 'ShieldCheck' || idx === 1
+                    ? ShieldCheck
+                    : snap.icon === 'Wallet' || idx === 2
+                    ? Wallet
+                    : CheckCircle2;
 
-              <div className="p-4 rounded-xl bg-[#202C23] border border-[#28382C] space-y-1.5">
-                <div className="flex items-center gap-2 text-[#82CCA3] text-xs font-bold">
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>জরুরি মানবিক ও চিকিৎসা সহায়তা</span>
-                </div>
-                <p className="text-xs text-[#A4B3A8] leading-relaxed">
-                  পরিবারের সদস্য ও স্বজনদের জরুরি চিকিৎসা ও মানবিক প্রয়োজনে তাৎক্ষণিক পাশে থাকা।
-                </p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-[#202C23] border border-[#28382C] space-y-1.5">
-                <div className="flex items-center gap-2 text-[#82CCA3] text-xs font-bold">
-                  <Wallet className="w-4 h-4" />
-                  <span>লাইভ গুগল শিট জবাবদিহিতা</span>
-                </div>
-                <p className="text-xs text-[#A4B3A8] leading-relaxed">
-                  প্রতিটি জমা ও ব্যয়ের হিসাব সার্বক্ষণিক গুগল শিটের মাধ্যমে উন্মুক্ত ও যাচাইযোগ্য।
-                </p>
-              </div>
+                return (
+                  <div
+                    key={snap.id || idx}
+                    className="p-4 rounded-xl bg-[#202C23] border border-[#28382C] space-y-1.5"
+                  >
+                    <div className="flex items-center gap-2 text-[#82CCA3] text-xs font-bold">
+                      <IconComponent className="w-4 h-4" />
+                      <span>{snapTitle}</span>
+                    </div>
+                    <p className="text-xs text-[#A4B3A8] leading-relaxed">{snapDesc}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -452,8 +524,8 @@ export const HomePage: React.FC = () => {
                         </div>
                       );
                     })()}
-                    <div className="text-xs font-mono text-[#2D5A41] mb-0.5 font-bold">
-                      #{member.serial}
+                    <div className="inline-block px-2 py-0.5 rounded-md bg-[#F7F5F0] border border-[#EBE8E0] text-[10px] sm:text-[11px] font-semibold text-[#5C665F] group-hover:bg-[#E8EFEA] group-hover:text-[#2D5A41] transition-colors mb-1.5 shadow-3xs">
+                      {language === 'bn' ? `ক্রমিক ${toBengaliDigits(member.serial)}` : `#${member.serial}`}
                     </div>
                     <h3 className="text-sm font-bold text-[#2D3630] group-hover:text-[#2D5A41] transition-colors line-clamp-1">
                       {member.name}

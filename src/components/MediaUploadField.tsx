@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   UploadCloud,
   Image as ImageIcon,
@@ -9,7 +9,8 @@ import {
   RefreshCw,
   Trash2,
   AlertTriangle,
-  ZoomIn,
+  Link as LinkIcon,
+  ClipboardPaste,
 } from 'lucide-react';
 import { mediaService } from '../services/mediaService';
 
@@ -47,15 +48,16 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
   bucket = 'gallery',
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlDraft, setUrlDraft] = useState('');
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processFile = async (file: File) => {
     setErrorMsg(null);
     setIsUploading(true);
 
@@ -82,6 +84,54 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+  };
+
+  // Drag & drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isUploading) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (isUploading) return;
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await processFile(file);
+    }
+  };
+
+  // Clipboard paste (Ctrl+V) handler
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          await processFile(file);
+          return;
+        }
+      }
+    }
+  };
+
   const handleConfirmRemove = () => {
     if (value) {
       mediaService.deleteMedia(value, bucket).catch(console.warn);
@@ -92,6 +142,14 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
     setShowDeleteConfirm(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleApplyUrl = () => {
+    if (urlDraft.trim()) {
+      onChange(urlDraft.trim());
+      setShowUrlInput(false);
+      setUrlDraft('');
     }
   };
 
@@ -115,18 +173,52 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
       : 'aspect-auto max-h-56';
 
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div
+      ref={containerRef}
+      onPaste={handlePaste}
+      tabIndex={0}
+      className={`space-y-2 outline-none ${className}`}
+    >
       <div className="flex items-center justify-between">
         <label className="block text-xs font-bold text-[#2D3630]">
           {label} {required && <span className="text-rose-500">*</span>}
         </label>
-        {hasMedia && (
-          <span className="text-[10px] text-[#2D5A41] font-semibold flex items-center gap-1 bg-[#E8EFEA] px-2 py-0.5 rounded-md">
-            <CheckCircle2 className="w-3 h-3 text-[#2D5A41]" />
-            মিডিয়া সক্রিয় (লাইভ প্রিভিউ)
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowUrlInput(!showUrlInput)}
+            className="text-[11px] text-[#2D5A41] hover:underline flex items-center gap-1 font-medium"
+          >
+            <LinkIcon className="w-3 h-3" />
+            <span>{showUrlInput ? 'আপলোড মোড' : 'সরাসরি লিংক দিন'}</span>
+          </button>
+          {hasMedia && (
+            <span className="text-[10px] text-[#2D5A41] font-semibold flex items-center gap-1 bg-[#E8EFEA] px-2 py-0.5 rounded-md">
+              <CheckCircle2 className="w-3 h-3 text-[#2D5A41]" />
+              মিডিয়া সক্রিয়
+            </span>
+          )}
+        </div>
       </div>
+
+      {showUrlInput && (
+        <div className="flex items-center gap-2 p-2 bg-[#F7F5F0] rounded-xl border border-[#EBE8E0]">
+          <input
+            type="url"
+            value={urlDraft}
+            onChange={(e) => setUrlDraft(e.target.value)}
+            placeholder="https://example.com/image.jpg"
+            className="flex-1 px-2.5 py-1.5 rounded-lg border border-[#D9D6CC] bg-white text-xs text-[#2D3630] focus:outline-none focus:border-[#2D5A41]"
+          />
+          <button
+            type="button"
+            onClick={handleApplyUrl}
+            className="px-3 py-1.5 rounded-lg bg-[#2D5A41] text-white text-xs font-semibold hover:bg-[#234733]"
+          >
+            প্রয়োগ করুন
+          </button>
+        </div>
+      )}
 
       <input
         ref={fileInputRef}
@@ -167,7 +259,7 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
           {/* Controls Bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#EBE8E0]">
             <div className="text-[11px] text-[#5C665F] truncate max-w-[200px] sm:max-w-xs font-mono">
-              {fileName || (isVideo ? 'ভিডিও মিডিয়া ফাইল' : 'সংরক্ষিত ছবি')}
+              {fileName || (isVideo ? 'ভিডিও ফাইল' : 'সংরক্ষিত ছবি')}
             </div>
 
             <div className="flex items-center gap-2">
@@ -217,8 +309,13 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
       ) : (
         <div
           onClick={() => !isUploading && fileInputRef.current?.click()}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
           className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
-            isUploading
+            isDragging
+              ? 'border-[#2D5A41] bg-[#E8EFEA]/60 ring-2 ring-[#2D5A41]/30'
+              : isUploading
               ? 'border-[#2D5A41]/40 bg-[#E8EFEA]/30 cursor-wait'
               : 'border-[#D9D6CC] hover:border-[#2D5A41] bg-[#FDFCF9] hover:bg-[#F7F5F0]'
           }`}
@@ -234,13 +331,13 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
                 {isVideo ? <Video className="w-5 h-5" /> : <UploadCloud className="w-5 h-5 text-[#2D5A41]" />}
               </div>
               <div className="text-xs font-bold text-[#2D3630]">
-                {isVideo ? 'ভিডিও আপলোড করতে ক্লিক করুন' : 'ছবি আপলোড করতে ক্লিক করুন'}
+                {isVideo ? 'ভিডিও আপলোড করতে ক্লিক করুন বা টেনে আনুন' : 'ছবি আপলোড করতে ক্লিক করুন, ড্র্যাগ করুন বা Ctrl+V পেস্ট করুন'}
               </div>
               <p className="text-[11px] text-[#7A877E]">
                 {helperText ||
                   (isVideo
                     ? 'MP4 বা WebM ফাইল (সর্বোচ্চ ৩৫ MB)'
-                    : 'JPG, PNG, WebP বা SVG ফাইল (সর্বোচ্চ ১০ MB)')}
+                    : 'JPG, PNG, WebP বা SVG ফাইল (সর্বোচ্চ ১০ MB) — কপি করা ছবি এখানে সরাসরি পেস্ট (Ctrl+V) করতে পারেন')}
               </p>
             </div>
           )}

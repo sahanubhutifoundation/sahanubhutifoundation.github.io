@@ -140,6 +140,10 @@ export const AdminPage: React.FC = () => {
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [passMsg, setPassMsg] = useState<{ text: string; isError: boolean } | null>(null);
+  const [showLoginPass, setShowLoginPass] = useState(false);
+  const [showCurrPass, setShowCurrPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
 
   // Restore Modal State
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
@@ -262,6 +266,7 @@ export const AdminPage: React.FC = () => {
       phone: editingMember.phone || '',
       email: editingMember.email || '',
       joiningDate: editingMember.joiningDate || new Date().toISOString().split('T')[0],
+      showJoiningDate: editingMember.showJoiningDate !== false,
       isActive: editingMember.isActive !== false,
       isFamilyMember: true,
       imageShape: editingMember.imageShape,
@@ -489,8 +494,16 @@ export const AdminPage: React.FC = () => {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPassMsg(null);
+    if (!currPass) {
+      setPassMsg({ text: 'বর্তমান পাসওয়ার্ড প্রদান করুন।', isError: true });
+      return;
+    }
+    if (!newPass || newPass.length < 6) {
+      setPassMsg({ text: 'নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।', isError: true });
+      return;
+    }
     if (newPass !== confirmPass) {
-      setPassMsg({ text: 'নতুন পাসওয়ার্ড দুটি মিলছে না।', isError: true });
+      setPassMsg({ text: 'নতুন পাসওয়ার্ড এবং নিশ্চিতকরণ পাসওয়ার্ড মিলছে না।', isError: true });
       return;
     }
 
@@ -561,14 +574,24 @@ export const AdminPage: React.FC = () => {
               <label className="block text-xs font-bold text-[#2D3630] mb-1">
                 {t('adminPasswordLabel')}
               </label>
-              <input
-                type="password"
-                required
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-sm text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-              />
+              <div className="relative">
+                <input
+                  type={showLoginPass ? 'text' : 'password'}
+                  required
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-sm text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPass(!showLoginPass)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[#7A877E] hover:text-[#2D3630] transition-colors"
+                  title={showLoginPass ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
+                >
+                  {showLoginPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             <button
@@ -1375,6 +1398,32 @@ export const AdminPage: React.FC = () => {
                     onChange={(e) => setEditingMember({ ...editingMember, bio: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                   />
+                </div>
+
+                <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-[#FDFCF9] rounded-xl border border-[#EBE8E0]">
+                  <div>
+                    <label className="block font-bold text-[#2D3630] mb-1">সদস্য হওয়ার তারিখ (Joining Date)</label>
+                    <input
+                      type="date"
+                      value={editingMember.joiningDate || ''}
+                      onChange={(e) => setEditingMember({ ...editingMember, joiningDate: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                    />
+                    <span className="text-[10px] text-[#7A877E]">ঐচ্ছিক — কার্ডে বা বিস্তারিত পেজে প্রদর্শিত হবে</span>
+                  </div>
+
+                  <div className="flex flex-col justify-center space-y-2 pt-1 sm:pt-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editingMember.showJoiningDate !== false}
+                        onChange={(e) => setEditingMember({ ...editingMember, showJoiningDate: e.target.checked })}
+                        className="w-4 h-4 rounded accent-[#2D5A41]"
+                      />
+                      <span className="font-semibold text-[#2D3630] text-xs">কার্ডে যোগদানের তারিখ প্রদর্শন করুন</span>
+                    </label>
+                    <span className="text-[10px] text-[#7A877E]">বন্ধ থাকলে কার্ডে তারিখ লুকানো থাকবে</span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 sm:col-span-2">
@@ -2597,35 +2646,70 @@ export const AdminPage: React.FC = () => {
               <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
                 <div>
                   <label className="block font-bold text-[#2D3630] mb-1">বর্তমান পাসওয়ার্ড</label>
-                  <input
-                    type="password"
-                    required
-                    value={currPass}
-                    onChange={(e) => setCurrPass(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showCurrPass ? 'text' : 'password'}
+                      required
+                      value={currPass}
+                      onChange={(e) => setCurrPass(e.target.value)}
+                      placeholder="বর্তমান পাসওয়ার্ড লিখুন"
+                      className="w-full pl-3 pr-9 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrPass(!showCurrPass)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#7A877E] hover:text-[#2D3630] transition-colors"
+                      title={showCurrPass ? 'লুকান' : 'দেখুন'}
+                    >
+                      {showCurrPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#2D3630] mb-1">নতুন পাসওয়ার্ড</label>
-                  <input
-                    type="password"
-                    required
-                    value={newPass}
-                    onChange={(e) => setNewPass(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
+                  <label className="block font-bold text-[#2D3630] mb-1">নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPass ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={newPass}
+                      onChange={(e) => setNewPass(e.target.value)}
+                      placeholder="নতুন পাসওয়ার্ড লিখুন"
+                      className="w-full pl-3 pr-9 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPass(!showNewPass)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#7A877E] hover:text-[#2D3630] transition-colors"
+                      title={showNewPass ? 'লুকান' : 'দেখুন'}
+                    >
+                      {showNewPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block font-bold text-[#2D3630] mb-1">নতুন পাসওয়ার্ড নিশ্চিত করুন</label>
-                  <input
-                    type="password"
-                    required
-                    value={confirmPass}
-                    onChange={(e) => setConfirmPass(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPass ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={confirmPass}
+                      onChange={(e) => setConfirmPass(e.target.value)}
+                      placeholder="নতুন পাসওয়ার্ড পুনরায় লিখুন"
+                      className="w-full pl-3 pr-9 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPass(!showConfirmPass)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#7A877E] hover:text-[#2D3630] transition-colors"
+                      title={showConfirmPass ? 'লুকান' : 'দেখুন'}
+                    >
+                      {showConfirmPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
 
                 <button

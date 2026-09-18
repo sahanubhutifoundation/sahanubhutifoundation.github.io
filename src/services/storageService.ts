@@ -1015,6 +1015,10 @@ export const storageService = {
 
       if (typeof window !== 'undefined' && synced.length > 0) {
         window.dispatchEvent(new CustomEvent('sf_cloud_synced', { detail: { synced } }));
+        window.dispatchEvent(new Event('sf_data_updated'));
+        if (cloudConfig) {
+          window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: cloudConfig }));
+        }
       }
 
       return { success: synced.length > 0, synced };
@@ -1035,6 +1039,10 @@ export const storageService = {
     delete (cleanConfig as any).hash;
     delete (cleanConfig as any).token;
     delete (cleanConfig as any).secret;
+    delete (cleanConfig as any).supabaseKey;
+    delete (cleanConfig as any).serviceRoleKey;
+    delete (cleanConfig as any).anonKey;
+    delete (cleanConfig as any).apiKey;
 
     const designations = this.getDesignations();
     const activities = this.getActivities();

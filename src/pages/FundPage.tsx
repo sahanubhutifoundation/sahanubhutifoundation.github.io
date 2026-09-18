@@ -1,9 +1,17 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { PageHero } from '../components/PageHero';
 import { storageService } from '../services/storageService';
 import { fetchFundData, MONTH_KEYS, MONTH_NAMES_BN } from '../services/fundService';
-import { FundData, FundMemberRecord, FundVisibilitySettings } from '../types';
+import {
+  FundData,
+  FundMemberRecord,
+  FundVisibilitySettings,
+  YearlyFundSource,
+  Member,
+  ExpenseRecord,
+} from '../types';
 import {
   Wallet,
   TrendingUp,
@@ -19,16 +27,22 @@ import {
   Calendar,
   HeartHandshake,
   BarChart3,
-  Filter,
   Receipt,
   X,
   MapPin,
+  CalendarDays,
+  UserCheck,
+  Info,
+  Layers,
 } from 'lucide-react';
 
 export const FundPage: React.FC = () => {
   const { t, language } = useLanguage();
-  const [config] = useState(storageService.getConfig());
-  const [visibility, setVisibility] = useState<FundVisibilitySettings>(storageService.getFundVisibility());
+  const [config, setConfig] = useState(storageService.getConfig());
+  const [visibility, setVisibility] = useState<FundVisibilitySettings>(
+    storageService.getFundVisibility()
+  );
+  const [membersList, setMembersList] = useState<Member[]>(storageService.getMembers());
   const [fundData, setFundData] = useState<FundData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,39 +50,172 @@ export const FundPage: React.FC = () => {
   const [memberFilter, setMemberFilter] = useState<'all' | 'complete' | 'ongoing'>('all');
   const [activeReceiptUrl, setActiveReceiptUrl] = useState<string | null>(null);
 
-  const loadData = useCallback(async (isManual = false) => {
-    if (isManual) setRefreshing(true);
-    else setLoading(true);
-
-    try {
-      const currentConfig = storageService.getConfig();
-      setVisibility(storageService.getFundVisibility());
-      const res = await fetchFundData(currentConfig.fundSourceUrl);
-      setFundData(res);
-    } catch (e) {
-      console.warn('Fund load error:', e);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  // Available yearly sources from config
+  const yearlySources: YearlyFundSource[] = useMemo(() => {
+    if (config.yearlyFundSources && config.yearlyFundSources.length > 0) {
+      return config.yearlyFundSources;
     }
-  }, []);
+    return [
+      {
+        year: '2026',
+        url: config.fundSourceUrl,
+        label: '২০২৬ আর্থিক বছর (চলতি)',
+        enabled: true,
+        isPublic: true,
+      },
+      {
+        year: '2025',
+        url: '',
+        label: '২০২৫ আর্থিক বছর',
+        enabled: true,
+        isPublic: true,
+      },
+      {
+        year: '2024',
+        url: '',
+        label: '২০২৪ আর্থিক বছর',
+        enabled: true,
+        isPublic: true,
+      },
+    ];
+  }, [config.yearlyFundSources, config.fundSourceUrl]);
+
+  // Selected year state (defaults to '2026' or first enabled year)
+  const [selectedYear, setSelectedYear] = useState<string>(() => {
+    const active = yearlySources.find((s) => s.enabled);
+    return active ? active.year : '2026';
+  });
+
+  // Current year source configuration
+  const currentSource = useMemo(() => {
+    return yearlySources.find((s) => s.year === selectedYear);
+  }, [yearlySources, selectedYear]);
+
+  // Load fund data dynamically for current year
+  const loadData = useCallback(
+    async (isManual = false) => {
+      if (isManual) setRefreshing(true);
+      else setLoading(true);
+
+      try {
+        const freshConfig = storageService.getConfig();
+        setConfig(freshConfig);
+        setVisibility(storageService.getFundVisibility());
+        setMembersList(storageService.getMembers());
+
+        const activeYearSource = freshConfig.yearlyFundSources?.find(
+          (s) => s.year === selectedYear
+        );
+        const targetUrl = activeYearSource?.url || (selectedYear === '2026' ? freshConfig.fundSourceUrl : '');
+
+        const res = await fetchFundData(targetUrl, isManual, selectedYear);
+        setFundData(res);
+      } catch (e) {
+        console.warn('Fund load error:', e);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [selectedYear]
+  );
 
   useEffect(() => {
-    loadData();
+    loadData(false);
+  }, [loadData]);
 
-    // Auto-refresh periodically every 3 minutes
+  // Real-time revalidation: visibilitychange, window focus, storage events, interval polling
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadData(false);
+      }
+    };
+
+    const handleWindowFocus = () => {
+      loadData(false);
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (
+        e.key === 'sahanubhuti_config' ||
+        e.key === 'sahanubhuti_expenses' ||
+        e.key === 'sahanubhuti_members'
+      ) {
+        loadData(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('storage', handleStorageChange);
+
+    // Light periodic polling every 2 minutes
     const interval = setInterval(() => {
       loadData(false);
-    }, 180000);
+    }, 120000);
 
-    return () => clearInterval(interval);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
   }, [loadData]);
+
+  // Headings config
+  const headings = config.fundExpenseHeadings || {
+    title: 'মানবিক সহায়তা ও ব্যয় বিবরণী',
+    subtitle: 'তহবিল হতে অনুমোদিত মানবিক সাহায্য, চিকিৎসা অনুদান ও ত্রাণ ব্যয়ের হিসাব',
+    totalSpentLabel: 'সর্বমোট ব্যয়',
+    columnDate: 'তারিখ',
+    columnTitle: 'ব্যয়ের খাত ও বিবরণ',
+    columnCategory: 'বিভাগ',
+    columnLocation: 'এলাকা',
+    columnReceipt: 'ভাউচার',
+    columnAmount: 'পরিমাণ',
+    emptyState: 'কোনো ব্যয়ের হিসাব পাওয়া যায়নি',
+    sourceLabel: 'তহবিল সূত্র',
+    verifiedLabel: 'অনুমোদিত ও ভেরিফাইড',
+  };
+
+  const memberLinkSettings = config.fundMemberLinkSettings || {
+    showMemberName: true,
+    makeProfileLink: true,
+    showContributionDetail: true,
+  };
+
+  // Map member names to IDs for fast profile linking
+  const memberNameToIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    membersList.forEach((m) => {
+      if (m.isPublic !== false) {
+        map.set(m.name.trim().toLowerCase(), m.id);
+      }
+    });
+    return map;
+  }, [membersList]);
+
+  // Filtered expense ledger for the public display
+  const displayExpenses: ExpenseRecord[] = useMemo(() => {
+    const list = fundData?.expenses || storageService.getExpenses();
+    return list.filter((exp) => exp.isPublic !== false);
+  }, [fundData?.expenses]);
 
   const totalIn = fundData?.amountReceived || 0;
   const totalOut = fundData?.amountSpent || 0;
-  const currentBalance = fundData?.currentBalance || (totalIn - totalOut);
+  const currentBalance =
+    fundData?.currentBalance !== undefined ? fundData.currentBalance : totalIn - totalOut;
   const contributorCount = fundData?.contributorCount || fundData?.memberRecords?.length || 0;
-  const utilizationRate = totalIn > 0 ? Math.min(100, Math.round((totalOut / totalIn) * 100)) : 0;
+
+  // Exact floating ratio (e.g. 4950 / 23320 * 100 = 21.226... -> 21.23%)
+  const rawRatio = totalIn > 0 ? (totalOut / totalIn) * 100 : 0;
+  const expenseRatioFormatted =
+    rawRatio % 1 === 0 ? rawRatio.toString() : rawRatio.toFixed(2);
+  const safetyRatioFormatted =
+    (Math.max(0, 100 - rawRatio) % 1 === 0
+      ? Math.max(0, 100 - rawRatio).toString()
+      : Math.max(0, 100 - rawRatio).toFixed(2));
 
   const formatDate = (isoString?: string) => {
     if (!isoString) return '';
@@ -80,7 +227,7 @@ export const FundPage: React.FC = () => {
     }
   };
 
-  // Filtered members list (with strict privacy - no phone numbers)
+  // Filtered members list
   const filteredMembers = useMemo(() => {
     if (!fundData?.memberRecords) return [];
     let list = fundData.memberRecords;
@@ -116,16 +263,38 @@ export const FundPage: React.FC = () => {
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        {/* Controls Bar: Source indicator, last updated, refresh button */}
+        {/* Controls Bar: Year selector, Source status, last updated, refresh button */}
         <div className="p-4 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3 text-xs sm:text-sm text-[#5C665F]">
-            <span className="flex items-center gap-1.5 font-medium">
+          <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-[#5C665F]">
+            {/* Year Selector Tabs */}
+            <div className="flex items-center gap-1.5 p-1 bg-[#F7F5F0] rounded-xl border border-[#EBE8E0]">
+              <CalendarDays className="w-3.5 h-3.5 text-[#2D5A41] ml-2 shrink-0" />
+              {yearlySources.map((source) => (
+                <button
+                  key={source.year}
+                  type="button"
+                  onClick={() => setSelectedYear(source.year)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                    selectedYear === source.year
+                      ? 'bg-white text-[#2D5A41] shadow-2xs font-bold'
+                      : 'text-[#5C665F] hover:text-[#2D3630]'
+                  }`}
+                >
+                  {source.year}
+                </button>
+              ))}
+            </div>
+
+            {/* Connection Status Indicator */}
+            <span className="flex items-center gap-1.5 font-medium ml-1">
               <span
                 className={`w-2 h-2 rounded-full ${
                   fundData?.status === 'live'
                     ? 'bg-[#2D5A41]'
                     : fundData?.status === 'fallback'
                     ? 'bg-amber-500'
+                    : fundData?.status === 'not_found'
+                    ? 'bg-zinc-400'
                     : 'bg-rose-500'
                 }`}
               />
@@ -134,11 +303,13 @@ export const FundPage: React.FC = () => {
                   ? 'লাইভ গুগল শিট সংযুক্ত'
                   : fundData?.status === 'fallback'
                   ? 'সংরক্ষিত ক্যাশ তথ্য'
+                  : fundData?.status === 'not_found'
+                  ? 'তথ্য অনুপলব্ধ'
                   : 'সংযোগ যাচাই করা হচ্ছে'}
               </span>
             </span>
 
-            {fundData?.lastUpdated && (
+            {fundData?.lastUpdated && fundData.status !== 'not_found' && (
               <>
                 <span className="text-[#C5BFB0]">•</span>
                 <span className="flex items-center gap-1 text-[#7A877E]">
@@ -161,9 +332,9 @@ export const FundPage: React.FC = () => {
               <span>{refreshing ? t('refreshing') : t('refreshButton')}</span>
             </button>
 
-            {config.fundSourceUrl && (
+            {visibility.showSourceLinks !== false && currentSource?.url && (
               <a
-                href={config.fundSourceUrl}
+                href={currentSource.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#2D5A41] bg-[#E8EFEA] hover:bg-[#D9E5DC] border border-[#2D5A41]/20 transition-colors"
@@ -176,7 +347,32 @@ export const FundPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Temporary unavailable notice if error */}
+        {/* Selected Year Not Found / Source Unavailable Notification */}
+        {fundData?.status === 'not_found' && (
+          <div className="p-8 rounded-2xl bg-[#FDFCF9] border border-[#EBE8E0] text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#F7F5F0] text-[#7A877E] mx-auto flex items-center justify-center">
+              <CalendarDays className="w-6 h-6" />
+            </div>
+            <h3 className="text-base sm:text-lg font-bold text-[#2D3630]">
+              {selectedYear} আর্থিক বছরের তথ্য এখনো সংযুক্ত করা হয়নি
+            </h3>
+            <p className="text-xs sm:text-sm text-[#7A877E] max-w-md mx-auto">
+              এই আর্থিক বছরের জন্য কোনো গুগল স্প্রেডশিট বা ডাটাবেজ লিংক যুক্ত করা হয়নি। প্রশাসনিক
+              প্যানেল থেকে লিংক কনফিগার করার পর তথ্য স্বয়ংক্রিয়ভাবে প্রদর্শিত হবে।
+            </p>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedYear('2026')}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2D5A41] text-white text-xs font-semibold hover:bg-[#234733] transition-colors"
+              >
+                <span>চলতি ২০২৬ সালের হিসাব দেখুন</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Temporary connection error notice if error */}
         {fundData?.status === 'error' && (
           <div className="p-4 rounded-xl bg-[#FDF2F0] border border-[#F5D5D0] text-[#9E3628] flex items-start gap-3 text-xs sm:text-sm">
             <AlertCircle className="w-5 h-5 text-[#C25442] shrink-0 mt-0.5" />
@@ -184,361 +380,398 @@ export const FundPage: React.FC = () => {
               <span className="font-bold block">
                 {language === 'bn' ? 'সংযোগ সংক্রান্ত তথ্য:' : 'Connection note:'}
               </span>
-              <span>{t('fundDataUnavailable')}</span>
+              <span>{fundData.errorMessage || t('fundDataUnavailable')}</span>
             </div>
           </div>
         )}
 
         {/* Core Metric Cards (Based on Google Sheet Real Totals and Visibility Settings) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {/* Card 1: Total Received */}
-          {visibility.showTotalReceived !== false && (
+        {fundData?.status !== 'not_found' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {/* Card 1: Total Received */}
+            {visibility.showTotalReceived !== false && (
+              <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
+                <div className="flex items-center justify-between text-[#7A877E] mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#7A877E]">
+                    {t('totalFundCard')}
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-[#F7F5F0] text-[#2D5A41] flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-bold text-[#2D3630] font-mono tracking-tight">
+                  {loading ? '...' : `৳ ${totalIn.toLocaleString()}`}
+                </div>
+                <p className="text-xs text-[#7A877E] mt-2">
+                  {selectedYear} সর্বমোট সংগৃহীত বাইতুল মাল আদায়
+                </p>
+              </div>
+            )}
+
+            {/* Card 2: Total Spent */}
+            {visibility.showTotalCost !== false && (
+              <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
+                <div className="flex items-center justify-between text-[#7A877E] mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#7A877E]">
+                    {headings.totalSpentLabel || t('totalSpentCard')}
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-[#FDF2F0] text-[#C25442] flex items-center justify-center">
+                    <TrendingDown className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-bold text-[#C25442] font-mono tracking-tight">
+                  {loading ? '...' : `৳ ${totalOut.toLocaleString()}`}
+                </div>
+                <p className="text-xs text-[#7A877E] mt-2">
+                  অনুমোদিত ওষুধ ও মানবিক সহায়তা ব্যয়
+                </p>
+              </div>
+            )}
+
+            {/* Card 3: Net Available Balance */}
+            {visibility.showAvailableBalance !== false && (
+              <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
+                <div className="flex items-center justify-between text-[#7A877E] mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#7A877E]">
+                    {t('currentBalanceCard')}
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-[#E8EFEA] text-[#2D5A41] flex items-center justify-center">
+                    <Wallet className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-bold text-[#2D5A41] font-mono tracking-tight">
+                  {loading ? '...' : `৳ ${currentBalance.toLocaleString()}`}
+                </div>
+                <p className="text-xs text-[#2D5A41] font-medium mt-2">
+                  বাইতুল মালে বর্তমান কার্যকর নগদ স্থিতি
+                </p>
+              </div>
+            )}
+
+            {/* Card 4: Committed Contributors */}
             <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
               <div className="flex items-center justify-between text-[#7A877E] mb-3">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#7A877E]">
-                  {t('totalFundCard')}
+                  {t('contributorCountCard')}
                 </span>
                 <div className="w-8 h-8 rounded-lg bg-[#F7F5F0] text-[#2D5A41] flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4" />
+                  <Users className="w-4 h-4" />
                 </div>
               </div>
               <div className="text-2xl sm:text-3xl font-bold text-[#2D3630] font-mono tracking-tight">
-                {loading ? '...' : `৳ ${totalIn.toLocaleString()}`}
+                {loading ? '...' : `${contributorCount} জন`}
               </div>
               <p className="text-xs text-[#7A877E] mt-2">
-                ২০২৪, ২০২৫ ও ২০২৬ সর্বমোট আদায়
+                মাসিক অঙ্গীকারাবদ্ধ অংশীদার সদস্য
               </p>
             </div>
-          )}
-
-          {/* Card 2: Total Spent */}
-          {visibility.showTotalCost !== false && (
-            <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
-              <div className="flex items-center justify-between text-[#7A877E] mb-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#7A877E]">
-                  {t('totalSpentCard')}
-                </span>
-                <div className="w-8 h-8 rounded-lg bg-[#FDF2F0] text-[#C25442] flex items-center justify-center">
-                  <TrendingDown className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-2xl sm:text-3xl font-bold text-[#C25442] font-mono tracking-tight">
-                {loading ? '...' : `৳ ${totalOut.toLocaleString()}`}
-              </div>
-              <p className="text-xs text-[#7A877E] mt-2">
-                ওষুধ ও জরুরি মানবিক সহায়তা ব্যয়
-              </p>
-            </div>
-          )}
-
-          {/* Card 3: Net Available Balance */}
-          {visibility.showAvailableBalance !== false && (
-            <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
-              <div className="flex items-center justify-between text-[#7A877E] mb-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#7A877E]">
-                  {t('currentBalanceCard')}
-                </span>
-                <div className="w-8 h-8 rounded-lg bg-[#E8EFEA] text-[#2D5A41] flex items-center justify-center">
-                  <Wallet className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-2xl sm:text-3xl font-bold text-[#2D5A41] font-mono tracking-tight">
-                {loading ? '...' : `৳ ${currentBalance.toLocaleString()}`}
-              </div>
-              <p className="text-xs text-[#2D5A41] font-medium mt-2">
-                বাইতুল মালে বর্তমান কার্যকর স্থিতি
-              </p>
-            </div>
-          )}
-
-          {/* Card 4: Committed Contributors */}
-          <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
-            <div className="flex items-center justify-between text-[#7A877E] mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-[#7A877E]">
-                {t('contributorCountCard')}
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-[#F7F5F0] text-[#2D5A41] flex items-center justify-center">
-                <Users className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-2xl sm:text-3xl font-bold text-[#2D3630] font-mono tracking-tight">
-              {loading ? '...' : `${contributorCount} জন`}
-            </div>
-            <p className="text-xs text-[#7A877E] mt-2">
-              মাসিক অঙ্গীকারাবদ্ধ অংশীদার সদস্য
-            </p>
           </div>
-        </div>
+        )}
 
         {/* Yearly Growth Overview (2024, 2025, 2026) */}
-        {fundData?.yearlyReceived && Object.keys(fundData.yearlyReceived).length > 0 && (
-          <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EBE8E0]">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-[#2D3630] flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-[#2D5A41]" />
-                  <span>{t('yearlyReceivedTitle')}</span>
-                </h3>
-                <p className="text-xs text-[#7A877E] mt-0.5">
-                  প্রতি বছরের সংগৃহীত মোট তহবিলের তুলনামূলক চিত্র
-                </p>
-              </div>
-              <div className="text-xs font-semibold text-[#2D5A41] bg-[#E8EFEA] px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 self-start sm:self-center">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>সর্বমোট: ৳ {totalIn.toLocaleString()}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {['2024', '2025', '2026'].map((year) => {
-                const amount = fundData.yearlyReceived?.[year] || 0;
-                const pct = totalIn > 0 ? Math.round((amount / totalIn) * 100) : 0;
-                return (
-                  <div
-                    key={year}
-                    className="p-4 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#5C665F]">
-                        {year === '2026' ? '২০২৬ (চলতি বছর)' : year === '2025' ? '২০২৫ সাল' : '২০২৪ সাল'}
-                      </span>
-                      <span className="text-xs font-mono font-bold text-[#2D5A41]">{pct}%</span>
-                    </div>
-
-                    <div className="text-xl font-bold font-mono text-[#2D3630]">
-                      ৳ {amount.toLocaleString()}
-                    </div>
-
-                    <div className="w-full h-2 bg-[#EBE8E0] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#2D5A41] rounded-full transition-all duration-500"
-                        style={{ width: `${Math.max(4, pct)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 2026 Monthly Breakdown Grid */}
-        {visibility.showMonthlyFundDetails !== false && fundData?.monthlyTotals && Object.keys(fundData.monthlyTotals).length > 0 && (
-          <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EBE8E0]">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-[#2D3630] flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-[#2D5A41]" />
-                  <span>{t('monthlyBreakdownTitle')} (২০২৬)</span>
-                </h3>
-                <p className="text-xs text-[#7A877E] mt-0.5">
-                  প্রতি মাসের আদায়কৃত নিয়মিত মাসিক কিস্তির পরিসংখ্যান
-                </p>
-              </div>
-              <div className="text-xs font-mono font-bold text-[#2D3630] bg-[#F7F5F0] px-3 py-1.5 rounded-lg self-start sm:self-center">
-                ২০২৬ সর্বমোট: ৳ {(fundData.yearlyReceived?.['2026'] || 0).toLocaleString()}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {MONTH_KEYS.map((m) => {
-                const amount = fundData.monthlyTotals?.[m] || 0;
-                const barHeightPct = maxMonthlyVal > 0 ? Math.round((amount / maxMonthlyVal) * 100) : 0;
-
-                return (
-                  <div
-                    key={m}
-                    className="p-3.5 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] flex flex-col justify-between hover:border-[#2D5A41]/40 transition-colors"
-                  >
-                    <div className="flex items-center justify-between text-xs text-[#5C665F]">
-                      <span className="font-semibold">{MONTH_NAMES_BN[m]}</span>
-                      <span className="text-[10px] text-[#A4B3A8] uppercase">{m}</span>
-                    </div>
-
-                    <div className="my-2.5">
-                      <div className="text-sm sm:text-base font-bold font-mono text-[#2D3630]">
-                        ৳ {amount.toLocaleString()}
-                      </div>
-                    </div>
-
-                    <div className="w-full h-1.5 bg-[#EBE8E0] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#2D5A41] rounded-full transition-all duration-300"
-                        style={{ width: `${Math.max(5, barHeightPct)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Member Monthly Contribution Status Table (REAL SHEET STRUCTURE) */}
-        {visibility.showMemberContributionDetails !== false && fundData?.memberRecords && fundData.memberRecords.length > 0 && (
-          <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#EBE8E0]">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-[#2D3630] flex items-center gap-2">
-                  <Users className="w-4 h-4 text-[#2D5A41]" />
-                  <span>{t('memberContributionsTitle')}</span>
-                </h3>
-                <p className="text-xs text-[#7A877E] mt-0.5">
-                  সদস্যদের নিয়মিত মাসিক অঙ্গীকার ও জমাকৃত কিস্তির স্বচ্ছ বিবরণী
-                </p>
-              </div>
-
-              {/* Filters & Search */}
-              <div className="flex flex-wrap items-center gap-2.5">
-                {/* Search Input */}
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-[#7A877E] absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="সদস্যের নাম খুঁজুন..."
-                    className="pl-8 pr-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] w-40 sm:w-48"
-                  />
+        {visibility.showYearlyOverview !== false &&
+          fundData?.status !== 'not_found' &&
+          fundData?.yearlyReceived &&
+          Object.keys(fundData.yearlyReceived).length > 0 && (
+            <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EBE8E0]">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#2D3630] flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-[#2D5A41]" />
+                    <span>{t('yearlyReceivedTitle')}</span>
+                  </h3>
+                  <p className="text-xs text-[#7A877E] mt-0.5">
+                    প্রতি বছরের সংগৃহীত মোট তহবিলের তুলনামূলক চিত্র
+                  </p>
                 </div>
-
-                {/* Filter Tabs */}
-                <div className="inline-flex rounded-lg border border-[#EBE8E0] bg-[#F7F5F0] p-0.5 text-xs font-semibold text-[#5C665F]">
-                  <button
-                    onClick={() => setMemberFilter('all')}
-                    className={`px-2.5 py-1 rounded-md transition-colors ${
-                      memberFilter === 'all' ? 'bg-white text-[#2D3630] shadow-2xs' : 'hover:text-[#2D3630]'
-                    }`}
-                  >
-                    সকল ({fundData.memberRecords.length})
-                  </button>
-                  <button
-                    onClick={() => setMemberFilter('complete')}
-                    className={`px-2.5 py-1 rounded-md transition-colors ${
-                      memberFilter === 'complete' ? 'bg-white text-[#2D3630] shadow-2xs' : 'hover:text-[#2D3630]'
-                    }`}
-                  >
-                    সম্পূর্ণ
-                  </button>
-                  <button
-                    onClick={() => setMemberFilter('ongoing')}
-                    className={`px-2.5 py-1 rounded-md transition-colors ${
-                      memberFilter === 'ongoing' ? 'bg-white text-[#2D3630] shadow-2xs' : 'hover:text-[#2D3630]'
-                    }`}
-                  >
-                    চলমান
-                  </button>
+                <div className="text-xs font-semibold text-[#2D5A41] bg-[#E8EFEA] px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 self-start sm:self-center">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>সর্বমোট আদায়: ৳ {totalIn.toLocaleString()}</span>
                 </div>
               </div>
-            </div>
 
-            {/* Privacy Guarantee Note */}
-            <div className="p-3 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] text-[#5C665F] text-xs flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-[#2D5A41] shrink-0" />
-              <span>
-                <strong>গোপনীয়তা নিশ্চিতকরণ:</strong> সদস্যদের ব্যক্তিগত ফোন বা যোগাযোগের তথ্য সর্বজনীনভাবে উন্মুক্ত নয়। শুধুমাত্র অঙ্গীকার ও জমাকৃত হিসাব প্রদর্শিত হচ্ছে।
-              </span>
-            </div>
-
-            {/* Members Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm text-[#2D3630] border-collapse">
-                <thead className="bg-[#F7F5F0] text-[#5C665F] font-semibold border-b border-[#EBE8E0]">
-                  <tr>
-                    <th className="py-2.5 px-3 text-center w-12">#</th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">সদস্যের নাম</th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">অঙ্গীকার</th>
-                    {MONTH_KEYS.map((m) => (
-                      <th key={m} className="py-2.5 px-1.5 text-center text-[11px] w-8">
-                        {m}
-                      </th>
-                    ))}
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">মোট জমা</th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">অবস্থা</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#EBE8E0]">
-                  {filteredMembers.map((member: FundMemberRecord) => {
-                    const isFullyPaid = member.paidCount >= 12;
-
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {Object.keys(fundData.yearlyReceived)
+                  .sort()
+                  .map((year) => {
+                    const amount = fundData.yearlyReceived?.[year] || 0;
+                    const pct = totalIn > 0 ? Math.round((amount / totalIn) * 100) : 0;
                     return (
-                      <tr key={member.serial} className="hover:bg-[#FDFCF9] transition-colors">
-                        <td className="py-2.5 px-3 text-center font-mono text-xs text-[#7A877E]">
-                          {member.serial}
-                        </td>
-                        <td className="py-2.5 px-3 font-semibold text-[#2D3630] whitespace-nowrap">
-                          {member.name}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono text-xs text-[#5C665F] whitespace-nowrap">
-                          ৳ {member.commitment.toLocaleString()}
-                        </td>
-
-                        {/* 12 Months Indicators */}
-                        {MONTH_KEYS.map((m) => {
-                          const isPaid = member.months[m] === 'paid';
-                          return (
-                            <td key={m} className="py-2 px-1 text-center">
-                              <span
-                                className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] ${
-                                  isPaid
-                                    ? 'bg-[#E8EFEA] text-[#2D5A41] font-bold'
-                                    : 'text-[#C5BFB0] font-normal'
-                                }`}
-                                title={`${member.name} - ${MONTH_NAMES_BN[m]}: ${isPaid ? 'পরিশোধিত' : 'বকেয়া'}`}
-                              >
-                                {isPaid ? '✓' : '—'}
-                              </span>
-                            </td>
-                          );
-                        })}
-
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-[#2D5A41] whitespace-nowrap">
-                          ৳ {member.totalContributed.toLocaleString()}
-                        </td>
-
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                              isFullyPaid
-                                ? 'bg-[#E8EFEA] text-[#2D5A41]'
-                                : 'bg-[#F7F5F0] text-[#5C665F]'
-                            }`}
-                          >
-                            {isFullyPaid && <CheckCircle2 className="w-3 h-3 text-[#2D5A41]" />}
-                            <span>{member.paidCount}/১২ মাস</span>
+                      <div
+                        key={year}
+                        className={`p-4 rounded-xl border space-y-3 cursor-pointer transition-all ${
+                          selectedYear === year
+                            ? 'bg-[#E8EFEA]/40 border-[#2D5A41]'
+                            : 'bg-[#FDFCF9] border-[#EBE8E0] hover:border-[#2D5A41]/40'
+                        }`}
+                        onClick={() => setSelectedYear(year)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-[#5C665F]">
+                            {year === '2026'
+                              ? '২০২৬ (চলতি বছর)'
+                              : year === '2025'
+                              ? '২০২৫ সাল'
+                              : `${year} সাল`}
                           </span>
-                        </td>
-                      </tr>
+                          <span className="text-xs font-mono font-bold text-[#2D5A41]">{pct}%</span>
+                        </div>
+
+                        <div className="text-xl font-bold font-mono text-[#2D3630]">
+                          ৳ {amount.toLocaleString()}
+                        </div>
+
+                        <div className="w-full h-2 bg-[#EBE8E0] rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-[#2D5A41] rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(4, pct)}%` }}
+                          />
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-
-              {filteredMembers.length === 0 && (
-                <div className="text-center py-8 text-xs text-[#7A877E]">
-                  কোনো সদস্যের তথ্য পাওয়া যায়নি।
-                </div>
-              )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Humanitarian Aid & Expense Ledger Section (Controlled by Admin Visibility) */}
-        {visibility.showExpenseDetails !== false && fundData?.expenses && fundData.expenses.length > 0 && (
+        {/* 2026 Monthly Breakdown Grid */}
+        {visibility.showMonthlyFundDetails !== false &&
+          fundData?.status !== 'not_found' &&
+          fundData?.monthlyTotals &&
+          Object.keys(fundData.monthlyTotals).length > 0 && (
+            <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EBE8E0]">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#2D3630] flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-[#2D5A41]" />
+                    <span>{t('monthlyBreakdownTitle')} ({selectedYear})</span>
+                  </h3>
+                  <p className="text-xs text-[#7A877E] mt-0.5">
+                    প্রতি মাসের আদায়কৃত নিয়মিত মাসিক কিস্তির পরিসংখ্যান
+                  </p>
+                </div>
+                <div className="text-xs font-mono font-bold text-[#2D3630] bg-[#F7F5F0] px-3 py-1.5 rounded-lg self-start sm:self-center">
+                  {selectedYear} সর্বমোট: ৳ {(fundData.yearlyReceived?.[selectedYear] || totalIn).toLocaleString()}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {MONTH_KEYS.map((m) => {
+                  const amount = fundData.monthlyTotals?.[m] || 0;
+                  const barHeightPct = maxMonthlyVal > 0 ? Math.round((amount / maxMonthlyVal) * 100) : 0;
+
+                  return (
+                    <div
+                      key={m}
+                      className="p-3.5 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] flex flex-col justify-between hover:border-[#2D5A41]/40 transition-colors"
+                    >
+                      <div className="flex items-center justify-between text-xs text-[#5C665F]">
+                        <span className="font-semibold">{MONTH_NAMES_BN[m]}</span>
+                        <span className="text-[10px] text-[#A4B3A8] uppercase">{m}</span>
+                      </div>
+
+                      <div className="my-2.5">
+                        <div className="text-sm sm:text-base font-bold font-mono text-[#2D3630]">
+                          ৳ {amount.toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div className="w-full h-1.5 bg-[#EBE8E0] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#2D5A41] rounded-full transition-all duration-300"
+                          style={{ width: `${Math.max(5, barHeightPct)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+        {/* Member Monthly Contribution Status Table (REAL SHEET STRUCTURE) */}
+        {visibility.showMemberContributionDetails !== false &&
+          fundData?.status !== 'not_found' &&
+          fundData?.memberRecords &&
+          fundData.memberRecords.length > 0 && (
+            <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#EBE8E0]">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[#2D3630] flex items-center gap-2">
+                    <Users className="w-4 h-4 text-[#2D5A41]" />
+                    <span>{t('memberContributionsTitle')}</span>
+                  </h3>
+                  <p className="text-xs text-[#7A877E] mt-0.5">
+                    সদস্যদের নিয়মিত মাসিক অঙ্গীকার ও জমাকৃত কিস্তির স্বচ্ছ বিবরণী
+                  </p>
+                </div>
+
+                {/* Filters & Search */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-[#7A877E] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="সদস্যের নাম খুঁজুন..."
+                      className="pl-8 pr-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630] placeholder-[#A4B3A8] focus:outline-hidden focus:border-[#2D5A41] transition-colors"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1 p-1 bg-[#F7F5F0] rounded-lg border border-[#EBE8E0] text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setMemberFilter('all')}
+                      className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                        memberFilter === 'all'
+                          ? 'bg-white text-[#2D3630] shadow-2xs font-semibold'
+                          : 'text-[#5C665F] hover:text-[#2D3630]'
+                      }`}
+                    >
+                      সকল ({fundData.memberRecords.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberFilter('complete')}
+                      className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                        memberFilter === 'complete'
+                          ? 'bg-white text-[#2D5A41] shadow-2xs font-semibold'
+                          : 'text-[#5C665F] hover:text-[#2D3630]'
+                      }`}
+                    >
+                      পরিপূর্ণ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberFilter('ongoing')}
+                      className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                        memberFilter === 'ongoing'
+                          ? 'bg-white text-[#5C665F] shadow-2xs font-semibold'
+                          : 'text-[#5C665F] hover:text-[#2D3630]'
+                      }`}
+                    >
+                      চলমান
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Responsive Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#F7F5F0] text-[#5C665F] font-semibold border-b border-[#EBE8E0]">
+                    <tr>
+                      <th className="py-3 px-3 w-10 text-center">#</th>
+                      <th className="py-3 px-4">সদস্যের নাম</th>
+                      <th className="py-3 px-3 text-right">মাসিক হার</th>
+                      {MONTH_KEYS.map((m) => (
+                        <th key={m} className="py-3 px-2 text-center text-[11px]">
+                          {MONTH_NAMES_BN[m]}
+                        </th>
+                      ))}
+                      <th className="py-3 px-3 text-right">মোট জমা</th>
+                      <th className="py-3 px-3 text-center">অগ্রগতি</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#EBE8E0]">
+                    {filteredMembers.map((member) => {
+                      const isFullyPaid = member.paidCount >= 12;
+                      const matchedMemberId = memberNameToIdMap.get(member.name.trim().toLowerCase());
+
+                      return (
+                        <tr key={member.serial} className="hover:bg-[#FDFCF9] transition-colors">
+                          <td className="py-3 px-3 text-center font-mono text-[#7A877E]">
+                            {member.serial}
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-[#2D3630] whitespace-nowrap">
+                            {memberLinkSettings.makeProfileLink && matchedMemberId ? (
+                              <Link
+                                to={`/members/${matchedMemberId}`}
+                                className="text-[#2D5A41] hover:underline inline-flex items-center gap-1 group"
+                                title="সদস্যের বিস্তারিত প্রোফাইল দেখুন"
+                              >
+                                <span>{member.name}</span>
+                                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </Link>
+                            ) : (
+                              <span>{member.name}</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-[#5C665F] whitespace-nowrap">
+                            ৳ {member.commitment.toLocaleString()}
+                          </td>
+                          {MONTH_KEYS.map((m) => {
+                            const isPaid = member.months[m] === 'paid';
+                            return (
+                              <td key={m} className="py-3 px-2 text-center">
+                                {isPaid ? (
+                                  <span
+                                    className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#E8EFEA] text-[#2D5A41] text-[10px] font-bold"
+                                    title={`${MONTH_NAMES_BN[m]} পরিশোধিত`}
+                                  >
+                                    ✓
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-block w-2 h-2 rounded-full bg-[#EBE8E0]"
+                                    title={`${MONTH_NAMES_BN[m]} বাকি`}
+                                  />
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="py-3 px-3 text-right font-mono font-bold text-[#2D5A41] whitespace-nowrap">
+                            ৳ {member.totalContributed.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                isFullyPaid
+                                  ? 'bg-[#E8EFEA] text-[#2D5A41]'
+                                  : 'bg-[#F7F5F0] text-[#5C665F]'
+                              }`}
+                            >
+                              {isFullyPaid && <CheckCircle2 className="w-3 h-3 text-[#2D5A41]" />}
+                              <span>{member.paidCount}/১২ মাস</span>
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {filteredMembers.length === 0 && (
+                  <div className="text-center py-8 text-xs text-[#7A877E]">
+                    কোনো সদস্যের তথ্য পাওয়া যায়নি।
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+        {/* Humanitarian Aid & Expense Ledger Section */}
+        {visibility.showExpenseDetails !== false && displayExpenses.length > 0 && (
           <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EBE8E0]">
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-[#2D3630] flex items-center gap-2">
                   <Receipt className="w-5 h-5 text-[#2D5A41]" />
-                  <span>মানবিক সহায়তা ও ব্যয় বিবরণী ({fundData.expenses.length})</span>
+                  <span>
+                    {headings.title || 'মানবিক সহায়তা ও ব্যয় বিবরণী'} ({displayExpenses.length})
+                  </span>
                 </h3>
                 <p className="text-xs text-[#7A877E] mt-0.5">
-                  তহবিল হতে অনুমোদিত মানবিক সাহায্য, চিকিৎসা অনুদান ও ত্রাণ ব্যয়ের হিসাব
+                  {headings.subtitle ||
+                    'তহবিল হতে অনুমোদিত মানবিক সাহায্য, চিকিৎসা অনুদান ও ত্রাণ ব্যয়ের হিসাব'}
                 </p>
               </div>
 
               <div className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 self-start sm:self-center font-mono">
-                <span>সর্বমোট ব্যয়: -৳ {totalOut.toLocaleString()}</span>
+                <span>
+                  {headings.totalSpentLabel || 'সর্বমোট ব্যয়'}: -৳ {totalOut.toLocaleString()}
+                </span>
               </div>
             </div>
 
@@ -546,23 +779,35 @@ export const FundPage: React.FC = () => {
               <table className="w-full text-left text-xs">
                 <thead className="bg-[#F7F5F0] text-[#5C665F] font-semibold border-b border-[#EBE8E0]">
                   <tr>
-                    <th className="py-3 px-4">তারিখ</th>
-                    <th className="py-3 px-4">সহায়তা / ব্যয়ের বিবরণ</th>
-                    <th className="py-3 px-4">খাত</th>
-                    <th className="py-3 px-4">এলাকা</th>
-                    <th className="py-3 px-4 text-center">ভাউচার</th>
-                    <th className="py-3 px-4 text-right">পরিমাণ (৳)</th>
+                    <th className="py-3 px-4">{headings.columnDate || 'তারিখ'}</th>
+                    <th className="py-3 px-4">{headings.columnTitle || 'সহায়তা / ব্যয়ের বিবরণ'}</th>
+                    <th className="py-3 px-4">{headings.columnCategory || 'খাত'}</th>
+                    <th className="py-3 px-4">{headings.columnLocation || 'এলাকা'}</th>
+                    <th className="py-3 px-4 text-center">{headings.columnReceipt || 'ভাউচার'}</th>
+                    <th className="py-3 px-4 text-right">{headings.columnAmount || 'পরিমাণ'} (৳)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#EBE8E0]">
-                  {fundData.expenses.map((exp) => (
+                  {displayExpenses.map((exp) => (
                     <tr key={exp.id} className="hover:bg-[#FDFCF9] transition-colors">
                       <td className="py-3 px-4 font-mono text-[#5C665F] whitespace-nowrap">
                         {exp.date}
                       </td>
 
                       <td className="py-3 px-4">
-                        <div className="font-bold text-[#2D3630]">{exp.title}</div>
+                        <div className="font-bold text-[#2D3630] flex items-center gap-2">
+                          <span>{exp.title}</span>
+                          {exp.deductionMode === 'separate' && (
+                            <span className="text-[10px] font-normal px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md">
+                              পৃথক তহবিল
+                            </span>
+                          )}
+                          {exp.deductionMode === 'display_only' && (
+                            <span className="text-[10px] font-normal px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md">
+                              প্রদর্শনী
+                            </span>
+                          )}
+                        </div>
                         {exp.description && (
                           <p className="text-[11px] text-[#7A877E] line-clamp-1 mt-0.5">
                             {exp.description}
@@ -627,51 +872,55 @@ export const FundPage: React.FC = () => {
         )}
 
         {/* Fund Utilization & Purpose Section */}
-        <div className="p-6 sm:p-8 rounded-2xl bg-[#18231B] text-[#D3DDD5] border border-[#28382C] shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#223026] text-[#82CCA3] border border-[#2D3E32] mb-2">
-                <HeartHandshake className="w-3.5 h-3.5" />
-                <span>তহবিল ব্যবহার ও নিরাপত্তা অনুপাত</span>
+        {visibility.showExpenseRatio !== false && fundData?.status !== 'not_found' && (
+          <div className="p-6 sm:p-8 rounded-2xl bg-[#18231B] text-[#D3DDD5] border border-[#28382C] shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#223026] text-[#82CCA3] border border-[#2D3E32] mb-2">
+                  <HeartHandshake className="w-3.5 h-3.5" />
+                  <span>তহবিল ব্যবহার ও নিরাপত্তা অনুপাত</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-[#FDFCF9]">
+                  মানবিক সহায়তা ও চিকিৎসায় ব্যয়িত হার
+                </h3>
+                <p className="text-xs text-[#8A9B8F] mt-1">
+                  সর্বমোট সংগৃহীত তহবিলের বিপরীতে মানবিক কাজে ব্যয় এবং বাইতুল মালের অবশিষ্ট মওজুদ
+                </p>
               </div>
-              <h3 className="text-base sm:text-lg font-bold text-[#FDFCF9]">
-                মানবিক সহায়তা ও চিকিৎসায় ব্যয়িত হার
-              </h3>
-              <p className="text-xs text-[#8A9B8F] mt-1">
-                সর্বমোট সংগৃহীত তহবিলের বিপরীতে মানবিক কাজে ব্যয় এবং বাইতুল মালের অবশিষ্ট মওজুদ
-              </p>
+
+              <div className="text-right sm:text-right">
+                <span className="text-2xl sm:text-3xl font-bold font-mono text-[#82CCA3]">
+                  {expenseRatioFormatted}%
+                </span>
+                <span className="block text-[11px] text-[#8A9B8F]">ব্যয় অনুপাত</span>
+              </div>
             </div>
 
-            <div className="text-right sm:text-right">
-              <span className="text-2xl font-bold font-mono text-[#82CCA3]">{utilizationRate}%</span>
-              <span className="block text-[11px] text-[#8A9B8F]">ব্যয় অনুপাত</span>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="w-full h-3 bg-[#202C23] rounded-full overflow-hidden p-0.5 border border-[#28382C]">
-            <div
-              className="h-full bg-gradient-to-r from-[#2D5A41] to-[#65B78A] rounded-full transition-all duration-500"
-              style={{ width: `${Math.max(5, utilizationRate)}%` }}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-1">
-            <div className="p-3 rounded-xl bg-[#202C23] border border-[#28382C] space-y-1">
-              <span className="text-[#8A9B8F] block">মোট মানবিক সহায়তা ব্যয়:</span>
-              <span className="text-base font-bold font-mono text-[#E0A899]">
-                ৳ {totalOut.toLocaleString()}
-              </span>
+            {/* Progress bar */}
+            <div className="w-full h-3 bg-[#202C23] rounded-full overflow-hidden p-0.5 border border-[#28382C]">
+              <div
+                className="h-full bg-gradient-to-r from-[#2D5A41] to-[#65B78A] rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(4, rawRatio))}%` }}
+              />
             </div>
 
-            <div className="p-3 rounded-xl bg-[#202C23] border border-[#28382C] space-y-1">
-              <span className="text-[#8A9B8F] block">বাইতুল মালে কার্যকর নগদ স্থিতি:</span>
-              <span className="text-base font-bold font-mono text-[#82CCA3]">
-                ৳ {currentBalance.toLocaleString()}
-              </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-1">
+              <div className="p-3 rounded-xl bg-[#202C23] border border-[#28382C] space-y-1">
+                <span className="text-[#8A9B8F] block">মোট মানবিক সহায়তা ব্যয়:</span>
+                <span className="text-base font-bold font-mono text-[#E0A899]">
+                  ৳ {totalOut.toLocaleString()}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#202C23] border border-[#28382C] space-y-1">
+                <span className="text-[#8A9B8F] block">বাইতুল মালে কার্যকর নগদ স্থিতি:</span>
+                <span className="text-base font-bold font-mono text-[#82CCA3]">
+                  ৳ {currentBalance.toLocaleString()} ({safetyRatioFormatted}%)
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Receipt / Voucher Lightbox Modal */}

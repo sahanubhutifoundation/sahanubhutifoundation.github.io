@@ -6,20 +6,35 @@ import { DesignationBadge } from '../components/DesignationBadge';
 import { storageService } from '../services/storageService';
 import { Member, Designation } from '../types';
 import { User, ArrowLeft, Calendar, MapPin, Mail, Phone, ShieldCheck } from 'lucide-react';
+import { toBengaliDigits } from '../utils/foundationHelpers';
 
 export const MemberDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { t, isRTL } = useLanguage();
+  const { t, language, isRTL } = useLanguage();
   const [member, setMember] = useState<Member | null>(null);
   const [designations, setDesignations] = useState<Designation[]>([]);
 
-  useEffect(() => {
+  const loadData = () => {
     const list = storageService.getMembers();
     const found = list.find((m) => m.id === id);
     if (found) {
       setMember(found);
     }
     setDesignations(storageService.getDesignations());
+  };
+
+  useEffect(() => {
+    loadData();
+    window.addEventListener('sf_data_updated', loadData);
+    window.addEventListener('sf_config_updated', loadData);
+    window.addEventListener('sf_cloud_synced', loadData);
+    window.addEventListener('storage', loadData);
+    return () => {
+      window.removeEventListener('sf_data_updated', loadData);
+      window.removeEventListener('sf_config_updated', loadData);
+      window.removeEventListener('sf_cloud_synced', loadData);
+      window.removeEventListener('storage', loadData);
+    };
   }, [id]);
 
   const memberDesignation = React.useMemo(() => {
@@ -75,8 +90,8 @@ export const MemberDetailPage: React.FC = () => {
             <ArrowLeft className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
             <span>সদস্য তালিকায় ফিরে যান</span>
           </Link>
-          <span className="px-3 py-1 rounded-full bg-[#E8EFEA] text-[#2D5A41] text-xs font-bold font-mono">
-            ক্রমিক নং #{member.serial}
+          <span className="px-3 py-1 rounded-lg bg-[#F7F5F0] border border-[#EBE8E0] text-[#2D5A41] text-xs font-semibold shadow-3xs">
+            {language === 'bn' ? `ক্রমিক নং ${toBengaliDigits(member.serial)}` : `Serial #${member.serial}`}
           </span>
         </div>
 
@@ -127,10 +142,14 @@ export const MemberDetailPage: React.FC = () => {
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-[#EBE8E0] text-xs text-[#5C665F]">
-              {member.joiningDate && (
+              {member.joiningDate && member.showJoiningDate !== false && (
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-[#A4B3A8] shrink-0" />
-                  <span>যোগদান: {member.joiningDate}</span>
+                  <span>
+                    {language === 'bn'
+                      ? `সদস্য হওয়ার তারিখ: ${toBengaliDigits(member.joiningDate)}`
+                      : `Join Date: ${member.joiningDate}`}
+                  </span>
                 </div>
               )}
               {member.address && (

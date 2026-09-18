@@ -11,7 +11,6 @@ import {
   Phone,
   MapPin,
   Calendar,
-  Lock,
   Youtube,
   MessageCircle,
 } from 'lucide-react';
@@ -248,16 +247,6 @@ export const Footer: React.FC = () => {
               >
                 {t('navContact')}
               </Link>
-              <span className="text-[#2D3E32]">•</span>
-              {/* Subtle admin portal entry matching required hash /#adminfoundation */}
-              <a
-                href="/#adminfoundation"
-                className="inline-flex items-center gap-1 hover:text-[#A4B3A8] transition-colors opacity-70 hover:opacity-100"
-                title="Admin CMS Portal"
-              >
-                <Lock className="w-3 h-3" />
-                <span>প্রশাসক প্রবেশ</span>
-              </a>
             </div>
           </div>
         )}
