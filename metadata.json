@@ -1,0 +1,6 @@
+{
+  "name": "Sahanubhuti Foundation",
+  "description": "Official website of Sahanubhuti Foundation (সহানুভূতি ফাউন্ডেশন), a humanitarian family foundation founded in Sharshadi, Feni, Bangladesh.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
