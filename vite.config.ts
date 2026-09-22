@@ -12,7 +12,7 @@ export default defineConfig(() => {
   return {
     // sahanubhutifoundation.github.io is a GitHub User site served at root '/'
     // Setting canonical base '/' ensures AI Studio preview, local dev, and GitHub Pages all load correctly
-    base: process.env.VITE_BASE_PATH || '/', 
+    base: process.env.VITE_BASE_PATH || './', 
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
