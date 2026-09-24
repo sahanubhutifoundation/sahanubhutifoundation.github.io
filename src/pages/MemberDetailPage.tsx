@@ -4,6 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { PageHero } from '../components/PageHero';
 import { DesignationBadge } from '../components/DesignationBadge';
 import { MemberAvatar } from '../components/MemberAvatar';
+import { MemberSerialBadge } from '../components/MemberSerialBadge';
 import { MemberSocialIcons } from '../components/MemberSocialIcons';
 import { storageService } from '../services/storageService';
 import { Member, Designation, FoundationConfig } from '../types';
@@ -61,14 +62,14 @@ export const MemberDetailPage: React.FC = () => {
   if (!member) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center space-y-4">
-        <h2 className="text-xl font-bold text-[#2D3630]">সদস্যের তথ্য পাওয়া যায়নি</h2>
-        <p className="text-[#7A877E] text-sm">অনুগ্রহ করে সদস্য তালিকায় ফিরে যান।</p>
+        <h2 className="text-xl font-bold text-[#2D3630]">{t('memberNotFound')}</h2>
+        <p className="text-[#7A877E] text-sm">{t('memberNotFoundHint')}</p>
         <Link
           to="/members"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>সদস্য তালিকায় ফিরে যান</span>
+          <ArrowLeft className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
+          <span>{t('backToMembers')}</span>
         </Link>
       </div>
     );
@@ -78,7 +79,7 @@ export const MemberDetailPage: React.FC = () => {
     <div className="space-y-8 sm:space-y-12 pb-16">
       <PageHero
         title={member.name}
-        subtitle={member.role || 'সহানুভূতি ফাউন্ডেশনের সম্মানিত সদস্য'}
+        subtitle={member.role || (language === 'bn' ? 'সহানুভূতি ফাউন্ডেশনের সম্মানিত সদস্য' : language === 'ar' ? 'عضو كريم في مؤسسة ساهانوبوتي' : 'Honorable Member of Sahanubhuti Foundation')}
         breadcrumb={[
           { label: t('navMembers'), path: '/members' },
           { label: member.name },
@@ -92,15 +93,17 @@ export const MemberDetailPage: React.FC = () => {
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5C665F] hover:text-[#2D3630] transition-colors"
           >
             <ArrowLeft className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
-            <span>সদস্য তালিকায় ফিরে যান</span>
+            <span>{t('backToMembers')}</span>
           </Link>
-          <span className="px-3 py-1 rounded-lg bg-[#F7F5F0] border border-[#EBE8E0] text-[#2D5A41] text-xs font-semibold shadow-3xs">
-            {language === 'bn' ? `ক্রমিক নং ${toBengaliDigits(member.serial)}` : `Serial #${member.serial}`}
-          </span>
         </div>
 
         {/* Member Profile Card */}
-        <div className="p-5 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-xs flex flex-col sm:flex-row items-center sm:items-start gap-6">
+        <div className="relative p-5 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-xs flex flex-col sm:flex-row items-center sm:items-start gap-6">
+          <MemberSerialBadge
+            serial={member.serial}
+            config={config}
+            language={language}
+          />
           <MemberAvatar
             member={member}
             config={config}
@@ -112,7 +115,7 @@ export const MemberDetailPage: React.FC = () => {
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#E8EFEA] text-[#2D5A41] border border-[#2D5A41]/20">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>সক্রিয় সদস্য</span>
+                <span>{t('activeMember')}</span>
               </div>
               {(memberDesignation || member.role) && (
                 <DesignationBadge
@@ -142,9 +145,10 @@ export const MemberDetailPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-[#A4B3A8] shrink-0" />
                   <span>
+                    {t('memberJoinDateLabel')}{' '}
                     {language === 'bn'
-                      ? `সদস্য হওয়ার তারিখ: ${toBengaliDigits(member.joiningDate)}`
-                      : `Join Date: ${member.joiningDate}`}
+                      ? toBengaliDigits(member.joiningDate)
+                      : member.joiningDate}
                   </span>
                 </div>
               )}

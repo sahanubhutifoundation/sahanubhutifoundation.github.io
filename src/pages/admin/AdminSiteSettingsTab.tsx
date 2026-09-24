@@ -1231,7 +1231,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
 
             {/* Titles & Texts */}
             <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-[#2D3630] mb-1">ছোট লেবেল / Eyebrow (বাংলা)</label>
                   <input
@@ -1252,9 +1252,20 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                     className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-xs text-[#2D3630]"
                   />
                 </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#2D3630] mb-1">Eyebrow (العربية)</label>
+                  <input
+                    type="text"
+                    dir="rtl"
+                    value={formData.homeActivitiesEyebrow?.ar || ''}
+                    onChange={(e) => updateMultiText('homeActivitiesEyebrow', 'ar', e.target.value)}
+                    placeholder="مثال: مبادراتنا الإنسانية"
+                    className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-xs text-[#2D3630]"
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-[#2D3630] mb-1">মূল শিরোনাম (বাংলা) *</label>
                   <input
@@ -1275,9 +1286,20 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                     className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-xs text-[#2D3630]"
                   />
                 </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#2D3630] mb-1">Main Headline (العربية)</label>
+                  <input
+                    type="text"
+                    dir="rtl"
+                    value={formData.homeActivitiesTitle?.ar || ''}
+                    onChange={(e) => updateMultiText('homeActivitiesTitle', 'ar', e.target.value)}
+                    placeholder="افتراضي: الأنشطة المميزة"
+                    className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-xs text-[#2D3630]"
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-[#2D3630] mb-1">উপ-শিরোনাম / বিবরণ (বাংলা)</label>
                   <input
@@ -1295,6 +1317,17 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                     value={formData.homeActivitiesSubtitle?.en || ''}
                     onChange={(e) => updateMultiText('homeActivitiesSubtitle', 'en', e.target.value)}
                     placeholder="e.g. Humanitarian initiatives undertaken by Sahanubhuti family"
+                    className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-xs text-[#2D3630]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#2D3630] mb-1">Subtitle (العربية)</label>
+                  <input
+                    type="text"
+                    dir="rtl"
+                    value={formData.homeActivitiesSubtitle?.ar || ''}
+                    onChange={(e) => updateMultiText('homeActivitiesSubtitle', 'ar', e.target.value)}
+                    placeholder="مثال: مبادرات إنسانية لعائلة ساهانوبهوتي"
                     className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-xs text-[#2D3630]"
                   />
                 </div>
@@ -1631,7 +1664,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
                 <div>
                   <label className="block text-[11px] font-bold text-[#2D3630] mb-1">কার্ড CTA লেবেল (বাংলা)</label>
                   <input
@@ -1650,11 +1683,21 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                     className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
                   />
                 </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-[#2D3630] mb-1">Card CTA Label (العربية)</label>
+                  <input
+                    type="text"
+                    dir="rtl"
+                    value={formData.homeActivitiesCtaLabel?.ar || 'عرض التفاصيل'}
+                    onChange={(e) => updateMultiText('homeActivitiesCtaLabel', 'ar', e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Bottom "সব কার্যক্রম দেখুন" Button Controls */}
-            <div className="p-3.5 bg-white rounded-xl border border-[#EBE8E0] flex flex-wrap items-center justify-between gap-3">
+            <div className="p-3.5 bg-white rounded-xl border border-[#EBE8E0] space-y-3">
               <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#2D3630]">
                 <input
                   type="checkbox"
@@ -1665,14 +1708,35 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 <span>হোমপেজে কার্যক্রম রেলের নিচে &quot;সব কার্যক্রম দেখুন&quot; বাটন প্রদর্শন করুন</span>
               </label>
 
-              <div className="flex items-center gap-2">
-                <label className="text-[11px] font-bold text-[#5C665F]">বাটন লেবেল:</label>
-                <input
-                  type="text"
-                  value={formData.homeViewAllActivitiesLabel?.bn || 'সব কার্যক্রম দেখুন'}
-                  onChange={(e) => updateMultiText('homeViewAllActivitiesLabel', 'bn', e.target.value)}
-                  className="px-2.5 py-1 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[11px] font-bold text-[#5C665F] block mb-1">বাটন লেবেল (বাংলা):</label>
+                  <input
+                    type="text"
+                    value={formData.homeViewAllActivitiesLabel?.bn || 'সব কার্যক্রম দেখুন'}
+                    onChange={(e) => updateMultiText('homeViewAllActivitiesLabel', 'bn', e.target.value)}
+                    className="w-full px-2.5 py-1 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-[#5C665F] block mb-1">Button Label (English):</label>
+                  <input
+                    type="text"
+                    value={formData.homeViewAllActivitiesLabel?.en || 'View All Activities'}
+                    onChange={(e) => updateMultiText('homeViewAllActivitiesLabel', 'en', e.target.value)}
+                    className="w-full px-2.5 py-1 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-[#5C665F] block mb-1">Button Label (العربية):</label>
+                  <input
+                    type="text"
+                    dir="rtl"
+                    value={formData.homeViewAllActivitiesLabel?.ar || 'عرض جميع الأنشطة'}
+                    onChange={(e) => updateMultiText('homeViewAllActivitiesLabel', 'ar', e.target.value)}
+                    className="w-full px-2.5 py-1 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1789,7 +1853,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-[#EBE8E0]">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-3 border-t border-[#EBE8E0]">
             <div>
               <label className="block font-bold text-[#2D3630] mb-1">
                 হেডার CTA বোতামের নাম (বাংলা)
@@ -1811,6 +1875,19 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 value={formData.headerCtaText?.en || ''}
                 onChange={(e) => updateMultiText('headerCtaText', 'en', e.target.value)}
                 placeholder="e.g. Fund Ledger"
+                className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-[#2D3630] mb-1">
+                Header CTA Text (العربية)
+              </label>
+              <input
+                type="text"
+                dir="rtl"
+                value={formData.headerCtaText?.ar || ''}
+                onChange={(e) => updateMultiText('headerCtaText', 'ar', e.target.value)}
+                placeholder="مثال: سجل الصندوق"
                 className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
               />
             </div>
@@ -1875,7 +1952,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block font-bold text-[#2D3630] mb-1">
                 ফুটার পরিচিতি বক্তব্য (বাংলা)
@@ -1898,9 +1975,22 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
               />
             </div>
+            <div>
+              <label className="block font-bold text-[#2D3630] mb-1">
+                Footer Description (العربية)
+              </label>
+              <textarea
+                rows={3}
+                dir="rtl"
+                value={formData.footerDescription?.ar || ''}
+                onChange={(e) => updateMultiText('footerDescription', 'ar', e.target.value)}
+                placeholder="نبذة عن المؤسسة باللغة العربية..."
+                className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[#EBE8E0]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-[#EBE8E0]">
             <div>
               <label className="block font-bold text-[#2D3630] mb-1">
                 কপিরাইট টেক্সট (বাংলা)
@@ -1925,9 +2015,22 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
               />
             </div>
+            <div>
+              <label className="block font-bold text-[#2D3630] mb-1">
+                Copyright Text (العربية)
+              </label>
+              <input
+                type="text"
+                dir="rtl"
+                value={formData.footerCopyright?.ar || ''}
+                onChange={(e) => updateMultiText('footerCopyright', 'ar', e.target.value)}
+                placeholder="مثال: © 2024-2026 مؤسسة التعاطف. جميع الحقوق محفوظة."
+                className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[#EBE8E0]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-[#EBE8E0]">
             <div>
               <label className="block font-bold text-[#2D3630] mb-1">
                 উদ্যোগ পরিচিতি ট্যাগলাইন (বাংলা)
@@ -1952,9 +2055,22 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
               />
             </div>
+            <div>
+              <label className="block font-bold text-[#2D3630] mb-1">
+                Initiative Tagline (العربية)
+              </label>
+              <input
+                type="text"
+                dir="rtl"
+                value={formData.footerInitiativeText?.ar || ''}
+                onChange={(e) => updateMultiText('footerInitiativeText', 'ar', e.target.value)}
+                placeholder="مثال: المبادرة: مسعى مشترك لشباب العائلة"
+                className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[#EBE8E0]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-[#EBE8E0]">
             <div>
               <label className="block font-bold text-[#2D3630] mb-1">
                 যোগাযোগ কলামের সহায়ক বক্তব্য (বাংলা)
@@ -1976,6 +2092,19 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 value={formData.footerText?.en || ''}
                 onChange={(e) => updateMultiText('footerText', 'en', e.target.value)}
                 placeholder="e.g. For any questions or feedback regarding the foundation, feel free to reach out via email."
+                className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-[#2D3630] mb-1">
+                Contact Helper Note (العربية)
+              </label>
+              <textarea
+                rows={2}
+                dir="rtl"
+                value={formData.footerText?.ar || ''}
+                onChange={(e) => updateMultiText('footerText', 'ar', e.target.value)}
+                placeholder="مثال: لأي استفسارات أو ملاحظات، لا تتردد في مراسلتنا..."
                 className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
               />
             </div>
@@ -2060,7 +2189,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
               bucket="activities"
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#EBE8E0]">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-[#EBE8E0]">
               <div>
                 <label className="block font-bold text-[#2D3630] mb-1">
                   হিরো শিরোনাম (বাংলা)
@@ -2085,9 +2214,22 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                   className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                 />
               </div>
+              <div>
+                <label className="block font-bold text-[#2D3630] mb-1">
+                  Hero Title (العربية)
+                </label>
+                <input
+                  type="text"
+                  dir="rtl"
+                  value={formData.aboutHeroTitle?.ar || ''}
+                  onChange={(e) => updateMultiText('aboutHeroTitle', 'ar', e.target.value)}
+                  placeholder="مثال: من نحن"
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block font-bold text-[#2D3630] mb-1">
                   হিরো সাবটাইটেল (বাংলা)
@@ -2112,6 +2254,19 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                   className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                 />
               </div>
+              <div>
+                <label className="block font-bold text-[#2D3630] mb-1">
+                  Hero Subtitle (العربية)
+                </label>
+                <input
+                  type="text"
+                  dir="rtl"
+                  value={formData.aboutHeroSubtitle?.ar || ''}
+                  onChange={(e) => updateMultiText('aboutHeroSubtitle', 'ar', e.target.value)}
+                  placeholder="مثال: تعزيز أواصر القربى والتضامن المتبادل"
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
             </div>
           </div>
 
@@ -2130,7 +2285,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
               </label>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block font-bold text-[#2D3630] mb-1">বক্তব্যের শিরোনাম (বাংলা)</label>
                 <input
@@ -2142,6 +2297,30 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 />
               </div>
               <div>
+                <label className="block font-bold text-[#2D3630] mb-1">Speech Title (English)</label>
+                <input
+                  type="text"
+                  value={formData.aboutSpeechTitle?.en || ''}
+                  onChange={(e) => updateMultiText('aboutSpeechTitle', 'en', e.target.value)}
+                  placeholder="e.g. Inaugural Address of the Foundation"
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#2D3630] mb-1">Speech Title (العربية)</label>
+                <input
+                  type="text"
+                  dir="rtl"
+                  value={formData.aboutSpeechTitle?.ar || ''}
+                  onChange={(e) => updateMultiText('aboutSpeechTitle', 'ar', e.target.value)}
+                  placeholder="مثال: الخطاب الافتتاحي للمؤسسة"
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
                 <label className="block font-bold text-[#2D3630] mb-1">বক্তব্যের সাবটাইটেল (বাংলা)</label>
                 <input
                   type="text"
@@ -2151,59 +2330,175 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                   className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                 />
               </div>
+              <div>
+                <label className="block font-bold text-[#2D3630] mb-1">Speech Subtitle (English)</label>
+                <input
+                  type="text"
+                  value={formData.aboutSpeechSubtitle?.en || ''}
+                  onChange={(e) => updateMultiText('aboutSpeechSubtitle', 'en', e.target.value)}
+                  placeholder="e.g. Sincere Call & Journey Context by Presenter"
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#2D3630] mb-1">Speech Subtitle (العربية)</label>
+                <input
+                  type="text"
+                  dir="rtl"
+                  value={formData.aboutSpeechSubtitle?.ar || ''}
+                  onChange={(e) => updateMultiText('aboutSpeechSubtitle', 'ar', e.target.value)}
+                  placeholder="مثال: نداء مخلص وسياق الرحلة"
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block font-bold text-[#2D3630] mb-1">বক্তব্যের মূল বয়ান (বাংলা)</label>
-              <textarea
-                rows={5}
-                value={formData.aboutSpeech?.bn || ''}
-                onChange={(e) => updateMultiText('aboutSpeech', 'bn', e.target.value)}
-                placeholder="আমাদের লক্ষ্য আত্মীয়তার সম্পর্ক সুদৃঢ় করা এবং পারস্পরিক সহযোগিতার পথ প্রশস্ত করা..."
-                className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] leading-relaxed focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-              />
+            <div className="space-y-3">
+              <div>
+                <label className="block font-bold text-[#2D3630] mb-1">বক্তব্যের মূল বয়ান (বাংলা)</label>
+                <textarea
+                  rows={4}
+                  value={formData.aboutSpeech?.bn || ''}
+                  onChange={(e) => updateMultiText('aboutSpeech', 'bn', e.target.value)}
+                  placeholder="আমাদের লক্ষ্য আত্মীয়তার সম্পর্ক সুদৃঢ় করা এবং পারস্পরিক সহযোগিতার পথ প্রশস্ত করা..."
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] leading-relaxed focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#2D3630] mb-1">Speech Content (English)</label>
+                <textarea
+                  rows={4}
+                  value={formData.aboutSpeech?.en || ''}
+                  onChange={(e) => updateMultiText('aboutSpeech', 'en', e.target.value)}
+                  placeholder="Our goal is to strengthen the ties of kinship and pave the way for mutual support..."
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] leading-relaxed focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#2D3630] mb-1">Speech Content (العربية)</label>
+                <textarea
+                  rows={4}
+                  dir="rtl"
+                  value={formData.aboutSpeech?.ar || ''}
+                  onChange={(e) => updateMultiText('aboutSpeech', 'ar', e.target.value)}
+                  placeholder="هدفنا هو توطيد صلة الرحم وفتح آفاق التعاون المتبادل..."
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] leading-relaxed focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
             </div>
           </div>
 
           {/* Other Sections Texts */}
           <div className="space-y-4 pt-2">
-            <div>
-              <label className="block font-bold text-[#2D3630] mb-1">
-                আমাদের শুরু ও পারিবারিক উদ্যোগ বক্তব্য (বাংলা)
-              </label>
-              <textarea
-                rows={4}
-                value={formData.familyInitiativeText?.bn || ''}
-                onChange={(e) => updateMultiText('familyInitiativeText', 'bn', e.target.value)}
-                placeholder="পারিবারিক তরুণদের উদ্যোগের পেছনের প্রেক্ষাপট..."
-                className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] leading-relaxed focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-              />
+            <div className="p-3.5 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] space-y-3">
+              <span className="block font-bold text-[#2D3630] text-xs">আমাদের শুরু ও পারিবারিক উদ্যোগ বক্তব্য (Family Initiative):</span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">বাংলা</label>
+                  <textarea
+                    rows={3}
+                    value={formData.familyInitiativeText?.bn || ''}
+                    onChange={(e) => updateMultiText('familyInitiativeText', 'bn', e.target.value)}
+                    placeholder="পারিবারিক তরুণদের উদ্যোগের পেছনের প্রেক্ষাপট..."
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] text-xs leading-relaxed focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">English</label>
+                  <textarea
+                    rows={3}
+                    value={formData.familyInitiativeText?.en || ''}
+                    onChange={(e) => updateMultiText('familyInitiativeText', 'en', e.target.value)}
+                    placeholder="Context behind the family youth initiative..."
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] text-xs leading-relaxed focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">العربية</label>
+                  <textarea
+                    rows={3}
+                    dir="rtl"
+                    value={formData.familyInitiativeText?.ar || ''}
+                    onChange={(e) => updateMultiText('familyInitiativeText', 'ar', e.target.value)}
+                    placeholder="سياق مبادرة شباب العائلة..."
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] text-xs leading-relaxed focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="block font-bold text-[#2D3630] mb-1">
-                বাইতুল মাল দর্শন ও সঞ্চয় গুরুত্ব (বাংলা)
-              </label>
-              <textarea
-                rows={3}
-                value={formData.baytulMalText?.bn || ''}
-                onChange={(e) => updateMultiText('baytulMalText', 'bn', e.target.value)}
-                placeholder="বাইতুল মাল এর গুরুত্ব ও সদস্যদের মাসিক জমার ভূমিকা..."
-                className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] leading-relaxed focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-              />
+            <div className="p-3.5 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] space-y-3">
+              <span className="block font-bold text-[#2D3630] text-xs">বাইতুল মাল দর্শন ও সঞ্চয় গুরুত্ব (Baytul Mal Philosophy):</span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">বাংলা</label>
+                  <textarea
+                    rows={3}
+                    value={formData.baytulMalText?.bn || ''}
+                    onChange={(e) => updateMultiText('baytulMalText', 'bn', e.target.value)}
+                    placeholder="বাইতুল মাল এর গুরুত্ব ও সদস্যদের মাসিক জমার ভূমিকা..."
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] text-xs leading-relaxed focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">English</label>
+                  <textarea
+                    rows={3}
+                    value={formData.baytulMalText?.en || ''}
+                    onChange={(e) => updateMultiText('baytulMalText', 'en', e.target.value)}
+                    placeholder="Philosophy of Baytul Mal and monthly contributions..."
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] text-xs leading-relaxed focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">العربية</label>
+                  <textarea
+                    rows={3}
+                    dir="rtl"
+                    value={formData.baytulMalText?.ar || ''}
+                    onChange={(e) => updateMultiText('baytulMalText', 'ar', e.target.value)}
+                    placeholder="فلسفة بيت المال ومساهمات الأعضاء الشهرية..."
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] text-xs leading-relaxed focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="block font-bold text-[#2D3630] mb-1">
-                ভবিষ্যত সম্প্রসারণ ও সমাজ উন্নয়ন রূপরেখা (বাংলা)
-              </label>
-              <textarea
-                rows={3}
-                value={formData.expansionStatement?.bn || ''}
-                onChange={(e) => updateMultiText('expansionStatement', 'bn', e.target.value)}
-                placeholder="ভবিষ্যতে পরিবারের গণ্ডি পেরিয়ে বৃহত্তর সমাজ কল্যাণের রূপরেখা..."
-                className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] leading-relaxed focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-              />
+            <div className="p-3.5 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] space-y-3">
+              <span className="block font-bold text-[#2D3630] text-xs">ভবিষ্যত সম্প্রসারণ ও সমাজ উন্নয়ন রূপরেখা (Expansion Statement):</span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">বাংলা</label>
+                  <textarea
+                    rows={3}
+                    value={formData.expansionStatement?.bn || ''}
+                    onChange={(e) => updateMultiText('expansionStatement', 'bn', e.target.value)}
+                    placeholder="ভবিষ্যতে পরিবারের গণ্ডি পেরিয়ে বৃহত্তর সমাজ কল্যাণের রূপরেখা..."
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] text-xs leading-relaxed focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">English</label>
+                  <textarea
+                    rows={3}
+                    value={formData.expansionStatement?.en || ''}
+                    onChange={(e) => updateMultiText('expansionStatement', 'en', e.target.value)}
+                    placeholder="Future vision extending beyond family to societal welfare..."
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] text-xs leading-relaxed focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">العربية</label>
+                  <textarea
+                    rows={3}
+                    dir="rtl"
+                    value={formData.expansionStatement?.ar || ''}
+                    onChange={(e) => updateMultiText('expansionStatement', 'ar', e.target.value)}
+                    placeholder="رؤية التوسع المستقبلي لخدمة المجتمع الأوسع..."
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] text-xs leading-relaxed focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2274,7 +2569,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     <div>
                       <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">শিরোনাম (বাংলা)</label>
                       <input
@@ -2307,23 +2602,75 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                         className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
                       />
                     </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">Title (العربية)</label>
+                      <input
+                        type="text"
+                        dir="rtl"
+                        value={card.title?.ar || ''}
+                        onChange={(e) => {
+                          const updated = [...(formData.aboutValuesCards || [])];
+                          updated[idx] = {
+                            ...card,
+                            title: { ...card.title, ar: e.target.value },
+                          };
+                          setFormData({ ...formData, aboutValuesCards: updated });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">বিবরণ / ব্যাখ্যা (বাংলা)</label>
-                    <textarea
-                      rows={2}
-                      value={card.description?.bn || ''}
-                      onChange={(e) => {
-                        const updated = [...(formData.aboutValuesCards || [])];
-                        updated[idx] = {
-                          ...card,
-                          description: { ...card.description, bn: e.target.value },
-                        };
-                        setFormData({ ...formData, aboutValuesCards: updated });
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">বিবরণ / ব্যাখ্যা (বাংলা)</label>
+                      <textarea
+                        rows={2}
+                        value={card.description?.bn || ''}
+                        onChange={(e) => {
+                          const updated = [...(formData.aboutValuesCards || [])];
+                          updated[idx] = {
+                            ...card,
+                            description: { ...card.description, bn: e.target.value },
+                          };
+                          setFormData({ ...formData, aboutValuesCards: updated });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">Description (English)</label>
+                      <textarea
+                        rows={2}
+                        value={card.description?.en || ''}
+                        onChange={(e) => {
+                          const updated = [...(formData.aboutValuesCards || [])];
+                          updated[idx] = {
+                            ...card,
+                            description: { ...card.description, en: e.target.value },
+                          };
+                          setFormData({ ...formData, aboutValuesCards: updated });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">Description (العربية)</label>
+                      <textarea
+                        rows={2}
+                        dir="rtl"
+                        value={card.description?.ar || ''}
+                        onChange={(e) => {
+                          const updated = [...(formData.aboutValuesCards || [])];
+                          updated[idx] = {
+                            ...card,
+                            description: { ...card.description, ar: e.target.value },
+                          };
+                          setFormData({ ...formData, aboutValuesCards: updated });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -2397,7 +2744,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     <div>
                       <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">শিরোনাম (বাংলা)</label>
                       <input
@@ -2430,23 +2777,75 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                         className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
                       />
                     </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">Title (العربية)</label>
+                      <input
+                        type="text"
+                        dir="rtl"
+                        value={card.title?.ar || ''}
+                        onChange={(e) => {
+                          const updated = [...(formData.aboutFutureCards || [])];
+                          updated[idx] = {
+                            ...card,
+                            title: { ...card.title, ar: e.target.value },
+                          };
+                          setFormData({ ...formData, aboutFutureCards: updated });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">বিবরণ / লক্ষ্য (বাংলা)</label>
-                    <textarea
-                      rows={2}
-                      value={card.description?.bn || ''}
-                      onChange={(e) => {
-                        const updated = [...(formData.aboutFutureCards || [])];
-                        updated[idx] = {
-                          ...card,
-                          description: { ...card.description, bn: e.target.value },
-                        };
-                        setFormData({ ...formData, aboutFutureCards: updated });
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">বিবরণ / লক্ষ্য (বাংলা)</label>
+                      <textarea
+                        rows={2}
+                        value={card.description?.bn || ''}
+                        onChange={(e) => {
+                          const updated = [...(formData.aboutFutureCards || [])];
+                          updated[idx] = {
+                            ...card,
+                            description: { ...card.description, bn: e.target.value },
+                          };
+                          setFormData({ ...formData, aboutFutureCards: updated });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">Description (English)</label>
+                      <textarea
+                        rows={2}
+                        value={card.description?.en || ''}
+                        onChange={(e) => {
+                          const updated = [...(formData.aboutFutureCards || [])];
+                          updated[idx] = {
+                            ...card,
+                            description: { ...card.description, en: e.target.value },
+                          };
+                          setFormData({ ...formData, aboutFutureCards: updated });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#2D3630] mb-0.5">Description (العربية)</label>
+                      <textarea
+                        rows={2}
+                        dir="rtl"
+                        value={card.description?.ar || ''}
+                        onChange={(e) => {
+                          const updated = [...(formData.aboutFutureCards || [])];
+                          updated[idx] = {
+                            ...card,
+                            description: { ...card.description, ar: e.target.value },
+                          };
+                          setFormData({ ...formData, aboutFutureCards: updated });
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630]"
+                      />
+                    </div>
                   </div>
                 </div>
               ))}

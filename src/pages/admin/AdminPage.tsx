@@ -26,6 +26,7 @@ import {
   FundData,
   ExpenseRecord,
   FundVisibilitySettings,
+  MultilingualText,
 } from '../../types';
 import {
   Lock,
@@ -95,6 +96,8 @@ export const AdminPage: React.FC = () => {
   const [fundPreview, setFundPreview] = useState<FundData | null>(null);
   const [testingFund, setTestingFund] = useState(false);
   const [aboutLang, setAboutLang] = useState<'bn' | 'en' | 'ar'>('bn');
+  const [activityLang, setActivityLang] = useState<'bn' | 'en' | 'ar'>('bn');
+  const [noticeLang, setNoticeLang] = useState<'bn' | 'en' | 'ar'>('bn');
 
   // Forms / Modals state
   const [editingMember, setEditingMember] = useState<Partial<Member> | null>(null);
@@ -151,6 +154,55 @@ export const AdminPage: React.FC = () => {
       }, 60);
     }
   }, [editingGallery !== null, editingGallery?.id]);
+
+  // Multilingual field helpers for Activity
+  const getActivityText = (field: keyof Activity, lang: 'bn' | 'en' | 'ar'): string => {
+    if (!editingActivity) return '';
+    const val = editingActivity[field];
+    if (val && typeof val === 'object') {
+      return (val as any)[lang] || '';
+    }
+    return lang === 'bn' && typeof val === 'string' ? val : '';
+  };
+
+  const setActivityText = (field: keyof Activity, lang: 'bn' | 'en' | 'ar', text: string) => {
+    setEditingActivity((prev) => {
+      if (!prev) return null;
+      const current = prev[field];
+      const obj = (current && typeof current === 'object')
+        ? { ...(current as any) }
+        : { bn: typeof current === 'string' ? current : '', en: '', ar: '' };
+      obj[lang] = text;
+      const updated: any = { ...prev, [field]: obj };
+      if (field === 'shortSummary') updated.summary = obj;
+      if (field === 'summary') updated.shortSummary = obj;
+      if (field === 'fullDescription') updated.description = obj;
+      if (field === 'description') updated.fullDescription = obj;
+      return updated;
+    });
+  };
+
+  // Multilingual field helpers for Notice
+  const getNoticeText = (field: keyof Notice, lang: 'bn' | 'en' | 'ar'): string => {
+    if (!editingNotice) return '';
+    const val = editingNotice[field];
+    if (val && typeof val === 'object') {
+      return (val as any)[lang] || '';
+    }
+    return lang === 'bn' && typeof val === 'string' ? val : '';
+  };
+
+  const setNoticeText = (field: keyof Notice, lang: 'bn' | 'en' | 'ar', text: string) => {
+    setEditingNotice((prev) => {
+      if (!prev) return null;
+      const current = prev[field];
+      const obj = (current && typeof current === 'object')
+        ? { ...(current as any) }
+        : { bn: typeof current === 'string' ? current : '', en: '', ar: '' };
+      obj[lang] = text;
+      return { ...prev, [field]: obj };
+    });
+  };
 
   // Confirm modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -371,44 +423,52 @@ export const AdminPage: React.FC = () => {
   // Activity operations
   const handleSaveActivity = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingActivity || !editingActivity.title) return;
+    if (!editingActivity) return;
+
+    const getMulti = (val: any): MultilingualText => {
+      if (val && typeof val === 'object') {
+        return {
+          bn: typeof val.bn === 'string' ? val.bn : '',
+          en: typeof val.en === 'string' ? val.en : '',
+          ar: typeof val.ar === 'string' ? val.ar : '',
+        };
+      }
+      if (typeof val === 'string') {
+        return { bn: val, en: '', ar: '' };
+      }
+      return { bn: '', en: '', ar: '' };
+    };
+
+    const titleObj = getMulti(editingActivity.title);
+    if (!titleObj.bn && !titleObj.en && !titleObj.ar) {
+      showToast('অনুগ্রহ করে কার্যক্রমের শিরোনাম দিন');
+      return;
+    }
 
     triggerSyncStatus('saving', 'কার্যক্রম সংরক্ষণ হচ্ছে...');
-    const titleStr = typeof editingActivity.title === 'string' ? editingActivity.title : editingActivity.title.bn || '';
+    const titleStr = titleObj.bn || titleObj.en || titleObj.ar || 'activity';
 
     // Strict separation: never copy description to summary or vice-versa
-    const summaryVal = typeof editingActivity.summary === 'object' && editingActivity.summary !== null
-      ? editingActivity.summary
-      : typeof editingActivity.shortSummary === 'object' && editingActivity.shortSummary !== null
-      ? editingActivity.shortSummary
-      : {
-          bn: (typeof editingActivity.summary === 'string' ? editingActivity.summary : (typeof editingActivity.shortSummary === 'string' ? editingActivity.shortSummary : '')) || '',
-          en: '',
-          ar: '',
-        };
+    const summaryVal = getMulti(editingActivity.shortSummary || editingActivity.summary);
+    const descVal = getMulti(editingActivity.fullDescription || editingActivity.description);
 
-    const descVal = typeof editingActivity.description === 'object' && editingActivity.description !== null
-      ? editingActivity.description
-      : typeof editingActivity.fullDescription === 'object' && editingActivity.fullDescription !== null
-      ? editingActivity.fullDescription
-      : {
-          bn: (typeof editingActivity.description === 'string' ? editingActivity.description : (typeof editingActivity.fullDescription === 'string' ? editingActivity.fullDescription : '')) || '',
-          en: '',
-          ar: '',
-        };
+    const purposeVal = editingActivity.purpose ? getMulti(editingActivity.purpose) : undefined;
+    const locationVal = editingActivity.location ? getMulti(editingActivity.location) : undefined;
+    const beneficiariesVal = editingActivity.beneficiaries ? getMulti(editingActivity.beneficiaries) : undefined;
+    const outcomesVal = editingActivity.outcomes ? getMulti(editingActivity.outcomes) : undefined;
 
     const newAct: Activity = {
       id: editingActivity.id || `act-${Date.now()}`,
       slug: editingActivity.slug || titleStr.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `activity-${Date.now()}`,
-      title: typeof editingActivity.title === 'object' ? editingActivity.title : { bn: titleStr, en: titleStr, ar: titleStr },
+      title: titleObj,
       summary: summaryVal,
       shortSummary: summaryVal,
       description: descVal,
       fullDescription: descVal,
-      purpose: typeof editingActivity.purpose === 'object' ? editingActivity.purpose : editingActivity.purpose ? { bn: editingActivity.purpose as any, en: '', ar: '' } : undefined,
-      location: typeof editingActivity.location === 'object' ? editingActivity.location : editingActivity.location ? { bn: editingActivity.location as any, en: '', ar: '' } : undefined,
-      beneficiaries: typeof editingActivity.beneficiaries === 'object' ? editingActivity.beneficiaries : editingActivity.beneficiaries ? { bn: editingActivity.beneficiaries as any, en: '', ar: '' } : undefined,
-      outcomes: typeof editingActivity.outcomes === 'object' ? editingActivity.outcomes : editingActivity.outcomes ? { bn: editingActivity.outcomes as any, en: '', ar: '' } : undefined,
+      purpose: purposeVal,
+      location: locationVal,
+      beneficiaries: beneficiariesVal,
+      outcomes: outcomesVal,
       showShortSummaryInDetail: Boolean(editingActivity.showShortSummaryInDetail),
       date: editingActivity.date || new Date().toISOString().split('T')[0],
       category: editingActivity.category || 'সাধারণ',
@@ -452,16 +512,36 @@ export const AdminPage: React.FC = () => {
   // Notice operations
   const handleSaveNotice = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingNotice || !editingNotice.title) return;
+    if (!editingNotice) return;
+
+    const getMulti = (val: any): MultilingualText => {
+      if (val && typeof val === 'object') {
+        return {
+          bn: typeof val.bn === 'string' ? val.bn : '',
+          en: typeof val.en === 'string' ? val.en : '',
+          ar: typeof val.ar === 'string' ? val.ar : '',
+        };
+      }
+      if (typeof val === 'string') {
+        return { bn: val, en: '', ar: '' };
+      }
+      return { bn: '', en: '', ar: '' };
+    };
+
+    const titleObj = getMulti(editingNotice.title);
+    const bodyObj = getMulti(editingNotice.body);
+
+    if (!titleObj.bn && !titleObj.en && !titleObj.ar) {
+      showToast('অনুগ্রহ করে নোটিশের শিরোনাম দিন');
+      return;
+    }
 
     triggerSyncStatus('saving', 'নোটিশ সংরক্ষণ হচ্ছে...');
-    const titleStr = typeof editingNotice.title === 'string' ? editingNotice.title : editingNotice.title.bn || '';
-    const bodyStr = typeof editingNotice.body === 'string' ? editingNotice.body : editingNotice.body.bn || '';
 
     const newNotice: Notice = {
       id: editingNotice.id || `not-${Date.now()}`,
-      title: typeof editingNotice.title === 'object' ? editingNotice.title : { bn: titleStr, en: titleStr, ar: titleStr },
-      body: typeof editingNotice.body === 'object' ? editingNotice.body : { bn: bodyStr, en: bodyStr, ar: bodyStr },
+      title: titleObj,
+      body: bodyObj,
       date: editingNotice.date || new Date().toISOString().split('T')[0],
       isImportant: Boolean(editingNotice.isImportant),
       isPublished: editingNotice.isPublished !== false,
@@ -1998,14 +2078,58 @@ export const AdminPage: React.FC = () => {
                   </div>
 
                   <form onSubmit={handleSaveActivity} className="space-y-4">
+                    {/* Multilingual Tab Switcher */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-[#2D3630] mr-1">সম্পাদনার ভাষা:</span>
+                        {(['bn', 'en', 'ar'] as const).map((langKey) => (
+                          <button
+                            key={langKey}
+                            type="button"
+                            onClick={() => setActivityLang(langKey)}
+                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                              activityLang === langKey
+                                ? 'bg-[#2D5A41] text-white shadow-2xs'
+                                : 'bg-white text-[#5C665F] hover:text-[#2D3630] border border-[#EBE8E0]'
+                            }`}
+                          >
+                            {langKey === 'bn' ? 'বাংলা (BN)' : langKey === 'en' ? 'English (EN)' : 'العربية (AR)'}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-[11px] text-[#7A877E] font-medium">
+                        {activityLang === 'bn'
+                          ? 'বাংলা কনটেন্ট এডিট হচ্ছে (ডিফল্ট)'
+                          : activityLang === 'en'
+                          ? 'Editing English translation'
+                          : 'تحرير المحتوى باللغة العربية'}
+                      </span>
+                    </div>
+
                     <div>
-                      <label className="block font-bold text-[#2D3630] mb-1">কার্যক্রমের শিরোনাম *</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-bold text-[#2D3630]">
+                          কার্যক্রমের শিরোনাম ({activityLang.toUpperCase()}) {activityLang === 'bn' ? '*' : '(ঐচ্ছিক)'}
+                        </label>
+                        {activityLang !== 'bn' && (
+                          <span className="text-[11px] text-[#7A877E]">
+                            বাংলা শিরোনাম: {getActivityText('title', 'bn') || 'খালি'}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="text"
-                        required
-                        value={typeof editingActivity.title === 'object' ? editingActivity.title.bn : editingActivity.title || ''}
-                        onChange={(e) => setEditingActivity({ ...editingActivity, title: e.target.value as any })}
-                        placeholder="যেমন: জরুরি ওষুধ ও চিকিৎসা সহায়তা কর্মসূচি"
+                        required={activityLang === 'bn'}
+                        dir={activityLang === 'ar' ? 'rtl' : 'ltr'}
+                        value={getActivityText('title', activityLang)}
+                        onChange={(e) => setActivityText('title', activityLang, e.target.value)}
+                        placeholder={
+                          activityLang === 'bn'
+                            ? 'যেমন: জরুরি ওষুধ ও চিকিৎসা সহায়তা কর্মসূচি'
+                            : activityLang === 'en'
+                            ? 'e.g. Emergency Medical & Healthcare Support Program'
+                            : 'مثال: برنامج المساعدات الطبية والرعاية الصحية الطارئة'
+                        }
                         className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                       />
                     </div>
@@ -2043,28 +2167,22 @@ export const AdminPage: React.FC = () => {
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block font-bold text-[#2D3630]">
-                          সংক্ষিপ্ত সারসংক্ষেপ (Short Summary / Headline Excerpt)
+                          সংক্ষিপ্ত সারসংক্ষেপ / Short Summary ({activityLang.toUpperCase()})
                         </label>
                         <span className="text-[11px] text-[#7A877E]">হোমপেজ ও কার্ড প্রিভিউয়ের জন্য</span>
                       </div>
                       <textarea
                         rows={2}
-                        value={
-                          typeof editingActivity.shortSummary === 'object' && editingActivity.shortSummary !== null
-                            ? editingActivity.shortSummary.bn
-                            : typeof editingActivity.summary === 'object' && editingActivity.summary !== null
-                            ? editingActivity.summary.bn
-                            : (editingActivity.shortSummary as any) || (editingActivity.summary as any) || ''
+                        dir={activityLang === 'ar' ? 'rtl' : 'ltr'}
+                        value={getActivityText('shortSummary', activityLang)}
+                        onChange={(e) => setActivityText('shortSummary', activityLang, e.target.value)}
+                        placeholder={
+                          activityLang === 'bn'
+                            ? '১ বা ২ বাক্যে কার্ডের সংক্ষিপ্ত সারসংক্ষেপ লিখুন...'
+                            : activityLang === 'en'
+                            ? 'Write short summary for cards and homepage preview in 1-2 sentences...'
+                            : 'اكتب ملخصاً موجزاً للبطاقات ومعاينة الصفحة الرئيسية في جملة أو جملتين...'
                         }
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEditingActivity({
-                            ...editingActivity,
-                            summary: val as any,
-                            shortSummary: val as any,
-                          });
-                        }}
-                        placeholder="১ বা ২ বাক্যে কার্ডের সংক্ষিপ্ত সারসংক্ষেপ লিখুন..."
                         className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                       />
                       <p className="text-[11px] text-[#7A877E] mt-1">
@@ -2076,104 +2194,115 @@ export const AdminPage: React.FC = () => {
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block font-bold text-[#2D3630]">
-                          সম্পূর্ণ বিস্তারিত বিবরণ (Full Editorial Story) *
+                          সম্পূর্ণ বিস্তারিত বিবরণ / Full Editorial Story ({activityLang.toUpperCase()}) {activityLang === 'bn' ? '*' : ''}
                         </label>
                         <span className="text-[11px] text-[#7A877E]">ডিটেইল পেজের জন্য</span>
                       </div>
                       <textarea
                         rows={5}
-                        required
-                        value={
-                          typeof editingActivity.fullDescription === 'object' && editingActivity.fullDescription !== null
-                            ? editingActivity.fullDescription.bn
-                            : typeof editingActivity.description === 'object' && editingActivity.description !== null
-                            ? editingActivity.description.bn
-                            : (editingActivity.fullDescription as any) || (editingActivity.description as any) || ''
+                        required={activityLang === 'bn'}
+                        dir={activityLang === 'ar' ? 'rtl' : 'ltr'}
+                        value={getActivityText('fullDescription', activityLang)}
+                        onChange={(e) => setActivityText('fullDescription', activityLang, e.target.value)}
+                        placeholder={
+                          activityLang === 'bn'
+                            ? 'কার্যক্রমের সম্পূর্ণ প্রতিবেদন, প্রেক্ষাপট ও বিবরণ বিস্তারিত লিখুন...'
+                            : activityLang === 'en'
+                            ? 'Write comprehensive article, context, and detailed report of the activity...'
+                            : 'اكتب التقرير الكامل وسياق النشاط وتفاصيله...'
                         }
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setEditingActivity({
-                            ...editingActivity,
-                            description: val as any,
-                            fullDescription: val as any,
-                          });
-                        }}
-                        placeholder="কার্যক্রমের সম্পূর্ণ প্রতিবেদন, প্রেক্ষাপট ও বিবরণ বিস্তারিত লিখুন..."
                         className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                       />
                     </div>
 
                     {/* Structured Editorial Sections (Optional) */}
                     <div className="p-4 rounded-xl bg-[#F7F5F0]/60 border border-[#EBE8E0] space-y-3">
-                      <h4 className="font-bold text-[#2D3630] text-xs">
-                        সম্পাদকীয় অতিরিক্ত বিবরণ (ঐচ্ছিক - ডিটেইল পেজের জন্য)
-                      </h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-[#2D3630] text-xs">
+                          সম্পাদকীয় অতিরিক্ত বিবরণ ({activityLang.toUpperCase()}) (ঐচ্ছিক - ডিটেইল পেজের জন্য)
+                        </h4>
+                        <span className="text-[10px] text-[#7A877E]">
+                          {activityLang === 'bn' ? 'বাংলা' : activityLang === 'en' ? 'English' : 'العربية'}
+                        </span>
+                      </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block font-semibold text-[#5C665F] mb-1">
-                            উদ্দেশ্য ও লক্ষ্য (Purpose / Objective)
+                            উদ্দেশ্য ও লক্ষ্য / Purpose ({activityLang.toUpperCase()})
                           </label>
                           <input
                             type="text"
-                            value={
-                              typeof editingActivity.purpose === 'object' && editingActivity.purpose !== null
-                                ? editingActivity.purpose.bn
-                                : (editingActivity.purpose as any) || ''
+                            dir={activityLang === 'ar' ? 'rtl' : 'ltr'}
+                            value={getActivityText('purpose', activityLang)}
+                            onChange={(e) => setActivityText('purpose', activityLang, e.target.value)}
+                            placeholder={
+                              activityLang === 'bn'
+                                ? 'যেমন: প্রান্তিক রোগীদের বিনামূল্যে ওষুধ প্রদান'
+                                : activityLang === 'en'
+                                ? 'e.g. Provide free medicines to vulnerable patients'
+                                : 'مثال: تقديم الأدوية المجانية للمرضى المحتاجين'
                             }
-                            onChange={(e) => setEditingActivity({ ...editingActivity, purpose: e.target.value as any })}
-                            placeholder="যেমন: প্রান্তিক রোগীদের বিনামূল্যে ওষুধ প্রদান"
                             className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
                           />
                         </div>
 
                         <div>
                           <label className="block font-semibold text-[#5C665F] mb-1">
-                            স্থান / এলাকা (Location)
+                            স্থান / এলাকা / Location ({activityLang.toUpperCase()})
                           </label>
                           <input
                             type="text"
-                            value={
-                              typeof editingActivity.location === 'object' && editingActivity.location !== null
-                                ? editingActivity.location.bn
-                                : (editingActivity.location as any) || ''
+                            dir={activityLang === 'ar' ? 'rtl' : 'ltr'}
+                            value={getActivityText('location', activityLang)}
+                            onChange={(e) => setActivityText('location', activityLang, e.target.value)}
+                            placeholder={
+                              activityLang === 'bn'
+                                ? 'যেমন: লালমোহন, ভোলা'
+                                : activityLang === 'en'
+                                ? 'e.g. Lalmohan, Bhola'
+                                : 'مثال: لالموهان، بهولا'
                             }
-                            onChange={(e) => setEditingActivity({ ...editingActivity, location: e.target.value as any })}
-                            placeholder="যেমন: লালমোহন, ভোলা"
                             className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
                           />
                         </div>
 
                         <div>
                           <label className="block font-semibold text-[#5C665F] mb-1">
-                            সুবিধাভোগী (Beneficiaries)
+                            সুবিধাভোগী / Beneficiaries ({activityLang.toUpperCase()})
                           </label>
                           <input
                             type="text"
-                            value={
-                              typeof editingActivity.beneficiaries === 'object' && editingActivity.beneficiaries !== null
-                                ? editingActivity.beneficiaries.bn
-                                : (editingActivity.beneficiaries as any) || ''
+                            dir={activityLang === 'ar' ? 'rtl' : 'ltr'}
+                            value={getActivityText('beneficiaries', activityLang)}
+                            onChange={(e) => setActivityText('beneficiaries', activityLang, e.target.value)}
+                            placeholder={
+                              activityLang === 'bn'
+                                ? 'যেমন: ১২০টি পরিবার ও ৫০ জন প্রবীণ'
+                                : activityLang === 'en'
+                                ? 'e.g. 120 families and 50 elderly individuals'
+                                : 'مثال: 120 أسرة و50 مسناً'
                             }
-                            onChange={(e) => setEditingActivity({ ...editingActivity, beneficiaries: e.target.value as any })}
-                            placeholder="যেমন: ১২০টি পরিবার ও ৫০ জন প্রবীণ"
                             className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
                           />
                         </div>
 
                         <div>
                           <label className="block font-semibold text-[#5C665F] mb-1">
-                            অর্জন বা ফলাফল (Key Outcomes / Results)
+                            অর্জন বা ফলাফল / Outcomes ({activityLang.toUpperCase()})
                           </label>
                           <input
                             type="text"
-                            value={
-                              typeof editingActivity.outcomes === 'object' && editingActivity.outcomes !== null
-                                ? editingActivity.outcomes.bn
-                                : (editingActivity.outcomes as any) || ''
+                            dir={activityLang === 'ar' ? 'rtl' : 'ltr'}
+                            value={getActivityText('outcomes', activityLang)}
+                            onChange={(e) => setActivityText('outcomes', activityLang, e.target.value)}
+                            placeholder={
+                              activityLang === 'bn'
+                                ? 'যেমন: শতভাগ পরিবারে প্রয়োজনীয় ওষুধ সরবরাহ নিশ্চিত'
+                                : activityLang === 'en'
+                                ? 'e.g. Ensured essential medicine supply to 100% of targeted families'
+                                : 'مثال: ضمان إيصال الأدوية الأساسية لجميع العائلات المستهدفة'
                             }
-                            onChange={(e) => setEditingActivity({ ...editingActivity, outcomes: e.target.value as any })}
-                            placeholder="যেমন: শতভাগ পরিবারে প্রয়োজনীয় ওষুধ সরবরাহ নিশ্চিত"
                             className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
                           />
                         </div>
@@ -2328,14 +2457,59 @@ export const AdminPage: React.FC = () => {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveNotice} className="space-y-3">
+              <form onSubmit={handleSaveNotice} className="space-y-4">
+                {/* Multilingual Notice Tab Switcher */}
+                <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-[#2D3630] mr-1">নোটিশের ভাষা:</span>
+                    {(['bn', 'en', 'ar'] as const).map((langKey) => (
+                      <button
+                        key={langKey}
+                        type="button"
+                        onClick={() => setNoticeLang(langKey)}
+                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                          noticeLang === langKey
+                            ? 'bg-[#2D5A41] text-white shadow-2xs'
+                            : 'bg-white text-[#5C665F] hover:text-[#2D3630] border border-[#EBE8E0]'
+                        }`}
+                      >
+                        {langKey === 'bn' ? 'বাংলা (BN)' : langKey === 'en' ? 'English (EN)' : 'العربية (AR)'}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-[11px] text-[#7A877E] font-medium">
+                    {noticeLang === 'bn'
+                      ? 'বাংলা নোটিশ (ডিফল্ট)'
+                      : noticeLang === 'en'
+                      ? 'English Notice'
+                      : 'إعلان باللغة العربية'}
+                  </span>
+                </div>
+
                 <div>
-                  <label className="block font-bold text-[#2D3630] mb-1">নোটিশের শিরোনাম *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-[#2D3630]">
+                      নোটিশের শিরোনাম ({noticeLang.toUpperCase()}) {noticeLang === 'bn' ? '*' : '(ঐচ্ছিক)'}
+                    </label>
+                    {noticeLang !== 'bn' && (
+                      <span className="text-[11px] text-[#7A877E]">
+                        বাংলা শিরোনাম: {getNoticeText('title', 'bn') || 'খালি'}
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
-                    required
-                    value={typeof editingNotice.title === 'object' ? editingNotice.title.bn : editingNotice.title || ''}
-                    onChange={(e) => setEditingNotice({ ...editingNotice, title: e.target.value as any })}
+                    required={noticeLang === 'bn'}
+                    dir={noticeLang === 'ar' ? 'rtl' : 'ltr'}
+                    value={getNoticeText('title', noticeLang)}
+                    onChange={(e) => setNoticeText('title', noticeLang, e.target.value)}
+                    placeholder={
+                      noticeLang === 'bn'
+                        ? 'যেমন: আসন্ন বার্ষিক সাধারণ সভা সম্পর্কিত জরুরি বিজ্ঞপ্তি'
+                        : noticeLang === 'en'
+                        ? 'e.g. Urgent Notice Regarding Upcoming Annual General Meeting'
+                        : 'مثال: إشعار عاجل بخصوص الاجتماع العام السنوي القادم'
+                    }
                     className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                   />
                 </div>
@@ -2351,12 +2525,24 @@ export const AdminPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#2D3630] mb-1">নোটিশের মূল বার্তা *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-[#2D3630]">
+                      নোটিশের মূল বার্তা / Content ({noticeLang.toUpperCase()}) {noticeLang === 'bn' ? '*' : ''}
+                    </label>
+                  </div>
                   <textarea
                     rows={4}
-                    required
-                    value={typeof editingNotice.body === 'object' ? editingNotice.body.bn : editingNotice.body || ''}
-                    onChange={(e) => setEditingNotice({ ...editingNotice, body: e.target.value as any })}
+                    required={noticeLang === 'bn'}
+                    dir={noticeLang === 'ar' ? 'rtl' : 'ltr'}
+                    value={getNoticeText('body', noticeLang)}
+                    onChange={(e) => setNoticeText('body', noticeLang, e.target.value)}
+                    placeholder={
+                      noticeLang === 'bn'
+                        ? 'নোটিশের পূর্ণাঙ্গ বিবরণ লিখুন...'
+                        : noticeLang === 'en'
+                        ? 'Write full notice text and details...'
+                        : 'اكتب نص الإعلان وتفاصيله الكاملة...'
+                    }
                     className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                   />
                 </div>

@@ -466,6 +466,16 @@ export const translations: TranslationDictionary = {
     en: 'Emergency Contact Phone',
     ar: 'رقم الهاتف المباشر',
   },
+  emailLabel: {
+    bn: 'ইমেইল:',
+    en: 'Email:',
+    ar: 'البريد الإلكتروني:',
+  },
+  hotlineLabel: {
+    bn: 'হটলাইন:',
+    en: 'Hotline:',
+    ar: 'الخط الساخن:',
+  },
 
   // Empty States
   emptyData: {
@@ -492,6 +502,31 @@ export const translations: TranslationDictionary = {
     bn: 'সদস্য তালিকা বর্তমানে সংকলিত হচ্ছে।',
     en: 'The member registry is currently being updated.',
     ar: 'سجل الأعضاء قيد التحديث حالياً.',
+  },
+  backToMembers: {
+    bn: 'সদস্য তালিকায় ফিরে যান',
+    en: 'Back to Members',
+    ar: 'العودة إلى قائمة الأعضاء',
+  },
+  activeMember: {
+    bn: 'সক্রিয় সদস্য',
+    en: 'Active Member',
+    ar: 'عضو نشط',
+  },
+  memberNotFound: {
+    bn: 'সদস্যের তথ্য পাওয়া যায়নি',
+    en: 'Member Not Found',
+    ar: 'لم يتم العثور على العضو',
+  },
+  memberNotFoundHint: {
+    bn: 'অনুগ্রহ করে সদস্য তালিকায় ফিরে যান।',
+    en: 'Please return to the members list.',
+    ar: 'الرجاء العودة إلى قائمة الأعضاء.',
+  },
+  memberJoinDateLabel: {
+    bn: 'সদস্য হওয়ার তারিখ:',
+    en: 'Join Date:',
+    ar: 'تاريخ الانضمام:',
   },
 
   // Footer

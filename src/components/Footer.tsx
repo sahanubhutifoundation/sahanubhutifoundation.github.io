@@ -213,7 +213,7 @@ export const Footer: React.FC = () => {
                 </p>
                 {config.email && (
                   <div className="bg-[#202C23] p-3 rounded-lg border border-[#28382C]">
-                    <div className="text-[11px] text-[#78887D] mb-1">ইমেইল:</div>
+                    <div className="text-[11px] text-[#78887D] mb-1">{t('emailLabel')}</div>
                     <a
                       href={`mailto:${config.email}`}
                       className="text-[#65B78A] hover:underline font-mono text-xs break-all block"
@@ -224,7 +224,7 @@ export const Footer: React.FC = () => {
                 )}
                 {config.phone && config.showPhone !== false ? (
                   <div className="text-[11px] text-[#78887D]">
-                    <span>হটলাইন: </span>
+                    <span>{t('hotlineLabel')} </span>
                     <a
                       href={`tel:${config.phone}`}
                       className="font-mono text-[#D3DDD5] hover:text-[#65B78A] transition-colors"
