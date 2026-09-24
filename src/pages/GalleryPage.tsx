@@ -1,31 +1,78 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { PageHero } from '../components/PageHero';
 import { EmptyState } from '../components/EmptyState';
 import { storageService } from '../services/storageService';
 import { GalleryItem } from '../types';
-import { ImageIcon, X, Play, Calendar, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ImageIcon, X, Calendar, ArrowRight, ExternalLink } from 'lucide-react';
+import { toBengaliDigits } from '../utils/foundationHelpers';
 
 export const GalleryPage: React.FC = () => {
-  const { t, tMulti } = useLanguage();
+  const { t, tMulti, language, isRTL } = useLanguage();
+  const navigate = useNavigate();
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [activeItem, setActiveItem] = useState<GalleryItem | null>(null);
 
   useEffect(() => {
-    const list = storageService.getGalleryItems().filter((g) => g.isPublished);
-    setItems(list);
+    // Strictly image-only: safely filter out any legacy video records
+    const galleryItems = storageService
+      .getGalleryItems()
+      .filter((g) => g.isPublished && g.type !== 'video' && (g.url || g.mediaUrl));
+
+    // Also include published activities where showOnMediaPage is true
+    const activitiesWithMedia = storageService
+      .getActivities()
+      .filter((a) => a.isPublished && a.showOnMediaPage && a.coverImage)
+      .map((a) => ({
+        id: `gal-act-${a.id}`,
+        title: a.title,
+        url: a.coverImage,
+        mediaUrl: a.coverImage,
+        thumbnailUrl: a.coverImage,
+        type: 'photo' as const,
+        category: a.category || 'কার্যক্রম',
+        date: a.date,
+        year: a.date ? a.date.split('-')[0] : '',
+        activityId: a.id,
+        isPublished: true,
+      }));
+
+    const combined = [...galleryItems];
+    activitiesWithMedia.forEach((actItem) => {
+      const alreadyExists = combined.some((g) => g.activityId === actItem.activityId || g.id === actItem.id);
+      if (!alreadyExists) {
+        combined.push(actItem as GalleryItem);
+      }
+    });
+
+    setItems(combined);
   }, []);
 
   const categories = ['all', ...Array.from(new Set(items.map((i) => i.category).filter(Boolean)))];
-  const years = ['all', ...Array.from(new Set(items.map((i) => i.year).filter(Boolean)))];
+  const years = ['all', ...Array.from(new Set(items.map((i) => i.year?.toString()).filter(Boolean)))];
 
   const filtered = items.filter((item) => {
     const matchCat = selectedCategory === 'all' || item.category === selectedCategory;
-    const matchYear = selectedYear === 'all' || item.year === selectedYear;
+    const matchYear = selectedYear === 'all' || item.year?.toString() === selectedYear;
     return matchCat && matchYear;
   });
+
+  const handleCardClick = (item: GalleryItem) => {
+    if (item.activityId) {
+      navigate(`/activities/${item.activityId}`);
+    } else {
+      setActiveItem(item);
+    }
+  };
+
+  const formatDisplayDate = (item: GalleryItem) => {
+    const rawDate = item.date || (item.year ? item.year.toString() : '');
+    if (!rawDate) return '';
+    return language === 'bn' ? toBengaliDigits(rawDate) : rawDate;
+  };
 
   return (
     <div className="space-y-10 sm:space-y-12 pb-16">
@@ -68,7 +115,7 @@ export const GalleryPage: React.FC = () => {
                 >
                   {years.map((y) => (
                     <option key={y} value={y}>
-                      {y === 'all' ? t('allYears') : y}
+                      {y === 'all' ? t('allYears') : language === 'bn' ? toBengaliDigits(y) : y}
                     </option>
                   ))}
                 </select>
@@ -77,39 +124,70 @@ export const GalleryPage: React.FC = () => {
           </div>
         )}
 
-        {/* Gallery Grid */}
+        {/* Image-Only Gallery Grid */}
         {filtered.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filtered.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => setActiveItem(item)}
-                className="group relative rounded-xl overflow-hidden bg-[#F7F5F0] border border-[#EBE8E0] shadow-2xs hover:shadow-xs cursor-pointer aspect-4/3 transition-all"
-              >
-                <img
-                  src={item.thumbnailUrl || item.url}
-                  alt={tMulti(item.title) || 'Gallery Item'}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  loading="lazy"
-                />
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+            {filtered.map((item) => {
+              const titleText = tMulti(item.title) || (typeof item.title === 'string' ? item.title : 'ফটো');
+              const displayDate = formatDisplayDate(item);
+              const isLinkedToActivity = Boolean(item.activityId);
 
-                {item.type === 'video' && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <div className="w-10 h-10 rounded-full bg-white/90 text-[#2D5A41] flex items-center justify-center shadow-md">
-                      <Play className="w-5 h-5 ml-0.5 fill-current" />
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => handleCardClick(item)}
+                  className="group rounded-2xl overflow-hidden bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-md hover:border-[#2D5A41]/40 cursor-pointer transition-all flex flex-col"
+                >
+                  <div className="relative aspect-4/3 overflow-hidden bg-[#F7F5F0]">
+                    <img
+                      src={item.thumbnailUrl || item.url || item.mediaUrl}
+                      alt={titleText}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                    />
+
+                    {isLinkedToActivity && (
+                      <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-[#2D5A41]/90 text-white text-[10px] font-semibold shadow-xs backdrop-blur-xs flex items-center gap-1">
+                        <span>কার্যক্রমের ছবি</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Clean Title and Date */}
+                  <div className="p-3.5 flex flex-col flex-1 justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs sm:text-sm font-bold text-[#2D3630] group-hover:text-[#2D5A41] transition-colors line-clamp-2 leading-snug">
+                        {titleText}
+                      </h3>
+                      {item.category && item.category !== 'অন্যান্য' && item.category !== 'সাধারণ' && (
+                        <span className="text-[10px] text-[#7A877E] block mt-0.5">{item.category}</span>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-[#F0ECE1] flex items-center justify-between text-[11px] text-[#7A877E]">
+                      {displayDate ? (
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-[#A4B3A8]" />
+                          <span>{displayDate}</span>
+                        </div>
+                      ) : (
+                        <div />
+                      )}
+
+                      {isLinkedToActivity ? (
+                        <span className="text-[#2D5A41] font-semibold flex items-center gap-0.5 text-[10px] group-hover:underline">
+                          <span>বিস্তারিত</span>
+                          <ArrowRight className={`w-2.5 h-2.5 ${isRTL ? 'rotate-180' : ''}`} />
+                        </span>
+                      ) : (
+                        <span className="text-[#A4B3A8] text-[10px]">স্থিরচিত্র</span>
+                      )}
                     </div>
                   </div>
-                )}
-
-                {/* Hover Caption Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end text-white">
-                  <div className="text-xs font-semibold line-clamp-1">{tMulti(item.title)}</div>
-                  {item.category && (
-                    <span className="text-[10px] text-[#82CCA3]">{item.category}</span>
-                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <EmptyState
@@ -120,38 +198,35 @@ export const GalleryPage: React.FC = () => {
         )}
       </div>
 
-      {/* Lightbox Modal */}
-      {activeItem && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-150">
+      {/* Standalone Image Lightbox Modal */}
+      {activeItem && !activeItem.activityId && (
+        <div
+          onClick={() => setActiveItem(null)}
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-150"
+        >
           <button
             onClick={() => setActiveItem(null)}
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
             aria-label="Close"
           >
             <X className="w-6 h-6" />
           </button>
 
-          <div className="max-w-4xl w-full max-h-[90vh] flex flex-col items-center">
-            {activeItem.type === 'video' ? (
-              <div className="w-full aspect-video rounded-xl overflow-hidden bg-black">
-                <iframe
-                  src={activeItem.url}
-                  title={tMulti(activeItem.title)}
-                  className="w-full h-full"
-                  allowFullScreen
-                />
-              </div>
-            ) : (
-              <img
-                src={activeItem.url}
-                alt={tMulti(activeItem.title)}
-                className="max-h-[75vh] w-auto max-w-full rounded-xl object-contain shadow-2xl"
-              />
-            )}
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-4xl w-full max-h-[90vh] flex flex-col items-center"
+          >
+            <img
+              src={activeItem.url || activeItem.mediaUrl}
+              alt={tMulti(activeItem.title) || 'Gallery Image'}
+              className="max-h-[75vh] w-auto max-w-full rounded-xl object-contain shadow-2xl"
+            />
 
             {/* Modal Caption */}
             <div className="mt-4 text-center text-white max-w-xl">
-              <h3 className="text-base font-bold">{tMulti(activeItem.title)}</h3>
+              <h3 className="text-base font-bold">
+                {tMulti(activeItem.title) || (typeof activeItem.title === 'string' ? activeItem.title : '')}
+              </h3>
               {activeItem.caption && (
                 <p className="text-xs text-stone-300 mt-1 leading-relaxed">
                   {tMulti(activeItem.caption)}
@@ -159,7 +234,9 @@ export const GalleryPage: React.FC = () => {
               )}
               <div className="flex items-center justify-center gap-3 text-[11px] text-stone-400 mt-2">
                 {activeItem.category && <span>বিভাগ: {activeItem.category}</span>}
-                {activeItem.year && <span>• বছর: {activeItem.year}</span>}
+                {formatDisplayDate(activeItem) && (
+                  <span>• তারিখ: {formatDisplayDate(activeItem)}</span>
+                )}
               </div>
             </div>
           </div>

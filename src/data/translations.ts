@@ -375,9 +375,9 @@ export const translations: TranslationDictionary = {
 
   // Gallery Page
   galleryTitle: {
-    bn: 'ফটো ও ভিডিও গ্যালারি',
-    en: 'Photo & Video Gallery',
-    ar: 'معرض الصور والفيديو',
+    bn: 'ফটো গ্যালারি',
+    en: 'Photo Gallery',
+    ar: 'معرض الصور',
   },
   gallerySubtitle: {
     bn: 'আমাদের সেবামূলক কার্যক্রম এবং স্মরণীয় পারিবারিক মুহূর্তগুলোর স্থিরচিত্র।',
@@ -494,9 +494,9 @@ export const translations: TranslationDictionary = {
     ar: 'لا توجد إعلانات جديدة منشورة في الوقت الحالي.',
   },
   emptyGallery: {
-    bn: 'এই বিভাগে বর্তমানে কোনো ছবি বা ভিডিও পাওয়া যায়নি।',
-    en: 'No photos or videos found in this section.',
-    ar: 'لم يتم العثور على صور أو مقاطع فيديو في هذا القسم.',
+    bn: 'এই বিভাগে বর্তমানে কোনো ছবি পাওয়া যায়নি।',
+    en: 'No photos found in this section.',
+    ar: 'لم يتم العثور على صور في هذا القسم.',
   },
   emptyMembers: {
     bn: 'সদস্য তালিকা বর্তমানে সংকলিত হচ্ছে।',

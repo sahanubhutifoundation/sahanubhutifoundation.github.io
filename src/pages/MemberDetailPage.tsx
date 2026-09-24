@@ -158,7 +158,7 @@ export const MemberDetailPage: React.FC = () => {
                   <span className="break-words">{member.address}</span>
                 </div>
               )}
-              {member.email && (
+              {member.email && member.showEmail !== false && (
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-[#A4B3A8] shrink-0" />
                   <a href={`mailto:${member.email}`} className="text-[#2D5A41] hover:underline truncate">
@@ -166,10 +166,12 @@ export const MemberDetailPage: React.FC = () => {
                   </a>
                 </div>
               )}
-              {member.phone && (
+              {member.phone && member.showPhone !== false && (
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-[#A4B3A8] shrink-0" />
-                  <span>{member.phone}</span>
+                  <a href={`tel:${member.phone}`} className="hover:underline">
+                    {member.phone}
+                  </a>
                 </div>
               )}
             </div>

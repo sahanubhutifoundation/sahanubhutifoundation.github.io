@@ -527,42 +527,64 @@ export const supabaseService = {
         return null;
       }
 
-      return (data || []).map((row) => ({
-        id: row.id,
-        serial: Number(row.serial) || 0,
-        name: row.name,
-        gender: row.gender,
-        designationId: row.designation_id,
-        role: row.role,
-        photoUrl: row.photo_url || row.image,
-        phone: row.phone,
-        email: row.email,
-        location: row.location,
-        address: row.address,
-        joiningDate: row.joining_date,
-        bio: row.bio,
-        responsibilities: row.responsibilities,
-        isActive: row.is_active !== false,
-        isFamilyMember: Boolean(row.is_family_member),
-        imageShape: row.image_shape || 'rounded',
-        imageFit: row.image_fit || 'cover',
-        imagePosition: row.image_position,
-        cropZoom: row.crop_zoom != null ? Number(row.crop_zoom) : 1,
-        cropX: row.crop_x != null ? Number(row.crop_x) : 0,
-        cropY: row.crop_y != null ? Number(row.crop_y) : 0,
-        facebook: row.facebook || undefined,
-        instagram: row.instagram || undefined,
-        whatsapp: row.whatsapp || undefined,
-        imo: row.imo || undefined,
-        showSocials: row.show_socials !== false,
-        socialLinks: {
-          facebook: row.facebook || undefined,
-          instagram: row.instagram || undefined,
-          whatsapp: row.whatsapp || undefined,
-          imo: row.imo || undefined,
-        },
-        createdAt: row.created_at || new Date().toISOString(),
-      }));
+      return (data || []).map((row) => {
+        let meta: any = {};
+        if (row.image_position && typeof row.image_position === 'string' && row.image_position.trim().startsWith('{')) {
+          try {
+            meta = JSON.parse(row.image_position);
+          } catch {}
+        }
+
+        const fb = row.facebook || meta.facebook || undefined;
+        const insta = row.instagram || meta.instagram || undefined;
+        const wa = row.whatsapp || meta.whatsapp || undefined;
+        const imoVal = row.imo || meta.imo || undefined;
+
+        return {
+          id: row.id,
+          serial: Number(row.serial) || 0,
+          name: row.name,
+          gender: row.gender,
+          designationId: row.designation_id,
+          role: row.role,
+          photoUrl: row.photo_url || row.image,
+          phone: row.phone,
+          email: row.email,
+          location: row.location,
+          address: row.address,
+          joiningDate: row.joining_date,
+          showJoiningDate: meta.showJoiningDate !== false,
+          bio: row.bio,
+          responsibilities: row.responsibilities,
+          isActive: row.is_active !== false,
+          isFamilyMember: Boolean(row.is_family_member),
+          useGlobalImageShape: row.use_global_image_shape != null ? Boolean(row.use_global_image_shape) : (meta.useGlobalImageShape !== false),
+          imageShape: row.image_shape || meta.imageShape || 'rounded',
+          imageFit: row.image_fit || meta.imageFit || 'cover',
+          imagePosition: row.image_position,
+          cropZoom: row.crop_zoom != null ? Number(row.crop_zoom) : (meta.cropZoom != null ? Number(meta.cropZoom) : 1),
+          cropX: row.crop_x != null ? Number(row.crop_x) : (meta.cropX != null ? Number(meta.cropX) : 0),
+          cropY: row.crop_y != null ? Number(row.crop_y) : (meta.cropY != null ? Number(meta.cropY) : 0),
+          facebook: fb,
+          showFacebook: meta.showFacebook !== false,
+          instagram: insta,
+          showInstagram: meta.showInstagram !== false,
+          whatsapp: wa,
+          showWhatsapp: meta.showWhatsapp !== false,
+          imo: imoVal,
+          showImo: meta.showImo !== false,
+          showPhone: meta.showPhone !== false,
+          showEmail: meta.showEmail !== false,
+          showSocials: row.show_socials != null ? Boolean(row.show_socials) : (meta.showSocials !== false),
+          socialLinks: {
+            facebook: fb,
+            instagram: insta,
+            whatsapp: wa,
+            imo: imoVal,
+          },
+          createdAt: row.created_at || new Date().toISOString(),
+        };
+      });
     } catch (e) {
       console.warn('Supabase fetchMembers exception:', e);
       return null;
@@ -581,6 +603,31 @@ export const supabaseService = {
 
     try {
       const now = new Date().toISOString();
+
+      // Pack all advanced metadata safely into image_position JSON blob
+      // so even if specific table columns are missing in live Postgres, no configuration is ever lost
+      const metadataObj = {
+        cropZoom: m.cropZoom != null ? Number(m.cropZoom) : 1,
+        cropX: m.cropX != null ? Number(m.cropX) : 0,
+        cropY: m.cropY != null ? Number(m.cropY) : 0,
+        useGlobalImageShape: m.useGlobalImageShape !== false,
+        imageShape: m.imageShape || 'rounded',
+        imageFit: m.imageFit || 'cover',
+        facebook: m.facebook || m.socialLinks?.facebook || '',
+        instagram: m.instagram || m.socialLinks?.instagram || '',
+        whatsapp: m.whatsapp || m.socialLinks?.whatsapp || '',
+        imo: m.imo || m.socialLinks?.imo || '',
+        showFacebook: m.showFacebook !== false,
+        showInstagram: m.showInstagram !== false,
+        showWhatsapp: m.showWhatsapp !== false,
+        showImo: m.showImo !== false,
+        showPhone: m.showPhone !== false,
+        showEmail: m.showEmail !== false,
+        showSocials: m.showSocials !== false,
+        showJoiningDate: m.showJoiningDate !== false,
+      };
+      const jsonMetadata = JSON.stringify(metadataObj);
+
       let payload: Record<string, any> = {
         id: m.id,
         serial: Number(m.serial) || 0,
@@ -601,10 +648,11 @@ export const supabaseService = {
         is_family_member: Boolean(m.isFamilyMember),
         image_shape: m.imageShape || 'rounded',
         image_fit: m.imageFit || 'cover',
-        image_position: m.imagePosition || null,
-        crop_zoom: m.cropZoom || 1,
-        crop_x: m.cropX || 0,
-        crop_y: m.cropY || 0,
+        image_position: jsonMetadata,
+        use_global_image_shape: m.useGlobalImageShape !== false,
+        crop_zoom: m.cropZoom != null ? Number(m.cropZoom) : 1,
+        crop_x: m.cropX != null ? Number(m.cropX) : 0,
+        crop_y: m.cropY != null ? Number(m.cropY) : 0,
         facebook: m.facebook || m.socialLinks?.facebook || null,
         instagram: m.instagram || m.socialLinks?.instagram || null,
         whatsapp: m.whatsapp || m.socialLinks?.whatsapp || null,
@@ -614,35 +662,36 @@ export const supabaseService = {
         updated_at: now,
       };
 
-      let { error } = await supabase.from('members').upsert(payload, { onConflict: 'id' });
+      // Resilient upsert loop: handles any missing columns in the live schema dynamically
+      let maxAttempts = 15;
+      let lastError: any = null;
 
-      // Schema mismatch fallback
-      if (error && (error.message?.includes('column') || error.code === 'PGRST204')) {
-        const errMsg = error.message.toLowerCase();
-        if (errMsg.includes('crop_zoom')) delete payload.crop_zoom;
-        if (errMsg.includes('crop_x')) delete payload.crop_x;
-        if (errMsg.includes('crop_y')) delete payload.crop_y;
-        if (errMsg.includes('facebook')) delete payload.facebook;
-        if (errMsg.includes('instagram')) delete payload.instagram;
-        if (errMsg.includes('whatsapp')) delete payload.whatsapp;
-        if (errMsg.includes('imo')) delete payload.imo;
-        if (errMsg.includes('show_socials')) delete payload.show_socials;
-        if (errMsg.includes('image_position')) delete payload.image_position;
-        if (errMsg.includes('image_fit')) delete payload.image_fit;
-        if (errMsg.includes('image_shape')) delete payload.image_shape;
-        if (errMsg.includes('is_family_member')) delete payload.is_family_member;
-        if (errMsg.includes('photo_url')) delete payload.photo_url;
-        if (errMsg.includes('image')) delete payload.image;
-        const retry = await supabase.from('members').upsert(payload, { onConflict: 'id' });
-        error = retry.error;
+      while (maxAttempts > 0) {
+        const { error } = await supabase.from('members').upsert(payload, { onConflict: 'id' });
+        if (!error) {
+          lastError = null;
+          break;
+        }
+
+        lastError = error;
+        // Check for PostgREST missing column error pattern
+        const colMatch = error.message?.match(/Could not find the '([^']+)' column/i);
+        if (colMatch && colMatch[1]) {
+          const missingColumn = colMatch[1];
+          delete payload[missingColumn];
+          maxAttempts--;
+        } else {
+          // Non-column error encountered
+          break;
+        }
       }
 
-      if (error) {
+      if (lastError) {
         return {
           success: false,
-          error: `সদস্য তথ্য সংরক্ষণ ব্যর্থ: ${error.message}`,
-          code: error.code,
-          details: error.details || error.message,
+          error: `সদস্য তথ্য সংরক্ষণ ব্যর্থ: ${lastError.message}`,
+          code: lastError.code,
+          details: lastError.details || lastError.message,
         };
       }
 
@@ -660,6 +709,13 @@ export const supabaseService = {
         };
       }
 
+      let verifiedMeta: any = {};
+      if (verified.image_position && typeof verified.image_position === 'string' && verified.image_position.trim().startsWith('{')) {
+        try {
+          verifiedMeta = JSON.parse(verified.image_position);
+        } catch {}
+      }
+
       const verifiedMember: Member = {
         id: verified.id,
         serial: Number(verified.serial) || 0,
@@ -673,26 +729,44 @@ export const supabaseService = {
         location: verified.location || undefined,
         address: verified.address || undefined,
         joiningDate: verified.joining_date || undefined,
+        showJoiningDate: verifiedMeta.showJoiningDate !== false,
         bio: verified.bio || undefined,
         responsibilities: verified.responsibilities || undefined,
         isActive: verified.is_active !== false,
         isFamilyMember: Boolean(verified.is_family_member),
-        imageShape: verified.image_shape || m.imageShape || 'rounded',
-        imageFit: verified.image_fit || m.imageFit || 'cover',
+        useGlobalImageShape: verified.use_global_image_shape != null
+          ? Boolean(verified.use_global_image_shape)
+          : (verifiedMeta.useGlobalImageShape !== false),
+        imageShape: verified.image_shape || verifiedMeta.imageShape || m.imageShape || 'rounded',
+        imageFit: verified.image_fit || verifiedMeta.imageFit || m.imageFit || 'cover',
         imagePosition: verified.image_position || m.imagePosition || undefined,
-        cropZoom: verified.crop_zoom != null ? Number(verified.crop_zoom) : (m.cropZoom || 1),
-        cropX: verified.crop_x != null ? Number(verified.crop_x) : (m.cropX || 0),
-        cropY: verified.crop_y != null ? Number(verified.crop_y) : (m.cropY || 0),
-        facebook: verified.facebook || m.facebook || undefined,
-        instagram: verified.instagram || m.instagram || undefined,
-        whatsapp: verified.whatsapp || m.whatsapp || undefined,
-        imo: verified.imo || m.imo || undefined,
-        showSocials: verified.show_socials !== false,
+        cropZoom: verified.crop_zoom != null
+          ? Number(verified.crop_zoom)
+          : (verifiedMeta.cropZoom != null ? Number(verifiedMeta.cropZoom) : (m.cropZoom || 1)),
+        cropX: verified.crop_x != null
+          ? Number(verified.crop_x)
+          : (verifiedMeta.cropX != null ? Number(verifiedMeta.cropX) : (m.cropX || 0)),
+        cropY: verified.crop_y != null
+          ? Number(verified.crop_y)
+          : (verifiedMeta.cropY != null ? Number(verifiedMeta.cropY) : (m.cropY || 0)),
+        facebook: verified.facebook || verifiedMeta.facebook || m.facebook || undefined,
+        showFacebook: verifiedMeta.showFacebook !== false,
+        instagram: verified.instagram || verifiedMeta.instagram || m.instagram || undefined,
+        showInstagram: verifiedMeta.showInstagram !== false,
+        whatsapp: verified.whatsapp || verifiedMeta.whatsapp || m.whatsapp || undefined,
+        showWhatsapp: verifiedMeta.showWhatsapp !== false,
+        imo: verified.imo || verifiedMeta.imo || m.imo || undefined,
+        showImo: verifiedMeta.showImo !== false,
+        showPhone: verifiedMeta.showPhone !== false,
+        showEmail: verifiedMeta.showEmail !== false,
+        showSocials: verified.show_socials != null
+          ? Boolean(verified.show_socials)
+          : (verifiedMeta.showSocials !== false),
         socialLinks: {
-          facebook: verified.facebook || m.facebook || undefined,
-          instagram: verified.instagram || m.instagram || undefined,
-          whatsapp: verified.whatsapp || m.whatsapp || undefined,
-          imo: verified.imo || m.imo || undefined,
+          facebook: verified.facebook || verifiedMeta.facebook || m.facebook || undefined,
+          instagram: verified.instagram || verifiedMeta.instagram || m.instagram || undefined,
+          whatsapp: verified.whatsapp || verifiedMeta.whatsapp || m.whatsapp || undefined,
+          imo: verified.imo || verifiedMeta.imo || m.imo || undefined,
         },
         createdAt: verified.created_at || now,
       };

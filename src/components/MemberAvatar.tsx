@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { User, Users } from 'lucide-react';
 import { Member, FoundationConfig } from '../types';
+import { computeCoverCropStyle } from '../utils/cropMath';
 
 interface MemberAvatarProps {
   member: Member;
@@ -15,7 +16,13 @@ export const MemberAvatar: React.FC<MemberAvatarProps> = ({
   size = 'md',
   className = '',
 }) => {
-  const shape = member.imageShape || config?.memberImageShape || 'circle';
+  const [aspect, setAspect] = useState<number>(1);
+
+  // Intentional override check: only use member.imageShape if the member explicitly disabled global default
+  const isIndividualOverride = member.useGlobalImageShape === false && Boolean(member.imageShape);
+  const shape = isIndividualOverride
+    ? member.imageShape!
+    : (config?.memberImageShape || 'circle');
 
   const shapeClass =
     shape === 'square'
@@ -31,27 +38,28 @@ export const MemberAvatar: React.FC<MemberAvatarProps> = ({
     xl: 'w-28 h-28 sm:w-32 sm:h-32',
   };
 
-  const zoom = member.cropZoom || 1;
+  const zoom = Math.max(1, member.cropZoom || 1);
   const cropX = member.cropX || 0;
   const cropY = member.cropY || 0;
 
-  const imageTransform = `scale(${zoom}) translate(${cropX}%, ${cropY}%)`;
+  const { style: imageCropStyle } = computeCoverCropStyle(aspect, zoom, cropX, cropY);
 
   return (
     <div
       className={`${sizeClasses[size]} ${shapeClass} bg-[#F7F5F0] border-2 border-[#EBE8E0] group-hover:border-[#2D5A41]/50 flex items-center justify-center text-[#7A877E] overflow-hidden shrink-0 transition-all duration-200 shadow-2xs relative ${className}`}
     >
       {member.photoUrl ? (
-        <div className="w-full h-full overflow-hidden flex items-center justify-center">
+        <div className="w-full h-full relative overflow-hidden">
           <img
             src={member.photoUrl}
             alt={member.name}
-            className="w-full h-full object-cover transition-transform duration-200"
-            style={{
-              transform: imageTransform,
-              transformOrigin: 'center center',
-              objectPosition: member.imagePosition || 'center',
+            onLoad={(e) => {
+              const img = e.currentTarget;
+              if (img.naturalWidth && img.naturalHeight) {
+                setAspect(img.naturalWidth / img.naturalHeight);
+              }
             }}
+            style={imageCropStyle}
             loading="lazy"
           />
         </div>

@@ -6,6 +6,9 @@ import { fetchFundData } from '../../services/fundService';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { MediaUploadField } from '../../components/MediaUploadField';
 import { DesignationBadge } from '../../components/DesignationBadge';
+import { MemberAvatar } from '../../components/MemberAvatar';
+import { ImageCropDragEditor } from '../../components/admin/ImageCropDragEditor';
+import { MemberPhotoCropModal } from '../../components/admin/MemberPhotoCropModal';
 import { AdminExpensesTab } from './AdminExpensesTab';
 import { AdminSiteSettingsTab } from './AdminSiteSettingsTab';
 import { AdminDesignationsManager } from './AdminDesignationsManager';
@@ -69,6 +72,8 @@ import {
   LayoutDashboard,
   Loader2,
   AlertCircle,
+  Crop,
+  UploadCloud,
 } from 'lucide-react';
 
 export const AdminPage: React.FC = () => {
@@ -101,6 +106,90 @@ export const AdminPage: React.FC = () => {
 
   // Forms / Modals state
   const [editingMember, setEditingMember] = useState<Partial<Member> | null>(null);
+  const [memberCropModal, setMemberCropModal] = useState<{
+    isOpen: boolean;
+    imageSrc: string;
+    draftFile: File | null;
+    cropZoom: number;
+    cropX: number;
+    cropY: number;
+  }>({
+    isOpen: false,
+    imageSrc: '',
+    draftFile: null,
+    cropZoom: 1,
+    cropX: 0,
+    cropY: 0,
+  });
+  const memberFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleOpenCropForNewFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      showToast('অনুগ্রহ করে শুধুমাত্র ছবি ফাইল নির্বাচন করুন (JPG, PNG, WebP)');
+      return;
+    }
+    const draftUrl = URL.createObjectURL(file);
+    setMemberCropModal({
+      isOpen: true,
+      imageSrc: draftUrl,
+      draftFile: file,
+      cropZoom: 1,
+      cropX: 0,
+      cropY: 0,
+    });
+  };
+
+  const handleOpenCropForExistingPhoto = () => {
+    if (!editingMember?.photoUrl) return;
+    setMemberCropModal({
+      isOpen: true,
+      imageSrc: editingMember.photoUrl,
+      draftFile: null,
+      cropZoom: editingMember.cropZoom || 1,
+      cropX: editingMember.cropX || 0,
+      cropY: editingMember.cropY || 0,
+    });
+  };
+
+  const handleCloseCropModal = () => {
+    if (memberCropModal.draftFile && memberCropModal.imageSrc.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(memberCropModal.imageSrc);
+      } catch {}
+    }
+    setMemberCropModal({
+      isOpen: false,
+      imageSrc: '',
+      draftFile: null,
+      cropZoom: 1,
+      cropX: 0,
+      cropY: 0,
+    });
+    if (memberFileInputRef.current) {
+      memberFileInputRef.current.value = '';
+    }
+  };
+
+  const handleConfirmMemberCrop = async (result: {
+    photoUrl: string;
+    cropZoom: number;
+    cropX: number;
+    cropY: number;
+    imageFit?: 'cover' | 'contain';
+  }) => {
+    if (editingMember) {
+      setEditingMember({
+        ...editingMember,
+        photoUrl: result.photoUrl,
+        cropZoom: result.cropZoom,
+        cropX: result.cropX,
+        cropY: result.cropY,
+        imageFit: result.imageFit || 'cover',
+      });
+    }
+    handleCloseCropModal();
+    showToast('ছবি সফলভাবে সংরক্ষিত হয়েছে।');
+  };
   const [editingActivity, setEditingActivity] = useState<Partial<Activity> | null>(null);
   const [activitySubTab, setActivitySubTab] = useState<'list' | 'categories'>('list');
   const [editingNotice, setEditingNotice] = useState<Partial<Notice> | null>(null);
@@ -359,18 +448,23 @@ export const AdminPage: React.FC = () => {
       id: editingMember.id || `mem-${Date.now()}`,
       serial: Number(editingMember.serial) || members.length + 1,
       name: editingMember.name,
+      gender: editingMember.gender,
       role: editingMember.role || '',
       designationId: editingMember.designationId,
       photoUrl: editingMember.photoUrl || '',
       bio: editingMember.bio || '',
       address: editingMember.address || '',
       phone: editingMember.phone || '',
+      showPhone: editingMember.showPhone !== false,
       email: editingMember.email || '',
+      showEmail: editingMember.showEmail !== false,
       joiningDate: editingMember.joiningDate || new Date().toISOString().split('T')[0],
       showJoiningDate: editingMember.showJoiningDate !== false,
       isActive: editingMember.isActive !== false,
       isFamilyMember: true,
-      imageShape: editingMember.imageShape,
+      useGlobalImageShape: editingMember.useGlobalImageShape !== false,
+      imageShape: editingMember.useGlobalImageShape === false ? editingMember.imageShape : undefined,
+      imageFit: editingMember.imageFit || 'cover',
       imagePosition: editingMember.imagePosition,
       cropZoom: editingMember.cropZoom || 1,
       cropX: editingMember.cropX || 0,
@@ -470,6 +564,7 @@ export const AdminPage: React.FC = () => {
       beneficiaries: beneficiariesVal,
       outcomes: outcomesVal,
       showShortSummaryInDetail: Boolean(editingActivity.showShortSummaryInDetail),
+      showOnMediaPage: Boolean(editingActivity.showOnMediaPage),
       date: editingActivity.date || new Date().toISOString().split('T')[0],
       category: editingActivity.category || 'সাধারণ',
       coverImage: editingActivity.coverImage || '',
@@ -485,6 +580,39 @@ export const AdminPage: React.FC = () => {
     const res = await storageService.saveActivityAsync(newAct);
     if (res.success && res.data) {
       setActivities(res.data);
+
+      // Sync activity image to gallery if showOnMediaPage is true
+      if (newAct.showOnMediaPage && newAct.coverImage) {
+        const existingGal = gallery.find((g) => g.activityId === newAct.id || g.id === `gal-act-${newAct.id}`);
+        const actGalItem: GalleryItem = {
+          id: existingGal ? existingGal.id : `gal-act-${newAct.id}`,
+          type: 'photo',
+          mediaUrl: newAct.coverImage,
+          url: newAct.coverImage,
+          thumbnailUrl: newAct.coverImage,
+          title: newAct.title,
+          category: newAct.category || 'কার্যক্রম',
+          year: newAct.date ? newAct.date.split('-')[0] : new Date().getFullYear().toString(),
+          date: newAct.date,
+          activityId: newAct.id,
+          isPublished: newAct.isPublished,
+          createdAt: existingGal?.createdAt || newAct.createdAt || new Date().toISOString(),
+        };
+        const galRes = await storageService.saveGalleryItemAsync(actGalItem);
+        if (galRes.success && galRes.data) {
+          setGallery(galRes.data);
+        }
+      } else {
+        // If unchecked or coverImage was removed, remove any linked media gallery item
+        const existingGal = gallery.find((g) => g.activityId === newAct.id || g.id === `gal-act-${newAct.id}`);
+        if (existingGal) {
+          const galRes = await storageService.deleteGalleryItemAsync(existingGal.id);
+          if (galRes.success && galRes.data) {
+            setGallery(galRes.data);
+          }
+        }
+      }
+
       setEditingActivity(null);
       triggerSyncStatus('success', 'কার্যক্রম সংরক্ষিত ও ভেরিফাইড');
       showToast('কার্যক্রম সফলভাবে সেন্ট্রাল ডাটাবেজে সংরক্ষিত হয়েছে!');
@@ -500,6 +628,14 @@ export const AdminPage: React.FC = () => {
       const res = await storageService.deleteActivityAsync(id);
       if (res.success && res.data) {
         setActivities(res.data);
+        // Also remove any linked gallery item
+        const existingGal = gallery.find((g) => g.activityId === id || g.id === `gal-act-${id}`);
+        if (existingGal) {
+          const galRes = await storageService.deleteGalleryItemAsync(existingGal.id);
+          if (galRes.success && galRes.data) {
+            setGallery(galRes.data);
+          }
+        }
         triggerSyncStatus('success', 'কার্যক্রম মুছে ফেলা হয়েছে');
         showToast('কার্যক্রম মুছে ফেলা হয়েছে।');
       } else {
@@ -576,22 +712,25 @@ export const AdminPage: React.FC = () => {
     });
   };
 
-  // Gallery operations
+  // Gallery operations (Image-Only with Activity Linking)
   const handleSaveGallery = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingGallery || !editingGallery.url) return;
+    if (!editingGallery || (!editingGallery.url && !editingGallery.mediaUrl)) return;
 
-    triggerSyncStatus('saving', 'গ্যালারি আইটেম সংরক্ষণ হচ্ছে...');
+    triggerSyncStatus('saving', 'মিডিয়া আইটেম সংরক্ষণ হচ্ছে...');
     const titleStr = typeof editingGallery.title === 'string' ? editingGallery.title : editingGallery.title?.bn || '';
+    const imgUrl = editingGallery.url || editingGallery.mediaUrl || '';
     const newG: GalleryItem = {
       id: editingGallery.id || `gal-${Date.now()}`,
       title: typeof editingGallery.title === 'object' ? editingGallery.title : { bn: titleStr, en: titleStr, ar: titleStr },
-      mediaUrl: editingGallery.url || editingGallery.mediaUrl || '',
-      url: editingGallery.url,
-      type: (editingGallery.type as any) || 'photo',
-      thumbnailUrl: editingGallery.thumbnailUrl || editingGallery.url,
-      category: editingGallery.category || 'অন্যান্য',
-      year: editingGallery.year || new Date().getFullYear().toString(),
+      mediaUrl: imgUrl,
+      url: imgUrl,
+      type: 'photo',
+      thumbnailUrl: editingGallery.thumbnailUrl || imgUrl,
+      category: editingGallery.category || 'সাধারণ',
+      year: editingGallery.year || (editingGallery.date ? editingGallery.date.split('-')[0] : new Date().getFullYear().toString()),
+      date: editingGallery.date || (editingGallery.year ? `${editingGallery.year}-01-01` : new Date().toISOString().split('T')[0]),
+      activityId: editingGallery.activityId || undefined,
       isPublished: editingGallery.isPublished !== false,
       createdAt: editingGallery.createdAt || new Date().toISOString(),
     };
@@ -600,8 +739,8 @@ export const AdminPage: React.FC = () => {
     if (res.success && res.data) {
       setGallery(res.data);
       setEditingGallery(null);
-      triggerSyncStatus('success', 'গ্যালারি আইটেম সংরক্ষিত ও ভেরিফাইড');
-      showToast('গ্যালারি আইটেম সফলভাবে সেন্ট্রাল ডাটাবেজে সংরক্ষিত হয়েছে!');
+      triggerSyncStatus('success', 'মিডিয়া আইটেম সংরক্ষিত ও ভেরিফাইড');
+      showToast('মিডিয়া আইটেম সফলভাবে সেন্ট্রাল ডাটাবেজে সংরক্ষিত হয়েছে!');
     } else {
       triggerSyncStatus('error', 'সংরক্ষণ ব্যর্থ');
       showToast(`সংরক্ষণ ব্যর্থ: ${res.error || 'সেন্ট্রাল ডাটাবেজে সংরক্ষণ করা যায়নি'}`);
@@ -609,7 +748,7 @@ export const AdminPage: React.FC = () => {
   };
 
   const handleDeleteGallery = (id: string) => {
-    requestConfirm('গ্যালারি আইটেম মুছে ফেলুন', 'আপনি কি এই ছবি/ভিডিও মুছে ফেলতে চান?', async () => {
+    requestConfirm('গ্যালারি আইটেম মুছে ফেলুন', 'আপনি কি এই ছবিটি মুছে ফেলতে চান?', async () => {
       triggerSyncStatus('saving', 'মুছে ফেলা হচ্ছে...');
       const res = await storageService.deleteGalleryItemAsync(id);
       if (res.success && res.data) {
@@ -1386,543 +1525,639 @@ export const AdminPage: React.FC = () => {
                   </p>
                 </div>
                 <button
-                  onClick={() => setEditingMember({ serial: members.length + 1, isActive: true })}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold self-start sm:self-center"
+                  onClick={() =>
+                    setEditingMember({
+                      serial: members.length + 1,
+                      isActive: true,
+                      useGlobalImageShape: true,
+                      imageShape: undefined,
+                      imageFit: 'cover',
+                      cropZoom: 1,
+                      cropX: 0,
+                      cropY: 0,
+                      showSocials: true,
+                      showFacebook: true,
+                      showInstagram: true,
+                      showWhatsapp: true,
+                      showImo: true,
+                      showPhone: true,
+                      showEmail: true,
+                      showJoiningDate: true,
+                    })
+                  }
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold self-start sm:self-center shadow-2xs"
                 >
                   <Plus className="w-4 h-4" />
                   <span>নতুন সদস্য যুক্ত করুন</span>
                 </button>
               </div>
 
-          {/* Member Edit / Add Form Modal */}
+          {/* Member Edit / Add Form Centered Viewport Modal */}
           {editingMember && (
             <div
-              id="member-edit-form"
-              ref={memberFormRef}
-              className="p-6 rounded-2xl bg-white border border-[#2D5A41]/40 shadow-xs space-y-4 scroll-mt-6"
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setEditingMember(null);
+              }}
             >
-              <div className="flex items-center justify-between pb-2 border-b border-[#EBE8E0]">
-                <h3 className="text-sm font-bold text-[#2D3630]">
-                  {editingMember.id ? 'সদস্যের তথ্য সম্পাদনা' : 'নতুন সদস্য ফরম'}
-                </h3>
-                <button
-                  onClick={() => setEditingMember(null)}
-                  className="p-1 text-[#7A877E] hover:text-[#2D3630]"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveMember} className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <label className="block font-bold text-[#2D3630] mb-1">
-                    ক্রমিক নম্বর (Serial No) <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={editingMember.serial || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, serial: parseInt(e.target.value, 10) || 1 })}
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
-                  <span className="text-[10px] text-[#A4B3A8]">
-                    পূর্ববর্তী কাউকে এই নম্বরে দিলে বাকিরা নিচে শিফট হবে
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-[#2D3630] mb-1">
-                    সদস্যের পূর্ণ নাম <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editingMember.name || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
-                </div>
-
-                <div className="sm:col-span-2 p-3 rounded-xl bg-[#F7F5F0]/70 border border-[#EBE8E0] space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <label className="block font-bold text-[#2D3630]">
-                      পদবী নির্বাচন ও ব্যাজ প্রিভিউ (Designation & Badge)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveSection('members');
-                        setMemberSubTab('designations');
-                      }}
-                      className="text-[11px] font-semibold text-[#2D5A41] hover:underline self-start sm:self-auto"
-                    >
-                      + পদবী তালিকা ম্যানেজ করুন
-                    </button>
+              <div
+                id="member-edit-form"
+                ref={memberFormRef}
+                onPaste={(e) => {
+                  const items = e.clipboardData?.items;
+                  if (items) {
+                    for (let i = 0; i < items.length; i++) {
+                      if (items[i].type.startsWith('image/')) {
+                        const file = items[i].getAsFile();
+                        if (file) {
+                          e.preventDefault();
+                          handleOpenCropForNewFile(file);
+                          break;
+                        }
+                      }
+                    }
+                  }
+                }}
+                className="bg-white rounded-2xl border border-[#2D5A41]/40 shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150"
+              >
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#EBE8E0] bg-[#FDFCF9] shrink-0">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#2D3630]">
+                      {editingMember.id ? 'সদস্যের তথ্য সম্পাদনা' : 'নতুন সদস্য ফরম'}
+                    </h3>
+                    <p className="text-[11px] text-[#7A877E]">
+                      সকল তথ্য, ছবি ক্রপ ও যোগাযোগ মাধ্যম নির্ধারণ করে সংরক্ষণ করুন
+                    </p>
                   </div>
+                  <button
+                    onClick={() => setEditingMember(null)}
+                    className="p-1.5 text-[#7A877E] hover:text-[#2D3630] rounded-lg hover:bg-[#EBE8E0]/60 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-6 overflow-y-auto flex-1">
+                  <form onSubmit={handleSaveMember} id="member-modal-form" className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
-                      <span className="block text-[11px] text-[#5C665F] mb-1">
-                        তালিকা থেকে পূর্বনির্ধারিত পদবী বাছুন:
+                      <label className="block font-bold text-[#2D3630] mb-1">
+                        ক্রমিক নম্বর (Serial No) <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        required
+                        value={editingMember.serial || ''}
+                        onChange={(e) => setEditingMember({ ...editingMember, serial: parseInt(e.target.value, 10) || 1 })}
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      />
+                      <span className="text-[10px] text-[#A4B3A8]">
+                        পূর্ববর্তী কাউকে এই নম্বরে দিলে বাকিরা নিচে শিফট হবে
                       </span>
-                      <select
-                        value={editingMember.designationId || ''}
-                        onChange={(e) => {
-                          const desId = e.target.value;
-                          const selected = designations.find((d) => d.id === desId);
-                          setEditingMember({
-                            ...editingMember,
-                            designationId: desId || undefined,
-                            role: selected ? selected.name.bn : editingMember.role,
-                          });
-                        }}
-                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
-                      >
-                        <option value="">— কোনোটিই নয় / কাস্টম পদবী —</option>
-                        {designations
-                          .filter((d) => d.isEnabled !== false)
-                          .map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name.bn} ({d.name.en})
-                            </option>
-                          ))}
-                      </select>
                     </div>
 
                     <div>
-                      <span className="block text-[11px] text-[#5C665F] mb-1">
-                        পদবীর নাম (বাংলায় প্রদর্শন):
-                      </span>
+                      <label className="block font-bold text-[#2D3630] mb-1">
+                        সদস্যের পূর্ণ নাম <span className="text-rose-500">*</span>
+                      </label>
                       <input
                         type="text"
-                        placeholder="যেমন: প্রতিষ্ঠাতা সদস্য / প্রধান উপদেষ্টা"
-                        value={editingMember.role || ''}
-                        onChange={(e) =>
-                          setEditingMember({ ...editingMember, role: e.target.value })
-                        }
-                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                        required
+                        value={editingMember.name || ''}
+                        onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                       />
                     </div>
-                  </div>
 
-                  {/* Live Badge Preview */}
-                  <div className="pt-2 border-t border-[#EBE8E0] flex items-center justify-between gap-3 text-xs">
-                    <span className="text-[#7A877E] text-[11px]">
-                      কার্ডে ব্যাজটি যেভাবে দেখাবে:
-                    </span>
-                    <div>
-                      {(() => {
-                        const des = editingMember.designationId
-                          ? designations.find((d) => d.id === editingMember.designationId)
-                          : designations.find(
-                              (d) =>
-                                d.name.bn === editingMember.role ||
-                                d.name.en.toLowerCase() === (editingMember.role || '').toLowerCase() ||
-                                d.name.ar === editingMember.role
-                            );
+                    <div className="sm:col-span-2 p-3 rounded-xl bg-[#F7F5F0]/70 border border-[#EBE8E0] space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <label className="block font-bold text-[#2D3630]">
+                          পদবী নির্বাচন ও ব্যাজ প্রিভিউ (Designation & Badge)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingMember(null);
+                            setActiveSection('members');
+                            setMemberSubTab('designations');
+                          }}
+                          className="text-[11px] font-semibold text-[#2D5A41] hover:underline self-start sm:self-auto"
+                        >
+                          + পদবী তালিকা ম্যানেজ করুন
+                        </button>
+                      </div>
 
-                        return (
-                          <DesignationBadge
-                            designation={des}
-                            roleFallback={editingMember.role || 'পদবী'}
-                            size="md"
-                          />
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <MediaUploadField
-                    label="সদস্যের ছবি (ঐচ্ছিক)"
-                    value={editingMember.photoUrl || ''}
-                    onChange={(url) => setEditingMember({ ...editingMember, photoUrl: url })}
-                    helperText="সদস্যের পোর্ট্রেট ছবি (JPG, PNG - সর্বোচ্চ ১০ MB)"
-                    bucket="members"
-                  />
-                </div>
-
-                {/* Member Avatar Shape & Crop Controls */}
-                <div className="sm:col-span-2 p-4 bg-[#FDFCF9] rounded-xl border border-[#EBE8E0] space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-[#2D3630]">
-                        ছবির আকার ও ক্রপ অ্যাডজাস্টমেন্ট (Avatar Shape & Crop)
-                      </h4>
-                      <p className="text-[11px] text-[#7A877E]">
-                        নির্দিষ্ট সদস্যের জন্য ফ্রেম আকৃতি এবং জুম/পজিশন সামঞ্জস্য করুন
-                      </p>
-                    </div>
-                    {editingMember.photoUrl && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditingMember({
-                            ...editingMember,
-                            cropZoom: 1,
-                            cropX: 0,
-                            cropY: 0,
-                          })
-                        }
-                        className="text-[11px] font-semibold text-[#2D5A41] hover:underline"
-                      >
-                        রিসেট ক্রপ
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-[#5C665F] mb-1">
-                        ফ্রেমের আকৃতি (Individual Shape)
-                      </label>
-                      <select
-                        value={editingMember.imageShape || ''}
-                        onChange={(e) =>
-                          setEditingMember({
-                            ...editingMember,
-                            imageShape: (e.target.value as any) || undefined,
-                          })
-                        }
-                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
-                      >
-                        <option value="">গ্লোবাল ডিফল্ট ({config.memberImageShape || 'circular'})</option>
-                        <option value="circle">বৃত্তাকার (Circular)</option>
-                        <option value="rounded">রাউন্ডেড স্কয়ার (Rounded Square)</option>
-                        <option value="square">স্কয়ার ফ্রেম (Square Frame)</option>
-                      </select>
-                    </div>
-
-                    {editingMember.photoUrl && (
-                      <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <div className="flex items-center justify-between text-[11px] font-bold text-[#5C665F] mb-1">
-                            <span>জুম (Zoom)</span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-[#2D5A41]">
-                                {(editingMember.cropZoom || 1).toFixed(1)}x
-                              </span>
+                          <span className="block text-[11px] text-[#5C665F] mb-1">
+                            তালিকা থেকে পূর্বনির্ধারিত পদবী বাছুন:
+                          </span>
+                          <select
+                            value={editingMember.designationId || ''}
+                            onChange={(e) => {
+                              const desId = e.target.value;
+                              const selected = designations.find((d) => d.id === desId);
+                              setEditingMember({
+                                ...editingMember,
+                                designationId: desId || undefined,
+                                role: selected ? selected.name.bn : editingMember.role,
+                              });
+                            }}
+                            className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                          >
+                            <option value="">— কোনোটিই নয় / কাস্টম পদবী —</option>
+                            {designations
+                              .filter((d) => d.isEnabled !== false)
+                              .map((d) => (
+                                <option key={d.id} value={d.id}>
+                                  {d.name.bn} ({d.name.en})
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <span className="block text-[11px] text-[#5C665F] mb-1">
+                            পদবীর নাম (বাংলায় প্রদর্শন):
+                          </span>
+                          <input
+                            type="text"
+                            placeholder="যেমন: প্রতিষ্ঠাতা সদস্য / প্রধান উপদেষ্টা"
+                            value={editingMember.role || ''}
+                            onChange={(e) =>
+                              setEditingMember({ ...editingMember, role: e.target.value })
+                            }
+                            className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Live Badge Preview */}
+                      <div className="pt-2 border-t border-[#EBE8E0] flex items-center justify-between gap-3 text-xs">
+                        <span className="text-[#7A877E] text-[11px]">
+                          কার্ডে ব্যাজটি যেভাবে দেখাবে:
+                        </span>
+                        <div>
+                          {(() => {
+                            const des = editingMember.designationId
+                              ? designations.find((d) => d.id === editingMember.designationId)
+                              : designations.find(
+                                  (d) =>
+                                    d.name.bn === editingMember.role ||
+                                    d.name.en.toLowerCase() === (editingMember.role || '').toLowerCase() ||
+                                    d.name.ar === editingMember.role
+                                );
+
+                            return (
+                              <DesignationBadge
+                                designation={des}
+                                roleFallback={editingMember.role || 'পদবী'}
+                                size="md"
+                              />
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Member Profile Photo & Dedicated Two-Phase Crop */}
+                    <div className="sm:col-span-2 p-4 bg-[#FDFCF9] rounded-xl border border-[#EBE8E0] space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#EBE8E0]">
+                        <div>
+                          <h4 className="text-xs font-bold text-[#2D3630]">
+                            সদস্যের ছবি ও ক্রপ ব্যবস্থাপনা (Profile Photo & Crop)
+                          </h4>
+                          <p className="text-[11px] text-[#7A877E]">
+                            পোর্ট্রেট ছবি নির্বাচন করুন, মাউস টেনে মুখমণ্ডল নিখুঁতভাবে বসান এবং কনফার্ম করুন
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <label className="text-[11px] font-bold text-[#5C665F] shrink-0">
+                            ফ্রেমের আকৃতি:
+                          </label>
+                          <select
+                            value={
+                              editingMember.useGlobalImageShape === false && editingMember.imageShape
+                                ? editingMember.imageShape
+                                : ''
+                            }
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (!val) {
+                                setEditingMember({
+                                  ...editingMember,
+                                  useGlobalImageShape: true,
+                                  imageShape: undefined,
+                                });
+                              } else {
+                                setEditingMember({
+                                  ...editingMember,
+                                  useGlobalImageShape: false,
+                                  imageShape: val as any,
+                                });
+                              }
+                            }}
+                            className="px-2.5 py-1 text-xs rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] font-semibold focus:outline-hidden focus:border-[#2D5A41]"
+                          >
+                            <option value="">গ্লোবাল ডিফল্ট ব্যবহার করুন (Use Global Default)</option>
+                            <option value="circle">বৃত্তাকার (Circular)</option>
+                            <option value="rounded">রাউন্ডেড স্কয়ার (Rounded Square)</option>
+                            <option value="square">স্কয়ার ফ্রেম (Square Frame)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Hidden File Picker Input */}
+                      <input
+                        type="file"
+                        ref={memberFileInputRef}
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handleOpenCropForNewFile(file);
+                          }
+                        }}
+                      />
+
+                      {editingMember.photoUrl ? (
+                        <div className="flex flex-col sm:flex-row items-center gap-5 p-3 rounded-xl bg-white border border-[#EBE8E0]">
+                          {/* Live Avatar Preview */}
+                          <MemberAvatar
+                            member={editingMember as Member}
+                            config={config}
+                            size="xl"
+                            className="shadow-md"
+                          />
+
+                          <div className="flex-1 space-y-2 text-center sm:text-left">
+                            <div className="text-xs font-bold text-[#2D3630]">
+                              সংরক্ষিত পোর্ট্রেট ছবি
+                            </div>
+                            <div className="text-[11px] text-[#7A877E]">
+                              জুম: {(editingMember.cropZoom || 1).toFixed(1)}x | প্যান: X={editingMember.cropX || 0}%, Y={editingMember.cropY || 0}%
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start pt-1">
+                              <button
+                                type="button"
+                                onClick={handleOpenCropForExistingPhoto}
+                                className="px-3 py-1.5 rounded-lg bg-[#2D5A41] text-white hover:bg-[#234733] font-semibold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                              >
+                                <Crop className="w-3.5 h-3.5" />
+                                <span>ক্রপ ও পজিশন সমন্বয় করুন</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => memberFileInputRef.current?.click()}
+                                className="px-3 py-1.5 rounded-lg border border-[#EBE8E0] text-[#2D3630] hover:bg-[#F7F5F0] font-semibold text-xs flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5 text-[#5C665F]" />
+                                <span>ছবি পরিবর্তন করুন</span>
+                              </button>
                               <button
                                 type="button"
                                 onClick={() =>
                                   setEditingMember({
                                     ...editingMember,
-                                    cropZoom: 1,
+                                    photoUrl: undefined,
                                     cropX: 0,
                                     cropY: 0,
+                                    cropZoom: 1,
                                   })
                                 }
-                                className="text-[10px] text-[#2D5A41] hover:underline font-semibold"
+                                className="px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 font-semibold text-xs flex items-center gap-1 cursor-pointer"
                               >
-                                রিসেট
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>মুছে ফেলুন</span>
                               </button>
                             </div>
                           </div>
+                        </div>
+                      ) : (
+                        /* Empty Upload Dropzone with Clipboard Paste support */
+                        <div
+                          onClick={() => memberFileInputRef.current?.click()}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const file = e.dataTransfer.files?.[0];
+                            if (file && file.type.startsWith('image/')) {
+                              handleOpenCropForNewFile(file);
+                            }
+                          }}
+                          tabIndex={0}
+                          className="p-6 rounded-xl bg-white border-2 border-dashed border-[#2D5A41]/40 hover:border-[#2D5A41] transition-all text-center flex flex-col items-center justify-center gap-2 cursor-pointer group focus:outline-hidden focus:ring-2 focus:ring-[#2D5A41]/20"
+                        >
+                          <div className="w-12 h-12 rounded-full bg-[#E8EFEA] text-[#2D5A41] flex items-center justify-center group-hover:scale-105 transition-transform">
+                            <UploadCloud className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-[#2D3630] group-hover:text-[#2D5A41] transition-colors">
+                              সদস্যের ছবি নির্বাচন করতে ক্লিক করুন বা ফাইল টেনে আনুন
+                            </span>
+                            <p className="text-[11px] text-[#7A877E] mt-0.5">
+                              বা কিবোর্ড থেকে সরাসরি <span className="font-semibold text-[#2D5A41]">Ctrl+V</span> পেস্ট করুন (JPG, PNG, WebP)
+                            </p>
+                          </div>
+                          <span className="text-[10px] text-[#A8B3AA]">
+                            ছবি নির্বাচনের পর ক্রপ ও ড্র্যাগ উইন্ডো উন্মুক্ত হবে; আপনি কনফার্ম করলেই কেবল চূড়ান্ত রূপ পাবে
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Social Media & Contact Links */}
+                    <div className="sm:col-span-2 p-4 bg-[#FDFCF9] rounded-xl border border-[#EBE8E0] space-y-4">
+                      <div className="flex items-center justify-between pb-2 border-b border-[#EBE8E0]">
+                        <div>
+                          <h4 className="text-xs font-bold text-[#2D3630]">
+                            সোশ্যাল মিডিয়া ও ডিরেক্ট যোগাযোগ বাটন (Social & Contact Links)
+                          </h4>
+                          <p className="text-[11px] text-[#7A877E]">
+                            পাবলিক কার্ডে কেবল লিঙ্ক পূরণকৃত ও টিক দেওয়া বাটনগুলো প্রদর্শিত হবে
+                          </p>
+                        </div>
+                        <label className="flex items-center gap-2 cursor-pointer">
                           <input
-                            type="range"
-                            min="1"
-                            max="3"
-                            step="0.1"
-                            value={editingMember.cropZoom || 1}
+                            type="checkbox"
+                            checked={editingMember.showSocials !== false}
                             onChange={(e) =>
                               setEditingMember({
                                 ...editingMember,
-                                cropZoom: parseFloat(e.target.value),
+                                showSocials: e.target.checked,
                               })
                             }
-                            className="w-full accent-[#2D5A41] cursor-pointer"
+                            className="w-4 h-4 rounded accent-[#2D5A41]"
+                          />
+                          <span className="text-xs font-semibold text-[#2D3630]">সোশ্যাল বাটন সেকশন সক্রিয়</span>
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Facebook */}
+                        <div className="p-3 bg-white rounded-xl border border-[#EBE8E0] space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-[#5C665F]">ফেসবুক (Facebook)</label>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-[#2D5A41] font-semibold">
+                              <input
+                                type="checkbox"
+                                checked={editingMember.showFacebook !== false}
+                                onChange={(e) => setEditingMember({ ...editingMember, showFacebook: e.target.checked })}
+                                className="rounded accent-[#2D5A41] w-3.5 h-3.5"
+                              />
+                              <span>প্রদর্শন করুন</span>
+                            </label>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="https://facebook.com/username"
+                            value={editingMember.facebook || editingMember.socialLinks?.facebook || ''}
+                            onChange={(e) =>
+                              setEditingMember({
+                                ...editingMember,
+                                facebook: e.target.value,
+                                socialLinks: { ...(editingMember.socialLinks || {}), facebook: e.target.value },
+                              })
+                            }
+                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
                           />
                         </div>
 
-                        <div>
-                          <div className="flex items-center justify-between text-[11px] font-bold text-[#5C665F] mb-1">
-                            <span>পজিশন X/Y (Pan)</span>
-                            <span className="font-mono text-xs text-[#7A877E]">
-                              {editingMember.cropX || 0}%, {editingMember.cropY || 0}%
-                            </span>
+                        {/* WhatsApp */}
+                        <div className="p-3 bg-white rounded-xl border border-[#EBE8E0] space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-[#5C665F]">হোয়াটসঅ্যাপ (WhatsApp)</label>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-[#2D5A41] font-semibold">
+                              <input
+                                type="checkbox"
+                                checked={editingMember.showWhatsapp !== false}
+                                onChange={(e) => setEditingMember({ ...editingMember, showWhatsapp: e.target.checked })}
+                                className="rounded accent-[#2D5A41] w-3.5 h-3.5"
+                              />
+                              <span>প্রদর্শন করুন</span>
+                            </label>
                           </div>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <input
-                              type="range"
-                              min="-50"
-                              max="50"
-                              step="5"
-                              value={editingMember.cropX || 0}
-                              onChange={(e) =>
-                                setEditingMember({
-                                  ...editingMember,
-                                  cropX: parseInt(e.target.value, 10),
-                                })
-                              }
-                              title="Horizontal Pan"
-                              className="w-full accent-[#2D5A41] cursor-pointer"
-                            />
-                            <input
-                              type="range"
-                              min="-50"
-                              max="50"
-                              step="5"
-                              value={editingMember.cropY || 0}
-                              onChange={(e) =>
-                                setEditingMember({
-                                  ...editingMember,
-                                  cropY: parseInt(e.target.value, 10),
-                                })
-                              }
-                              title="Vertical Pan"
-                              className="w-full accent-[#2D5A41] cursor-pointer"
-                            />
-                          </div>
+                          <input
+                            type="text"
+                            placeholder="+88018xxxxxxxx"
+                            value={editingMember.whatsapp || editingMember.socialLinks?.whatsapp || ''}
+                            onChange={(e) =>
+                              setEditingMember({
+                                ...editingMember,
+                                whatsapp: e.target.value,
+                                socialLinks: { ...(editingMember.socialLinks || {}), whatsapp: e.target.value },
+                              })
+                            }
+                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                          />
                         </div>
-                      </>
-                    )}
-                  </div>
 
-                  {editingMember.photoUrl && (
-                    <div className="flex items-center gap-4 pt-2 border-t border-[#EBE8E0]">
-                      <span className="text-[11px] font-bold text-[#7A877E]">লাইভ প্রিভিউ:</span>
-                      {(() => {
-                        const s = editingMember.imageShape || config.memberImageShape || 'circle';
-                        const sc = s === 'square' ? 'rounded-xs' : s === 'rounded' ? 'rounded-2xl' : 'rounded-full';
-                        const z = editingMember.cropZoom || 1;
-                        const cx = editingMember.cropX || 0;
-                        const cy = editingMember.cropY || 0;
-                        return (
-                          <div className={`w-16 h-16 ${sc} overflow-hidden bg-white border-2 border-[#2D5A41] flex items-center justify-center shadow-3xs`}>
-                            <img
-                              src={editingMember.photoUrl}
-                              alt="Crop Preview"
-                              className="w-full h-full object-cover"
-                              style={{
-                                transform: `scale(${z}) translate(${cx}%, ${cy}%)`,
-                                transformOrigin: 'center center',
-                              }}
-                            />
+                        {/* IMO */}
+                        <div className="p-3 bg-white rounded-xl border border-[#EBE8E0] space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-[#5C665F]">ইমো (IMO)</label>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-[#2D5A41] font-semibold">
+                              <input
+                                type="checkbox"
+                                checked={editingMember.showImo !== false}
+                                onChange={(e) => setEditingMember({ ...editingMember, showImo: e.target.checked })}
+                                className="rounded accent-[#2D5A41] w-3.5 h-3.5"
+                              />
+                              <span>প্রদর্শন করুন</span>
+                            </label>
                           </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </div>
+                          <input
+                            type="text"
+                            placeholder="+88018xxxxxxxx"
+                            value={editingMember.imo || editingMember.socialLinks?.imo || ''}
+                            onChange={(e) =>
+                              setEditingMember({
+                                ...editingMember,
+                                imo: e.target.value,
+                                socialLinks: { ...(editingMember.socialLinks || {}), imo: e.target.value },
+                              })
+                            }
+                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                          />
+                        </div>
 
-                {/* Social Media & Contact Links */}
-                <div className="sm:col-span-2 p-4 bg-[#FDFCF9] rounded-xl border border-[#EBE8E0] space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-[#2D3630]">
-                        সোশ্যাল মিডিয়া ও ডিরেক্ট যোগাযোগ লিংক (Social Links)
-                      </h4>
-                      <p className="text-[11px] text-[#7A877E]">
-                        পাবলিক কার্ডে সোশ্যাল বাটন প্রদর্শন করা হবে
-                      </p>
+                        {/* Instagram */}
+                        <div className="p-3 bg-white rounded-xl border border-[#EBE8E0] space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-[#5C665F]">ইনস্টাগ্রাম (Instagram)</label>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-[#2D5A41] font-semibold">
+                              <input
+                                type="checkbox"
+                                checked={editingMember.showInstagram !== false}
+                                onChange={(e) => setEditingMember({ ...editingMember, showInstagram: e.target.checked })}
+                                className="rounded accent-[#2D5A41] w-3.5 h-3.5"
+                              />
+                              <span>প্রদর্শন করুন</span>
+                            </label>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="https://instagram.com/username"
+                            value={editingMember.instagram || editingMember.socialLinks?.instagram || ''}
+                            onChange={(e) =>
+                              setEditingMember({
+                                ...editingMember,
+                                instagram: e.target.value,
+                                socialLinks: { ...(editingMember.socialLinks || {}), instagram: e.target.value },
+                              })
+                            }
+                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                          />
+                        </div>
+
+                        {/* Direct Phone */}
+                        <div className="p-3 bg-white rounded-xl border border-[#EBE8E0] space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-[#5C665F]">সরাসরি ফোন নম্বর (Direct Call)</label>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-[#2D5A41] font-semibold">
+                              <input
+                                type="checkbox"
+                                checked={editingMember.showPhone !== false}
+                                onChange={(e) => setEditingMember({ ...editingMember, showPhone: e.target.checked })}
+                                className="rounded accent-[#2D5A41] w-3.5 h-3.5"
+                              />
+                              <span>কার্ডে কল বাটন</span>
+                            </label>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="+88018xxxxxxxx"
+                            value={editingMember.phone || ''}
+                            onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
+                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                          />
+                        </div>
+
+                        {/* Direct Email */}
+                        <div className="p-3 bg-white rounded-xl border border-[#EBE8E0] space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[11px] font-bold text-[#5C665F]">ইমেইল ঠিকানা (Direct Email)</label>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-[#2D5A41] font-semibold">
+                              <input
+                                type="checkbox"
+                                checked={editingMember.showEmail !== false}
+                                onChange={(e) => setEditingMember({ ...editingMember, showEmail: e.target.checked })}
+                                className="rounded accent-[#2D5A41] w-3.5 h-3.5"
+                              />
+                              <span>কার্ডে ইমেইল বাটন</span>
+                            </label>
+                          </div>
+                          <input
+                            type="email"
+                            placeholder="member@example.com"
+                            value={editingMember.email || ''}
+                            onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
+                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
+
+                    <div className="sm:col-span-2">
+                      <label className="block font-bold text-[#2D3630] mb-1">ঠিকানা / বর্তমান অবস্থান</label>
+                      <input
+                        type="text"
+                        placeholder="যেমন: মৌলভী বাড়ি, শর্শদী, ফেনী"
+                        value={editingMember.address || ''}
+                        onChange={(e) => setEditingMember({ ...editingMember, address: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block font-bold text-[#2D3630] mb-1">সংক্ষিপ্ত পরিচিতি / মন্তব্য</label>
+                      <textarea
+                        rows={2}
+                        value={editingMember.bio || ''}
+                        onChange={(e) => setEditingMember({ ...editingMember, bio: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-[#FDFCF9] rounded-xl border border-[#EBE8E0]">
+                      <div>
+                        <label className="block font-bold text-[#2D3630] mb-1">সদস্য হওয়ার তারিখ (Joining Date)</label>
+                        <input
+                          type="date"
+                          value={editingMember.joiningDate || ''}
+                          onChange={(e) => setEditingMember({ ...editingMember, joiningDate: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                        />
+                        <span className="text-[10px] text-[#7A877E]">ঐচ্ছিক — কার্ডে বা বিস্তারিত পেজে প্রদর্শিত হবে</span>
+                      </div>
+
+                      <div className="flex flex-col justify-center space-y-2 pt-1 sm:pt-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editingMember.showJoiningDate !== false}
+                            onChange={(e) => setEditingMember({ ...editingMember, showJoiningDate: e.target.checked })}
+                            className="w-4 h-4 rounded accent-[#2D5A41]"
+                          />
+                          <span className="font-semibold text-[#2D3630] text-xs">কার্ডে যোগদানের তারিখ প্রদর্শন করুন</span>
+                        </label>
+                        <span className="text-[10px] text-[#7A877E]">বন্ধ থাকলে কার্ডে তারিখ লুকানো থাকবে</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 sm:col-span-2">
                       <input
                         type="checkbox"
-                        checked={editingMember.showSocials !== false}
-                        onChange={(e) =>
-                          setEditingMember({
-                            ...editingMember,
-                            showSocials: e.target.checked,
-                          })
-                        }
-                        className="w-4 h-4 rounded accent-[#2D5A41]"
+                        id="isActiveMem"
+                        checked={editingMember.isActive !== false}
+                        onChange={(e) => setEditingMember({ ...editingMember, isActive: e.target.checked })}
+                        className="rounded accent-[#2D5A41]"
                       />
-                      <span className="text-xs font-semibold text-[#2D3630]">কার্ডে সোশ্যাল লিংক দেখান</span>
-                    </label>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <label className="block text-[11px] font-bold text-[#5C665F] mb-1">
-                        ফেসবুক প্রোফাইল লিংক (Facebook)
+                      <label htmlFor="isActiveMem" className="font-semibold text-[#2D3630]">
+                        ওয়েবসাইটে সক্রিয় হিসেবে প্রদর্শন করুন
                       </label>
-                      <input
-                        type="text"
-                        placeholder="https://facebook.com/username"
-                        value={editingMember.facebook || editingMember.socialLinks?.facebook || ''}
-                        onChange={(e) =>
-                          setEditingMember({
-                            ...editingMember,
-                            facebook: e.target.value,
-                            socialLinks: {
-                              ...(editingMember.socialLinks || {}),
-                              facebook: e.target.value,
-                            },
-                          })
-                        }
-                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
-                      />
                     </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-[#5C665F] mb-1">
-                        হোয়াটসঅ্যাপ নম্বর (WhatsApp)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="+88018xxxxxxxx"
-                        value={editingMember.whatsapp || editingMember.socialLinks?.whatsapp || ''}
-                        onChange={(e) =>
-                          setEditingMember({
-                            ...editingMember,
-                            whatsapp: e.target.value,
-                            socialLinks: {
-                              ...(editingMember.socialLinks || {}),
-                              whatsapp: e.target.value,
-                            },
-                          })
-                        }
-                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-[#5C665F] mb-1">
-                        ইমো নম্বর (Imo)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="+88018xxxxxxxx"
-                        value={editingMember.imo || editingMember.socialLinks?.imo || ''}
-                        onChange={(e) =>
-                          setEditingMember({
-                            ...editingMember,
-                            imo: e.target.value,
-                            socialLinks: {
-                              ...(editingMember.socialLinks || {}),
-                              imo: e.target.value,
-                            },
-                          })
-                        }
-                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-[#5C665F] mb-1">
-                        ইনস্টাগ্রাম লিংক (Instagram)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="https://instagram.com/username"
-                        value={editingMember.instagram || editingMember.socialLinks?.instagram || ''}
-                        onChange={(e) =>
-                          setEditingMember({
-                            ...editingMember,
-                            instagram: e.target.value,
-                            socialLinks: {
-                              ...(editingMember.socialLinks || {}),
-                              instagram: e.target.value,
-                            },
-                          })
-                        }
-                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
-                      />
-                    </div>
-                  </div>
+                  </form>
                 </div>
 
-                <div>
-                  <label className="block font-bold text-[#2D3630] mb-1">ফোন নম্বর</label>
-                  <input
-                    type="text"
-                    value={editingMember.phone || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-[#2D3630] mb-1">ইমেইল</label>
-                  <input
-                    type="email"
-                    value={editingMember.email || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block font-bold text-[#2D3630] mb-1">ঠিকানা / বর্তমান অবস্থান</label>
-                  <input
-                    type="text"
-                    placeholder="যেমন: মৌলভী বাড়ি, শর্শদী, ফেনী"
-                    value={editingMember.address || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, address: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block font-bold text-[#2D3630] mb-1">সংক্ষিপ্ত পরিচিতি / মন্তব্য</label>
-                  <textarea
-                    rows={2}
-                    value={editingMember.bio || ''}
-                    onChange={(e) => setEditingMember({ ...editingMember, bio: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
-                </div>
-
-                <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-[#FDFCF9] rounded-xl border border-[#EBE8E0]">
-                  <div>
-                    <label className="block font-bold text-[#2D3630] mb-1">সদস্য হওয়ার তারিখ (Joining Date)</label>
-                    <input
-                      type="date"
-                      value={editingMember.joiningDate || ''}
-                      onChange={(e) => setEditingMember({ ...editingMember, joiningDate: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                    />
-                    <span className="text-[10px] text-[#7A877E]">ঐচ্ছিক — কার্ডে বা বিস্তারিত পেজে প্রদর্শিত হবে</span>
-                  </div>
-
-                  <div className="flex flex-col justify-center space-y-2 pt-1 sm:pt-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editingMember.showJoiningDate !== false}
-                        onChange={(e) => setEditingMember({ ...editingMember, showJoiningDate: e.target.checked })}
-                        className="w-4 h-4 rounded accent-[#2D5A41]"
-                      />
-                      <span className="font-semibold text-[#2D3630] text-xs">কার্ডে যোগদানের তারিখ প্রদর্শন করুন</span>
-                    </label>
-                    <span className="text-[10px] text-[#7A877E]">বন্ধ থাকলে কার্ডে তারিখ লুকানো থাকবে</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 sm:col-span-2">
-                  <input
-                    type="checkbox"
-                    id="isActiveMem"
-                    checked={editingMember.isActive !== false}
-                    onChange={(e) => setEditingMember({ ...editingMember, isActive: e.target.checked })}
-                    className="rounded accent-[#2D5A41]"
-                  />
-                  <label htmlFor="isActiveMem" className="font-semibold text-[#2D3630]">
-                    ওয়েবসাইটে সক্রিয় হিসেবে প্রদর্শন করুন
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 sm:col-span-2 pt-2">
+                <div className="flex items-center justify-end gap-2 px-6 py-3 border-t border-[#EBE8E0] bg-[#FDFCF9] shrink-0">
                   <button
                     type="button"
                     onClick={() => setEditingMember(null)}
-                    className="px-3.5 py-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] font-semibold hover:bg-[#F7F5F0]"
+                    className="px-4 py-2 rounded-lg border border-[#EBE8E0] text-[#5C665F] font-semibold hover:bg-[#F7F5F0]"
                   >
                     বাতিল
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 rounded-lg bg-[#2D5A41] text-white font-semibold hover:bg-[#234733]"
+                    form="member-modal-form"
+                    className="px-5 py-2 rounded-lg bg-[#2D5A41] text-white font-semibold hover:bg-[#234733] shadow-2xs"
                   >
-                    সংরক্ষণ করুন
+                    {editingMember.id ? 'আপডেট সংরক্ষণ করুন' : 'সদস্য যুক্ত করুন'}
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
           )}
+
+          {/* Dedicated Member Photo Crop & Adjust Modal */}
+          <MemberPhotoCropModal
+            isOpen={memberCropModal.isOpen}
+            imageSrc={memberCropModal.imageSrc}
+            draftFile={memberCropModal.draftFile}
+            cropZoom={memberCropModal.cropZoom}
+            cropX={memberCropModal.cropX}
+            cropY={memberCropModal.cropY}
+            shape={
+              editingMember?.useGlobalImageShape === false && editingMember?.imageShape
+                ? editingMember.imageShape
+                : (config.memberImageShape || 'circle')
+            }
+            onConfirm={handleConfirmMemberCrop}
+            onCancel={handleCloseCropModal}
+          />
 
           {/* Members Table */}
           <div className="bg-white rounded-2xl border border-[#EBE8E0] shadow-2xs overflow-hidden">
@@ -1983,7 +2218,30 @@ export const AdminPage: React.FC = () => {
                     </td>
                     <td className="py-3 px-3 text-right space-x-1">
                       <button
-                        onClick={() => setEditingMember(m)}
+                        onClick={() =>
+                          setEditingMember({
+                            ...m,
+                            useGlobalImageShape:
+                              m.useGlobalImageShape != null
+                                ? m.useGlobalImageShape
+                                : m.imageShape
+                                ? false
+                                : true,
+                            imageShape: m.imageShape || undefined,
+                            imageFit: m.imageFit || 'cover',
+                            cropZoom: m.cropZoom || 1,
+                            cropX: m.cropX || 0,
+                            cropY: m.cropY || 0,
+                            showFacebook: m.showFacebook !== false,
+                            showInstagram: m.showInstagram !== false,
+                            showWhatsapp: m.showWhatsapp !== false,
+                            showImo: m.showImo !== false,
+                            showPhone: m.showPhone !== false,
+                            showEmail: m.showEmail !== false,
+                            showSocials: m.showSocials !== false,
+                            showJoiningDate: m.showJoiningDate !== false,
+                          })
+                        }
                         className="p-1 rounded text-[#5C665F] hover:text-[#2D5A41] hover:bg-[#F7F5F0]"
                         title="সম্পাদনা"
                       >
@@ -2064,104 +2322,126 @@ export const AdminPage: React.FC = () => {
             <div className="space-y-6">
               {editingActivity && (
                 <div
-                  id="activity-edit-form"
-                  ref={activityFormRef}
-                  className="p-6 rounded-2xl bg-white border border-[#2D5A41]/40 shadow-xs space-y-4 text-xs scroll-mt-6"
+                  className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-150"
+                  onClick={() => setEditingActivity(null)}
                 >
-                  <div className="flex items-center justify-between pb-2 border-b border-[#EBE8E0]">
-                    <h3 className="text-sm font-bold text-[#2D3630]">
-                      {editingActivity.id ? 'কার্যক্রম সম্পাদনা' : 'নতুন কার্যক্রম তৈরি'}
-                    </h3>
-                    <button onClick={() => setEditingActivity(null)} className="p-1 text-[#7A877E] hover:text-[#2D3630]">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <form onSubmit={handleSaveActivity} className="space-y-4">
-                    {/* Multilingual Tab Switcher */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-[#2D3630] mr-1">সম্পাদনার ভাষা:</span>
-                        {(['bn', 'en', 'ar'] as const).map((langKey) => (
-                          <button
-                            key={langKey}
-                            type="button"
-                            onClick={() => setActivityLang(langKey)}
-                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
-                              activityLang === langKey
-                                ? 'bg-[#2D5A41] text-white shadow-2xs'
-                                : 'bg-white text-[#5C665F] hover:text-[#2D3630] border border-[#EBE8E0]'
-                            }`}
-                          >
-                            {langKey === 'bn' ? 'বাংলা (BN)' : langKey === 'en' ? 'English (EN)' : 'العربية (AR)'}
-                          </button>
-                        ))}
-                      </div>
-                      <span className="text-[11px] text-[#7A877E] font-medium">
-                        {activityLang === 'bn'
-                          ? 'বাংলা কনটেন্ট এডিট হচ্ছে (ডিফল্ট)'
-                          : activityLang === 'en'
-                          ? 'Editing English translation'
-                          : 'تحرير المحتوى باللغة العربية'}
-                      </span>
+                  <div
+                    id="activity-edit-form"
+                    ref={activityFormRef}
+                    onClick={(e) => e.stopPropagation()}
+                    className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white border border-[#2D5A41]/40 shadow-2xl p-5 sm:p-7 space-y-4 text-xs"
+                  >
+                    <div className="flex items-center justify-between pb-2 border-b border-[#EBE8E0]">
+                      <h3 className="text-sm font-bold text-[#2D3630]">
+                        {editingActivity.id ? 'কার্যক্রম সম্পাদনা' : 'নতুন কার্যক্রম তৈরি'}
+                      </h3>
+                      <button onClick={() => setEditingActivity(null)} className="p-1 text-[#7A877E] hover:text-[#2D3630]">
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
 
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block font-bold text-[#2D3630]">
-                          কার্যক্রমের শিরোনাম ({activityLang.toUpperCase()}) {activityLang === 'bn' ? '*' : '(ঐচ্ছিক)'}
-                        </label>
-                        {activityLang !== 'bn' && (
-                          <span className="text-[11px] text-[#7A877E]">
-                            বাংলা শিরোনাম: {getActivityText('title', 'bn') || 'খালি'}
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        type="text"
-                        required={activityLang === 'bn'}
-                        dir={activityLang === 'ar' ? 'rtl' : 'ltr'}
-                        value={getActivityText('title', activityLang)}
-                        onChange={(e) => setActivityText('title', activityLang, e.target.value)}
-                        placeholder={
-                          activityLang === 'bn'
-                            ? 'যেমন: জরুরি ওষুধ ও চিকিৎসা সহায়তা কর্মসূচি'
+                    <form onSubmit={handleSaveActivity} className="space-y-4">
+                      {/* Multilingual Tab Switcher */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-[#2D3630] mr-1">সম্পাদনার ভাষা:</span>
+                          {(['bn', 'en', 'ar'] as const).map((langKey) => (
+                            <button
+                              key={langKey}
+                              type="button"
+                              onClick={() => setActivityLang(langKey)}
+                              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                                activityLang === langKey
+                                  ? 'bg-[#2D5A41] text-white shadow-2xs'
+                                  : 'bg-white text-[#5C665F] hover:text-[#2D3630] border border-[#EBE8E0]'
+                              }`}
+                            >
+                              {langKey === 'bn' ? 'বাংলা (BN)' : langKey === 'en' ? 'English (EN)' : 'العربية (AR)'}
+                            </button>
+                          ))}
+                        </div>
+                        <span className="text-[11px] text-[#7A877E] font-medium">
+                          {activityLang === 'bn'
+                            ? 'বাংলা কনটেন্ট এডিট হচ্ছে (ডিফল্ট)'
                             : activityLang === 'en'
-                            ? 'e.g. Emergency Medical & Healthcare Support Program'
-                            : 'مثال: برنامج المساعدات الطبية والرعاية الصحية الطارئة'
-                        }
-                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                      />
-                    </div>
+                            ? 'Editing English translation'
+                            : 'تحرير المحتوى باللغة العربية'}
+                        </span>
+                      </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block font-bold text-[#2D3630] mb-1">তারিখ *</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block font-bold text-[#2D3630]">
+                            কার্যক্রমের শিরোনাম ({activityLang.toUpperCase()}) {activityLang === 'bn' ? '*' : '(ঐচ্ছিক)'}
+                          </label>
+                          {activityLang !== 'bn' && (
+                            <span className="text-[11px] text-[#7A877E]">
+                              বাংলা শিরোনাম: {getActivityText('title', 'bn') || 'খালি'}
+                            </span>
+                          )}
+                        </div>
                         <input
-                          type="date"
-                          value={editingActivity.date || ''}
-                          onChange={(e) => setEditingActivity({ ...editingActivity, date: e.target.value })}
+                          type="text"
+                          required={activityLang === 'bn'}
+                          dir={activityLang === 'ar' ? 'rtl' : 'ltr'}
+                          value={getActivityText('title', activityLang)}
+                          onChange={(e) => setActivityText('title', activityLang, e.target.value)}
+                          placeholder={
+                            activityLang === 'bn'
+                              ? 'যেমন: জরুরি ওষুধ ও চিকিৎসা সহায়তা কর্মসূচি'
+                              : activityLang === 'en'
+                              ? 'e.g. Emergency Medical & Healthcare Support Program'
+                              : 'مثال: برنامج المساعدات الطبية والرعاية الصحية الطارئة'
+                          }
                           className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                         />
                       </div>
 
-                      <div>
-                        <label className="block font-bold text-[#2D3630] mb-1">বিভাগ (Category) *</label>
-                        <ActivityCategoryInlineSelector
-                          value={editingActivity.category || ''}
-                          onChange={(catName) => setEditingActivity({ ...editingActivity, category: catName })}
-                          showToast={showToast}
-                        />
-                      </div>
-                    </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block font-bold text-[#2D3630] mb-1">তারিখ *</label>
+                          <input
+                            type="date"
+                            value={editingActivity.date || ''}
+                            onChange={(e) => setEditingActivity({ ...editingActivity, date: e.target.value })}
+                            className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                          />
+                        </div>
 
-                    <MediaUploadField
-                      label="কার্যক্রমের প্রধান কভার ছবি (Cover Image)"
-                      value={editingActivity.coverImage || ''}
-                      onChange={(url) => setEditingActivity({ ...editingActivity, coverImage: url })}
-                      helperText="কার্যক্রমের ব্যানার বা ফটো (JPG, PNG, WEBP - সর্বোচ্চ ১০ MB)"
-                      bucket="activities"
-                    />
+                        <div>
+                          <label className="block font-bold text-[#2D3630] mb-1">বিভাগ (Category) *</label>
+                          <ActivityCategoryInlineSelector
+                            value={editingActivity.category || ''}
+                            onChange={(catName) => setEditingActivity({ ...editingActivity, category: catName })}
+                            showToast={showToast}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <MediaUploadField
+                          label="কার্যক্রমের প্রধান কভার ছবি (Cover Image)"
+                          value={editingActivity.coverImage || ''}
+                          onChange={(url) => setEditingActivity({ ...editingActivity, coverImage: url })}
+                          helperText="কার্যক্রমের ব্যানার বা ফটো (JPG, PNG, WEBP - সর্বোচ্চ ১০ MB)"
+                          bucket="activities"
+                        />
+
+                        {editingActivity.coverImage && (
+                          <label className="flex items-center gap-2.5 p-3 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] cursor-pointer hover:bg-[#EFECE3] transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(editingActivity.showOnMediaPage)}
+                              onChange={(e) => setEditingActivity({ ...editingActivity, showOnMediaPage: e.target.checked })}
+                              className="w-4 h-4 rounded accent-[#2D5A41] cursor-pointer"
+                            />
+                            <div className="select-none">
+                              <span className="text-xs font-bold text-[#2D3630] block">মিডিয়া পেজে এই ছবি প্রদর্শন করুন</span>
+                              <span className="text-[11px] text-[#7A877E] block">সক্রিয় থাকলে কার্যক্রমের কভার ছবিটি পাবলিক মিডিয়া / গ্যালারি পেজে প্রদর্শিত হবে এবং ভিজিটররা ক্লিক করে এই কার্যক্রমে যেতে পারবে।</span>
+                            </div>
+                          </label>
+                        )}
+                      </div>
 
                     {/* Strict Short Summary */}
                     <div>
@@ -2352,7 +2632,8 @@ export const AdminPage: React.FC = () => {
                     </div>
                   </form>
                 </div>
-              )}
+              </div>
+            )}
 
               {/* Activities List */}
               <div className="space-y-3">
@@ -2651,118 +2932,199 @@ export const AdminPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-[#2D3630]">
-                গ্যালারি মিডিয়া ব্যবস্থাপনা ({gallery.length})
+                মিডিয়া গ্যালারি ব্যবস্থাপনা ({gallery.length})
               </h2>
               <p className="text-xs text-[#5C665F] mt-0.5">
-                ছবি ও ভিডিও গ্যালারিতে প্রকাশ করুন।
+                পাবলিক গ্যালারির স্থিরচিত্রসমূহ পরিচালনা করুন। (ছবি-ভিত্তিক গ্যালারি)
               </p>
             </div>
             <button
-              onClick={() => setEditingGallery({ isPublished: true, type: 'image' })}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold self-start sm:self-auto"
+              onClick={() => setEditingGallery({ isPublished: true, type: 'photo' })}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold self-start sm:self-auto cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>নতুন ছবি/ভিডিও যুক্ত করুন</span>
+              <span>নতুন ছবি যুক্ত করুন</span>
             </button>
           </div>
 
           {editingGallery && (
             <div
-              id="gallery-edit-form"
-              ref={galleryFormRef}
-              className="p-6 rounded-2xl bg-white border border-[#2D5A41]/40 shadow-xs space-y-4 text-xs scroll-mt-6"
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-150"
+              onClick={() => setEditingGallery(null)}
             >
-              <form onSubmit={handleSaveGallery} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div
+                id="gallery-edit-form"
+                ref={galleryFormRef}
+                onClick={(e) => e.stopPropagation()}
+                className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white border border-[#2D5A41]/40 shadow-2xl p-5 sm:p-7 space-y-4 text-xs"
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-[#EBE8E0]">
+                  <h3 className="text-sm font-bold text-[#2D3630]">
+                    {editingGallery.id ? 'মিডিয়া ছবি সম্পাদনা' : 'নতুন ছবি যুক্ত করুন'}
+                  </h3>
+                  <button onClick={() => setEditingGallery(null)} className="p-1 text-[#7A877E] hover:text-[#2D3630] cursor-pointer">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveGallery} className="space-y-4">
+                  <MediaUploadField
+                    label="ছবি ফাইল আপলোড করুন *"
+                    value={editingGallery.url || editingGallery.mediaUrl || ''}
+                    onChange={(url) => setEditingGallery({ ...editingGallery, url, mediaUrl: url })}
+                    required
+                    helperText="গ্যালারি ফটো (JPG, PNG, WEBP - সর্বোচ্চ ১০ MB)"
+                    bucket="gallery"
+                  />
+
                   <div>
-                    <label className="block font-bold text-[#2D3630] mb-1">ধরন</label>
+                    <label className="block font-bold text-[#2D3630] mb-1">ছবির শিরোনাম / ক্যাপশন *</label>
+                    <input
+                      type="text"
+                      required
+                      value={typeof editingGallery.title === 'object' ? editingGallery.title.bn : editingGallery.title || ''}
+                      onChange={(e) => setEditingGallery({ ...editingGallery, title: e.target.value as any })}
+                      placeholder="যেমন: মৌলভী বাড়ি প্রাঙ্গণে সভা বা চিকিৎসা সহায়তা"
+                      className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#2D3630] mb-1">কার্যক্রমের সাথে লিংক করুন (ঐচ্ছিক)</label>
                     <select
-                      value={editingGallery.type || 'image'}
-                      onChange={(e) => setEditingGallery({ ...editingGallery, type: e.target.value as any })}
+                      value={editingGallery.activityId || ''}
+                      onChange={(e) => {
+                        const selectedActId = e.target.value;
+                        const act = activities.find((a) => a.id === selectedActId);
+                        if (act) {
+                          setEditingGallery({
+                            ...editingGallery,
+                            activityId: selectedActId,
+                            title: editingGallery.title || act.title,
+                            date: editingGallery.date || act.date,
+                            year: act.date ? act.date.split('-')[0] : editingGallery.year,
+                          });
+                        } else {
+                          setEditingGallery({ ...editingGallery, activityId: undefined });
+                        }
+                      }}
                       className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                     >
-                      <option value="image">ছবি (Image)</option>
-                      <option value="video">ভিডিও (Video)</option>
+                      <option value="">কোনোটি নয় (None - সাধারণ গ্যালারি ছবি)</option>
+                      {activities.map((act) => (
+                        <option key={act.id} value={act.id}>
+                          {typeof act.title === 'string' ? act.title : act.title.bn || act.title.en} ({act.date})
+                        </option>
+                      ))}
                     </select>
+                    <span className="text-[11px] text-[#7A877E] mt-0.5 block">
+                      কোনো কার্যক্রম সিলেক্ট করা থাকলে মিডিয়া পেজে কার্ডে ক্লিক করলে ভিজিটর সরাসরি সেই কার্যক্রমে পৌঁছাবে।
+                    </span>
                   </div>
-                </div>
 
-                <MediaUploadField
-                  label={editingGallery.type === 'video' ? 'ভিডিও ফাইল বা লিঙ্ক *' : 'ছবি ফাইল আপলোড করুন *'}
-                  value={editingGallery.url || ''}
-                  isVideo={editingGallery.type === 'video'}
-                  onChange={(url) => setEditingGallery({ ...editingGallery, url })}
-                  required
-                  helperText={editingGallery.type === 'video' ? 'ভিডিও ফাইল (MP4) বা ইউটিউব/ভিডিও ইউআরএল' : 'গ্যালারি ফটো (JPG, PNG - সর্বোচ্চ ১০ MB)'}
-                  bucket="gallery"
-                />
-
-                <div>
-                  <label className="block font-bold text-[#2D3630] mb-1">ক্যাপশন / শিরোনাম</label>
-                  <input
-                    type="text"
-                    value={typeof editingGallery.title === 'object' ? editingGallery.title.bn : editingGallery.title || ''}
-                    onChange={(e) => setEditingGallery({ ...editingGallery, title: e.target.value as any })}
-                    placeholder="যেমন: মৌলভী বাড়ি প্রাঙ্গণে সভা"
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-[#2D3630] mb-1">বিভাগ</label>
-                    <input
-                      type="text"
-                      value={editingGallery.category || ''}
-                      onChange={(e) => setEditingGallery({ ...editingGallery, category: e.target.value })}
-                      placeholder="যেমন: মানবিক সহায়তা / সভা"
-                      className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-[#2D3630] mb-1">বিভাগ</label>
+                      <input
+                        type="text"
+                        value={editingGallery.category || ''}
+                        onChange={(e) => setEditingGallery({ ...editingGallery, category: e.target.value })}
+                        placeholder="যেমন: মানবিক সহায়তা / সভা"
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-[#2D3630] mb-1">তারিখ</label>
+                      <input
+                        type="date"
+                        value={editingGallery.date || ''}
+                        onChange={(e) => {
+                          const d = e.target.value;
+                          setEditingGallery({
+                            ...editingGallery,
+                            date: d,
+                            year: d ? d.split('-')[0] : editingGallery.year,
+                          });
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block font-bold text-[#2D3630] mb-1">সাল / বছর</label>
-                    <input
-                      type="text"
-                      value={editingGallery.year || '2024'}
-                      onChange={(e) => setEditingGallery({ ...editingGallery, year: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                    />
-                  </div>
-                </div>
 
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingGallery(null)}
-                    className="px-3.5 py-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] hover:bg-[#F7F5F0]"
-                  >
-                    বাতিল
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-1.5 rounded-lg bg-[#2D5A41] text-white font-semibold hover:bg-[#234733]"
-                  >
-                    সংরক্ষণ করুন
-                  </button>
-                </div>
-              </form>
+                  <div className="pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-[#2D3630]">
+                      <input
+                        type="checkbox"
+                        checked={editingGallery.isPublished !== false}
+                        onChange={(e) => setEditingGallery({ ...editingGallery, isPublished: e.target.checked })}
+                        className="w-4 h-4 rounded accent-[#2D5A41]"
+                      />
+                      <span>পাবলিক মিডিয়া পেজে প্রকাশিত রাখুন (Visible)</span>
+                    </label>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-[#EBE8E0]">
+                    <button
+                      type="button"
+                      onClick={() => setEditingGallery(null)}
+                      className="px-3.5 py-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] hover:bg-[#F7F5F0] cursor-pointer"
+                    >
+                      বাতিল
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 rounded-lg bg-[#2D5A41] text-white font-semibold hover:bg-[#234733] shadow-2xs cursor-pointer"
+                    >
+                      সংরক্ষণ করুন
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {gallery.map((g) => (
-              <div key={g.id} className="relative rounded-xl overflow-hidden border border-[#EBE8E0] group aspect-video bg-[#F7F5F0]">
-                <img src={g.thumbnailUrl || g.url} alt="" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-[#2D3630]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <button
-                    onClick={() => handleDeleteGallery(g.id)}
-                    className="p-1.5 rounded-lg bg-rose-600 text-white"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {gallery.map((g) => {
+              const titleStr = typeof g.title === 'string' ? g.title : g.title?.bn || g.title?.en || 'ছবি';
+              return (
+                <div
+                  key={g.id}
+                  className="rounded-xl overflow-hidden border border-[#EBE8E0] bg-white group shadow-3xs hover:border-[#2D5A41]/40 transition-all flex flex-col"
+                >
+                  <div className="relative aspect-4/3 bg-[#F7F5F0] overflow-hidden">
+                    <img src={g.thumbnailUrl || g.url || g.mediaUrl} alt={titleStr} className="w-full h-full object-cover" />
+                    {g.activityId && (
+                      <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-[#2D5A41]/90 text-white text-[9px] font-semibold">
+                        কার্যক্রম লিংকযুক্ত
+                      </span>
+                    )}
+                    <div className="absolute inset-0 bg-[#2D3630]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => setEditingGallery(g)}
+                        className="p-1.5 rounded-lg bg-white text-[#2D3630] hover:bg-[#F7F5F0] cursor-pointer shadow-xs"
+                        title="সম্পাদনা করুন"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGallery(g.id)}
+                        className="p-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 cursor-pointer shadow-xs"
+                        title="মুছে ফেলুন"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="p-2.5 flex flex-col flex-1 justify-between gap-1 text-[11px]">
+                    <div className="font-semibold text-[#2D3630] line-clamp-1">{titleStr}</div>
+                    <div className="text-[10px] text-[#7A877E] flex items-center justify-between">
+                      <span>{g.category || 'সাধারণ'}</span>
+                      <span>{g.date || g.year}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

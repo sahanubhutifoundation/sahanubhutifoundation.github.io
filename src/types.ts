@@ -59,6 +59,7 @@ export interface Member {
   showPhone?: boolean;
   showEmail?: boolean;
   showSocials?: boolean;
+  useGlobalImageShape?: boolean;
   socialLinks?: {
     facebook?: string;
     instagram?: string;
@@ -145,6 +146,7 @@ export interface Activity {
   beneficiaries?: MultilingualText;
   outcomes?: MultilingualText;
   showShortSummaryInDetail?: boolean;
+  showOnMediaPage?: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -174,6 +176,8 @@ export interface GalleryItem {
   caption?: MultilingualText;
   category: string;
   year: number | string;
+  date?: string;
+  activityId?: string;
   isPublished: boolean;
   createdAt: string;
 }

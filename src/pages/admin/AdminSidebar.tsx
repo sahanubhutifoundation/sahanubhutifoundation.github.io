@@ -147,7 +147,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       labelEn: 'Gallery',
       icon: ImageIcon,
       count: galleryCount,
-      keywords: ['gallery', 'photo', 'video', 'image', 'media', 'গ্যালারি', 'ছবি', 'ভিডিও', 'মিডিয়া'],
+      keywords: ['gallery', 'photo', 'image', 'media', 'গ্যালারি', 'ছবি', 'স্থিরচিত্র', 'মিডিয়া'],
     },
     {
       id: 'notices',

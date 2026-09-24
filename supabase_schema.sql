@@ -80,6 +80,21 @@ CREATE TABLE IF NOT EXISTS public.members (
 CREATE INDEX IF NOT EXISTS idx_members_serial ON public.members(serial);
 CREATE INDEX IF NOT EXISTS idx_members_is_active ON public.members(is_active);
 
+-- Idempotent column migrations for members table
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS image_shape TEXT DEFAULT 'rounded';
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS image_fit TEXT DEFAULT 'cover';
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS image_position TEXT;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS is_family_member BOOLEAN DEFAULT false;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS crop_zoom NUMERIC DEFAULT 1;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS crop_x NUMERIC DEFAULT 0;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS crop_y NUMERIC DEFAULT 0;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS facebook TEXT;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS instagram TEXT;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS whatsapp TEXT;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS imo TEXT;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS show_socials BOOLEAN DEFAULT true;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS use_global_image_shape BOOLEAN DEFAULT true;
+
 -- ------------------------------------------------------------------------------
 -- 5. ACTIVITIES TABLE
 -- ------------------------------------------------------------------------------

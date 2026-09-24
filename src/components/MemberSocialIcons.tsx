@@ -93,7 +93,7 @@ export const MemberSocialIcons: React.FC<MemberSocialIconsProps> = ({
       )}
 
       {/* Direct Phone */}
-      {showPhone && !whatsapp && (
+      {showPhone && (
         <a
           href={`tel:${member.phone}`}
           title="Call"

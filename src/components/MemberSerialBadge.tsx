@@ -1,6 +1,6 @@
 import React from 'react';
 import { FoundationConfig } from '../types';
-import { toBengaliDigits } from '../utils/foundationHelpers';
+import { toBengaliDigits, toArabicDigits } from '../utils/foundationHelpers';
 
 interface MemberSerialBadgeProps {
   serial: number;
@@ -29,7 +29,7 @@ export const MemberSerialBadge: React.FC<MemberSerialBadgeProps> = ({
 
   // Format serial with two digits (e.g., 01, 02 or ০১, ০২), never plain #1 or #2
   const numStr = String(serial ?? 0).padStart(2, '0');
-  const displayDigits = language === 'bn' ? toBengaliDigits(numStr) : numStr;
+  const displayDigits = language === 'bn' ? toBengaliDigits(numStr) : language === 'ar' ? toArabicDigits(numStr) : numStr;
 
   let styleContent = null;
 

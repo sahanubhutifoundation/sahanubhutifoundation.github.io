@@ -242,11 +242,11 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
                 আপনার ব্রাউজার ভিডিও প্লেব্যাক সমর্থন করে না।
               </video>
             ) : (
-              <div className={`w-full ${aspectClass} flex items-center justify-center p-1 overflow-hidden`}>
+              <div className={`w-full ${aspectClass} flex items-center justify-center p-2 overflow-hidden`}>
                 <img
                   src={value}
                   alt="Live Preview"
-                  className={`w-full h-full object-cover ${shapeClass} transition-all duration-200`}
+                  className={`max-h-64 w-auto max-w-full object-contain ${shapeClass} transition-all duration-200`}
                   style={{ objectPosition }}
                   onError={(e) => {
                     (e.currentTarget as HTMLElement).style.display = 'none';
