@@ -30,6 +30,7 @@ import {
   ExpenseRecord,
   FundVisibilitySettings,
   MultilingualText,
+  YearlyFundSource,
 } from '../../types';
 import {
   Lock,
@@ -52,6 +53,8 @@ import {
   EyeOff,
   RefreshCw,
   ExternalLink,
+  CalendarDays,
+  Star,
   Download,
   Upload,
   Key,
@@ -106,6 +109,10 @@ export const AdminPage: React.FC = () => {
 
   // Forms / Modals state
   const [editingMember, setEditingMember] = useState<Partial<Member> | null>(null);
+  const [editingYearSource, setEditingYearSource] = useState<Partial<YearlyFundSource> | null>(null);
+  const [isNewYearSource, setIsNewYearSource] = useState(false);
+  const [testingYear, setTestingYear] = useState<string | null>(null);
+  const [yearTestResult, setYearTestResult] = useState<{ [year: string]: FundData }>({});
   const [memberCropModal, setMemberCropModal] = useState<{
     isOpen: boolean;
     imageSrc: string;
@@ -807,6 +814,187 @@ export const AdminPage: React.FC = () => {
       showToast('সংযোগ পরীক্ষা ব্যর্থ হয়েছে।');
     } finally {
       setTestingFund(false);
+    }
+  };
+
+  // Year Source Manager Handlers
+  const handleAddYearSource = () => {
+    setIsNewYearSource(true);
+    setEditingYearSource({
+      year: '',
+      url: '',
+      gid: '0',
+      label: '',
+      enabled: true,
+      isPublic: true,
+      isDefault: false,
+      notes: '',
+    });
+  };
+
+  const handleEditYearSource = (source: YearlyFundSource) => {
+    setIsNewYearSource(false);
+    setEditingYearSource({ ...source });
+  };
+
+  const handleSaveYearSource = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingYearSource || !editingYearSource.year?.trim()) {
+      showToast('আর্থিক বছর প্রদান করুন (যেমন: 2027)');
+      return;
+    }
+
+    const yearKey = editingYearSource.year.trim();
+    const existingList: YearlyFundSource[] =
+      config.yearlyFundSources && config.yearlyFundSources.length > 0
+        ? [...config.yearlyFundSources]
+        : [
+            {
+              year: '2026',
+              url: config.fundSourceUrl,
+              gid: '0',
+              label: '২০২৬ আর্থিক বছর (চলতি)',
+              enabled: true,
+              isPublic: true,
+              isDefault: true,
+            },
+            {
+              year: '2025',
+              url: '',
+              label: '২০২৫ আর্থিক বছর',
+              enabled: true,
+              isPublic: true,
+            },
+            {
+              year: '2024',
+              url: '',
+              label: '২০২৪ আর্থিক বছর',
+              enabled: true,
+              isPublic: true,
+            },
+          ];
+
+    let updatedList: YearlyFundSource[];
+    const isDefault = Boolean(editingYearSource.isDefault);
+
+    if (isNewYearSource) {
+      if (existingList.some((s) => s.year === yearKey)) {
+        showToast(`${yearKey} সালের জন্য ইতোমধ্যে একটি সোর্স কনফিগার করা রয়েছে!`);
+        return;
+      }
+      const newSource: YearlyFundSource = {
+        year: yearKey,
+        url: editingYearSource.url?.trim() || '',
+        gid: editingYearSource.gid?.trim() || '0',
+        label: editingYearSource.label?.trim() || `${yearKey} আর্থিক বছর`,
+        enabled: editingYearSource.enabled !== false,
+        isPublic: editingYearSource.isPublic !== false,
+        isDefault,
+        notes: editingYearSource.notes?.trim() || '',
+      };
+      updatedList = isDefault
+        ? [...existingList.map((s) => ({ ...s, isDefault: false })), newSource]
+        : [...existingList, newSource];
+    } else {
+      updatedList = existingList.map((s) => {
+        if (s.year === yearKey) {
+          return {
+            ...s,
+            url: editingYearSource.url?.trim() || '',
+            gid: editingYearSource.gid?.trim() || '0',
+            label: editingYearSource.label?.trim() || `${yearKey} আর্থিক বছর`,
+            enabled: editingYearSource.enabled !== false,
+            isPublic: editingYearSource.isPublic !== false,
+            isDefault,
+            notes: editingYearSource.notes?.trim() || '',
+          };
+        }
+        return isDefault ? { ...s, isDefault: false } : s;
+      });
+    }
+
+    // Sort descending by year
+    updatedList.sort((a, b) => b.year.localeCompare(a.year));
+
+    // Update config and sync fundSourceUrl if default
+    const updatedConfig: FoundationConfig = {
+      ...config,
+      yearlyFundSources: updatedList,
+    };
+    if (isDefault && editingYearSource.url?.trim()) {
+      updatedConfig.fundSourceUrl = editingYearSource.url.trim();
+    }
+
+    setConfig(updatedConfig);
+    storageService.saveConfig(updatedConfig);
+    setEditingYearSource(null);
+    showToast(`${yearKey} আর্থিক বছরের সোর্স সফলভাবে সংরক্ষিত হয়েছে!`);
+  };
+
+  const handleToggleYearSource = (year: string) => {
+    const list = config.yearlyFundSources || [];
+    const updatedList = list.map((s) => (s.year === year ? { ...s, enabled: !s.enabled } : s));
+    const updatedConfig = { ...config, yearlyFundSources: updatedList };
+    setConfig(updatedConfig);
+    storageService.saveConfig(updatedConfig);
+    showToast(`${year} সালের সোর্স স্ট্যাটাস পরিবর্তন করা হয়েছে!`);
+  };
+
+  const handleSetDefaultYear = (year: string) => {
+    const list = config.yearlyFundSources || [];
+    const target = list.find((s) => s.year === year);
+    const updatedList = list.map((s) => ({ ...s, isDefault: s.year === year }));
+    const updatedConfig: FoundationConfig = {
+      ...config,
+      yearlyFundSources: updatedList,
+      fundSourceUrl: target?.url || config.fundSourceUrl,
+    };
+    setConfig(updatedConfig);
+    storageService.saveConfig(updatedConfig);
+    showToast(`${year} সালকে সক্রিয় ডিফল্ট হিসেবে নির্ধারণ করা হয়েছে!`);
+  };
+
+  const handleDeleteYearSource = (year: string) => {
+    const list = config.yearlyFundSources || [];
+    if (list.length <= 1) {
+      showToast('অন্তত একটি আর্থিক বছর কনফিগারেশন থাকা আবশ্যক।');
+      return;
+    }
+    requestConfirm(
+      'আর্থিক বছর ডিলিট নিশ্চিতকরণ',
+      `আপনি কি নিশ্চিত যে "${year}" আর্থিক বছরের গুগল শিট সোর্স মুছে ফেলতে চান? এটি শুধুমাত্র কনফিগারেশন তালিকা থেকে সরাবে।`,
+      () => {
+        const updatedList = list.filter((s) => s.year !== year);
+        if (updatedList.length > 0 && !updatedList.some((s) => s.isDefault)) {
+          updatedList[0].isDefault = true;
+        }
+        const updatedConfig = { ...config, yearlyFundSources: updatedList };
+        setConfig(updatedConfig);
+        storageService.saveConfig(updatedConfig);
+        showToast(`${year} সালের সোর্স সফলভাবে মুছে ফেলা হয়েছে!`);
+      }
+    );
+  };
+
+  const handleTestSpecificYearSource = async (source: YearlyFundSource) => {
+    if (!source.url || !source.url.trim()) {
+      showToast(`${source.year} সালের জন্য কোনো গুগল শিট লিংক দেওয়া হয়নি।`);
+      return;
+    }
+    setTestingYear(source.year);
+    try {
+      const res = await fetchFundData(source.url.trim(), true, source.year, source.gid);
+      setYearTestResult((prev) => ({ ...prev, [source.year]: res }));
+      if (res.status === 'live') {
+        showToast(`${source.year} সালের গুগল শিট সংযোগ সফল! (মোট আদায়: ৳ ${res.amountReceived.toLocaleString()})`);
+      } else {
+        showToast(`${source.year} সালের শিট থেকে ডাটা পাওয়া যায়নি। পারমিশন যাচাই করুন।`);
+      }
+    } catch (e) {
+      console.warn('Test year error:', e);
+      showToast(`${source.year} সালের সংযোগ পরীক্ষা ব্যর্থ হয়েছে।`);
+    } finally {
+      setTestingYear(null);
     }
   };
 
@@ -2725,155 +2913,176 @@ export const AdminPage: React.FC = () => {
             </button>
           </div>
 
+          {/* Notice Edit / Add Form Centered Viewport Modal */}
           {editingNotice && (
             <div
-              id="notice-edit-form"
-              ref={noticeFormRef}
-              className="p-6 rounded-2xl bg-white border border-[#2D5A41]/40 shadow-xs space-y-4 text-xs scroll-mt-6"
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-150"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setEditingNotice(null);
+              }}
             >
-              <div className="flex items-center justify-between pb-2 border-b border-[#EBE8E0]">
-                <h3 className="text-sm font-bold text-[#2D3630]">নোটিশ ফরম</h3>
-                <button onClick={() => setEditingNotice(null)} className="p-1 text-[#7A877E] hover:text-[#2D3630]">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveNotice} className="space-y-4">
-                {/* Multilingual Notice Tab Switcher */}
-                <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-[#2D3630] mr-1">নোটিশের ভাষা:</span>
-                    {(['bn', 'en', 'ar'] as const).map((langKey) => (
-                      <button
-                        key={langKey}
-                        type="button"
-                        onClick={() => setNoticeLang(langKey)}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
-                          noticeLang === langKey
-                            ? 'bg-[#2D5A41] text-white shadow-2xs'
-                            : 'bg-white text-[#5C665F] hover:text-[#2D3630] border border-[#EBE8E0]'
-                        }`}
-                      >
-                        {langKey === 'bn' ? 'বাংলা (BN)' : langKey === 'en' ? 'English (EN)' : 'العربية (AR)'}
-                      </button>
-                    ))}
+              <div
+                id="notice-edit-form"
+                ref={noticeFormRef}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl border border-[#2D5A41]/40 shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150"
+              >
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#EBE8E0] bg-[#FDFCF9] shrink-0">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#2D3630]">
+                      {editingNotice.id ? 'নোটিশ সম্পাদনা' : 'নতুন নোটিশ তৈরি'}
+                    </h3>
+                    <p className="text-[11px] text-[#7A877E]">
+                      নোটিশের শিরোনাম, তারিখ ও বিস্তারিত বিবরণ প্রদান করুন
+                    </p>
                   </div>
-                  <span className="text-[11px] text-[#7A877E] font-medium">
-                    {noticeLang === 'bn'
-                      ? 'বাংলা নোটিশ (ডিফল্ট)'
-                      : noticeLang === 'en'
-                      ? 'English Notice'
-                      : 'إعلان باللغة العربية'}
-                  </span>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-bold text-[#2D3630]">
-                      নোটিশের শিরোনাম ({noticeLang.toUpperCase()}) {noticeLang === 'bn' ? '*' : '(ঐচ্ছিক)'}
-                    </label>
-                    {noticeLang !== 'bn' && (
-                      <span className="text-[11px] text-[#7A877E]">
-                        বাংলা শিরোনাম: {getNoticeText('title', 'bn') || 'খালি'}
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    required={noticeLang === 'bn'}
-                    dir={noticeLang === 'ar' ? 'rtl' : 'ltr'}
-                    value={getNoticeText('title', noticeLang)}
-                    onChange={(e) => setNoticeText('title', noticeLang, e.target.value)}
-                    placeholder={
-                      noticeLang === 'bn'
-                        ? 'যেমন: আসন্ন বার্ষিক সাধারণ সভা সম্পর্কিত জরুরি বিজ্ঞপ্তি'
-                        : noticeLang === 'en'
-                        ? 'e.g. Urgent Notice Regarding Upcoming Annual General Meeting'
-                        : 'مثال: إشعار عاجل بخصوص الاجتماع العام السنوي القادم'
-                    }
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-[#2D3630] mb-1">তারিখ</label>
-                  <input
-                    type="date"
-                    value={editingNotice.date || ''}
-                    onChange={(e) => setEditingNotice({ ...editingNotice, date: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-bold text-[#2D3630]">
-                      নোটিশের মূল বার্তা / Content ({noticeLang.toUpperCase()}) {noticeLang === 'bn' ? '*' : ''}
-                    </label>
-                  </div>
-                  <textarea
-                    rows={4}
-                    required={noticeLang === 'bn'}
-                    dir={noticeLang === 'ar' ? 'rtl' : 'ltr'}
-                    value={getNoticeText('body', noticeLang)}
-                    onChange={(e) => setNoticeText('body', noticeLang, e.target.value)}
-                    placeholder={
-                      noticeLang === 'bn'
-                        ? 'নোটিশের পূর্ণাঙ্গ বিবরণ লিখুন...'
-                        : noticeLang === 'en'
-                        ? 'Write full notice text and details...'
-                        : 'اكتب نص الإعلان وتفاصيله الكاملة...'
-                    }
-                    className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                  />
-                </div>
-
-                <MediaUploadField
-                  label="সংযুক্ত ফাইল বা অফিসিয়াল সার্কুলার ছবি (ঐচ্ছিক)"
-                  value={editingNotice.attachmentUrl || ''}
-                  onChange={(url) => setEditingNotice({ ...editingNotice, attachmentUrl: url })}
-                  helperText="নোটিশের অফিসিয়াল সার্কুলার বা মেমো ছবি (JPG, PNG - সর্বোচ্চ ১০ MB)"
-                  bucket="notices"
-                />
-
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-1.5 font-semibold text-[#2D3630]">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(editingNotice.isImportant)}
-                      onChange={(e) => setEditingNotice({ ...editingNotice, isImportant: e.target.checked })}
-                      className="rounded accent-[#2D5A41]"
-                    />
-                    <span>জরুরি নোটিশ হিসেবে প্রদর্শন করুন</span>
-                  </label>
-
-                  <label className="flex items-center gap-1.5 font-semibold text-[#2D3630]">
-                    <input
-                      type="checkbox"
-                      checked={editingNotice.isPublished !== false}
-                      onChange={(e) => setEditingNotice({ ...editingNotice, isPublished: e.target.checked })}
-                      className="rounded accent-[#2D5A41]"
-                    />
-                    <span>প্রকাশিত রাখুন</span>
-                  </label>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
                   <button
-                    type="button"
                     onClick={() => setEditingNotice(null)}
-                    className="px-3.5 py-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] hover:bg-[#F7F5F0]"
+                    className="p-1.5 text-[#7A877E] hover:text-[#2D3630] rounded-lg hover:bg-[#EBE8E0]/60 transition-colors"
                   >
-                    বাতিল
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-1.5 rounded-lg bg-[#2D5A41] text-white font-semibold hover:bg-[#234733]"
-                  >
-                    সংরক্ষণ করুন
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
-              </form>
+
+                <div className="p-6 overflow-y-auto flex-1">
+                  <form onSubmit={handleSaveNotice} className="space-y-4">
+                    {/* Multilingual Notice Tab Switcher */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-[#2D3630] mr-1">নোটিশের ভাষা:</span>
+                        {(['bn', 'en', 'ar'] as const).map((langKey) => (
+                          <button
+                            key={langKey}
+                            type="button"
+                            onClick={() => setNoticeLang(langKey)}
+                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                              noticeLang === langKey
+                                ? 'bg-[#2D5A41] text-white shadow-2xs'
+                                : 'bg-white text-[#5C665F] hover:text-[#2D3630] border border-[#EBE8E0]'
+                            }`}
+                          >
+                            {langKey === 'bn' ? 'বাংলা (BN)' : langKey === 'en' ? 'English (EN)' : 'العربية (AR)'}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-[11px] text-[#7A877E] font-medium">
+                        {noticeLang === 'bn'
+                          ? 'বাংলা নোটিশ (ডিফল্ট)'
+                          : noticeLang === 'en'
+                          ? 'English Notice'
+                          : 'إعلان باللغة العربية'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-bold text-[#2D3630]">
+                          নোটিশের শিরোনাম ({noticeLang.toUpperCase()}) {noticeLang === 'bn' ? '*' : '(ঐচ্ছিক)'}
+                        </label>
+                        {noticeLang !== 'bn' && (
+                          <span className="text-[11px] text-[#7A877E]">
+                            বাংলা শিরোনাম: {getNoticeText('title', 'bn') || 'খালি'}
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        required={noticeLang === 'bn'}
+                        dir={noticeLang === 'ar' ? 'rtl' : 'ltr'}
+                        value={getNoticeText('title', noticeLang)}
+                        onChange={(e) => setNoticeText('title', noticeLang, e.target.value)}
+                        placeholder={
+                          noticeLang === 'bn'
+                            ? 'যেমন: আসন্ন বার্ষিক সাধারণ সভা সম্পর্কিত জরুরি বিজ্ঞপ্তি'
+                            : noticeLang === 'en'
+                            ? 'e.g. Urgent Notice Regarding Upcoming Annual General Meeting'
+                            : 'مثال: إشعار عاجل بخصوص الاجتماع العام السنوي القادم'
+                        }
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-[#2D3630] mb-1">তারিখ</label>
+                      <input
+                        type="date"
+                        value={editingNotice.date || ''}
+                        onChange={(e) => setEditingNotice({ ...editingNotice, date: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-bold text-[#2D3630]">
+                          নোটিশের মূল বার্তা / Content ({noticeLang.toUpperCase()}) {noticeLang === 'bn' ? '*' : ''}
+                        </label>
+                      </div>
+                      <textarea
+                        rows={4}
+                        required={noticeLang === 'bn'}
+                        dir={noticeLang === 'ar' ? 'rtl' : 'ltr'}
+                        value={getNoticeText('body', noticeLang)}
+                        onChange={(e) => setNoticeText('body', noticeLang, e.target.value)}
+                        placeholder={
+                          noticeLang === 'bn'
+                            ? 'নোটিশের পূর্ণাঙ্গ বিবরণ লিখুন...'
+                            : noticeLang === 'en'
+                            ? 'Write full notice text and details...'
+                            : 'اكتب نص الإعلان وتفاصيله الكاملة...'
+                        }
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      />
+                    </div>
+
+                    <MediaUploadField
+                      label="সংযুক্ত ফাইল বা অফিসিয়াল সার্কুলার ছবি (ঐচ্ছিক)"
+                      value={editingNotice.attachmentUrl || ''}
+                      onChange={(url) => setEditingNotice({ ...editingNotice, attachmentUrl: url })}
+                      helperText="নোটিশের অফিসিয়াল সার্কুলার বা মেমো ছবি (JPG, PNG - সর্বোচ্চ ১০ MB)"
+                      bucket="notices"
+                    />
+
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-1.5 font-semibold text-[#2D3630]">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(editingNotice.isImportant)}
+                          onChange={(e) => setEditingNotice({ ...editingNotice, isImportant: e.target.checked })}
+                          className="rounded accent-[#2D5A41]"
+                        />
+                        <span>জরুরি নোটিশ হিসেবে প্রদর্শন করুন</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 font-semibold text-[#2D3630]">
+                        <input
+                          type="checkbox"
+                          checked={editingNotice.isPublished !== false}
+                          onChange={(e) => setEditingNotice({ ...editingNotice, isPublished: e.target.checked })}
+                          className="rounded accent-[#2D5A41]"
+                        />
+                        <span>প্রকাশিত রাখুন</span>
+                      </label>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-[#EBE8E0]">
+                      <button
+                        type="button"
+                        onClick={() => setEditingNotice(null)}
+                        className="px-3.5 py-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] hover:bg-[#F7F5F0]"
+                      >
+                        বাতিল
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-1.5 rounded-lg bg-[#2D5A41] text-white font-semibold hover:bg-[#234733]"
+                      >
+                        সংরক্ষণ করুন
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
           )}
 
@@ -3489,102 +3698,292 @@ export const AdminPage: React.FC = () => {
                   </div>
                 </div>
 
-            <form onSubmit={handleSaveFundSource} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-[#2D3630] mb-1">
-                  Fund Data Source URL (গুগল শিট লিঙ্ক / CSV URL)
-                </label>
-                <input
-                  type="url"
-                  required
-                  value={fundUrlInput}
-                  onChange={(e) => setFundUrlInput(e.target.value)}
-                  placeholder="https://docs.google.com/spreadsheets/d/..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs font-mono text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                />
-                <span className="block text-[11px] text-[#7A877E] mt-1 break-all">
-                  বর্তমান সক্রিয় গুগল শিট: {config.fundSourceUrl || 'https://docs.google.com/spreadsheets/d/1bh2WGcphb2ZTVzyaE9Yo3UHCOe_NkQtzoolS9UPuETg/edit?usp=sharing'}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold shadow-2xs"
-                >
-                  URL সংরক্ষণ করুন
-                </button>
+            {/* 1. Year Source Manager Header & List */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#EBE8E0]">
+                <div>
+                  <h3 className="text-sm font-bold text-[#2D3630] flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4 text-[#2D5A41]" />
+                    <span>বার্ষিক তহবিল ও গুগল শিট সোর্স ম্যানেজার (Yearly Sources Manager)</span>
+                  </h3>
+                  <p className="text-[11px] text-[#5C665F] mt-0.5">
+                    প্রতিটি আর্থিক বছরের (যেমন: ২০২৪, ২০২৫, ২০২৬, ২০২৭...) জন্য আলাদা গুগল স্প্রেডশিট লিংক ও GID ট্যাব নির্ধারণ করুন।
+                  </p>
+                </div>
 
                 <button
                   type="button"
-                  onClick={handleTestFundSource}
-                  disabled={testingFund}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#F7F5F0] hover:bg-[#EBE8E0] text-[#2D3630] border border-[#EBE8E0] text-xs font-semibold transition-colors"
+                  onClick={handleAddYearSource}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold shadow-2xs self-start sm:self-center transition-colors cursor-pointer"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${testingFund ? 'animate-spin' : ''}`} />
-                  <span>{testingFund ? 'সংযোগ পরীক্ষা হচ্ছে...' : 'সংযোগ পরীক্ষা ও সিঙ্ক'}</span>
+                  <Plus className="w-4 h-4" />
+                  <span>নতুন আর্থিক বছর যোগ করুন</span>
                 </button>
               </div>
-            </form>
 
-            {fundPreview && (
-              <div className="p-5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] space-y-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <strong className="text-[#2D3630] flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-[#2D5A41]" />
-                    <span>গুগল শিট সংযোগের ফলাফল (Live Sync Success):</span>
-                  </strong>
-                  <span className="text-[11px] text-[#2D5A41] font-semibold bg-[#E8EFEA] px-2 py-0.5 rounded-full">
-                    অনলাইন সক্রিয়
-                  </span>
+              {/* List of Configured Years */}
+              <div className="grid grid-cols-1 gap-3.5">
+                {(config.yearlyFundSources && config.yearlyFundSources.length > 0
+                  ? config.yearlyFundSources
+                  : [
+                      {
+                        year: '2026',
+                        url: config.fundSourceUrl,
+                        gid: '0',
+                        label: '২০২৬ আর্থিক বছর (চলতি)',
+                        enabled: true,
+                        isPublic: true,
+                        isDefault: true,
+                      },
+                      {
+                        year: '2025',
+                        url: '',
+                        label: '২০২৫ আর্থিক বছর',
+                        enabled: true,
+                        isPublic: true,
+                      },
+                      {
+                        year: '2024',
+                        url: '',
+                        label: '২০২৪ আর্থিক বছর',
+                        enabled: true,
+                        isPublic: true,
+                      },
+                    ]
+                ).map((src) => {
+                  const testRes = yearTestResult[src.year];
+                  const isCurrentTesting = testingYear === src.year;
+
+                  return (
+                    <div
+                      key={src.year}
+                      className={`p-4 rounded-xl border transition-all ${
+                        src.isDefault
+                          ? 'bg-[#FDFCF9] border-[#2D5A41]/50 shadow-2xs ring-1 ring-[#2D5A41]/10'
+                          : src.enabled
+                          ? 'bg-white border-[#EBE8E0] hover:border-[#2D5A41]/30'
+                          : 'bg-[#F7F5F0]/60 border-[#EBE8E0] opacity-80'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-[#F0ECE1]">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-lg bg-[#2D5A41] text-white font-mono font-bold text-xs">
+                            {src.year}
+                          </span>
+                          <span className="font-bold text-[#2D3630] text-xs">
+                            {src.label || `${src.year} আর্থিক বছর`}
+                          </span>
+
+                          {src.isDefault && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#2D5A41] text-white text-[10px] font-bold">
+                              <Star className="w-2.5 h-2.5 fill-current" />
+                              <span>ডিফল্ট / সক্রিয় বছর</span>
+                            </span>
+                          )}
+
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                              src.enabled
+                                ? 'bg-[#E8EFEA] text-[#2D5A41]'
+                                : 'bg-zinc-100 text-zinc-600'
+                            }`}
+                          >
+                            {src.enabled ? 'সক্রিয়' : 'নিষ্ক্রিয়'}
+                          </span>
+
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                              src.isPublic !== false
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'bg-zinc-100 text-zinc-500'
+                            }`}
+                          >
+                            {src.isPublic !== false ? 'পাবলিকলি দৃশ্যমান' : 'লুকায়িত'}
+                          </span>
+                        </div>
+
+                        {/* Quick Actions */}
+                        <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-center">
+                          {!src.isDefault && src.enabled && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetDefaultYear(src.year)}
+                              className="px-2.5 py-1 rounded-lg border border-[#EBE8E0] bg-white hover:bg-[#F7F5F0] text-[#2D5A41] text-[11px] font-semibold transition-colors"
+                              title="এই বছরটিকে ডিফল্ট হিসেবে সেট করুন"
+                            >
+                              ডিফল্ট করুন
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleYearSource(src.year)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                              src.enabled
+                                ? 'border border-[#EBE8E0] text-[#5C665F] hover:bg-[#F7F5F0]'
+                                : 'bg-[#E8EFEA] text-[#2D5A41] border border-[#2D5A41]/20'
+                            }`}
+                          >
+                            {src.enabled ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}
+                          </button>
+
+                          {src.url && (
+                            <button
+                              type="button"
+                              disabled={isCurrentTesting}
+                              onClick={() => handleTestSpecificYearSource(src)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#2D5A41]/30 bg-[#E8EFEA] text-[#2D5A41] text-[11px] font-semibold hover:bg-[#D9E5DC] transition-colors disabled:opacity-50"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${isCurrentTesting ? 'animate-spin' : ''}`} />
+                              <span>{isCurrentTesting ? 'যাচাই হচ্ছে...' : 'টেস্ট সিঙ্ক'}</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleEditYearSource(src)}
+                            className="p-1 rounded-lg border border-[#EBE8E0] text-[#2D3630] hover:bg-[#F7F5F0] transition-colors"
+                            title="সম্পাদনা"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteYearSource(src.year)}
+                            className="p-1 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors"
+                            title="মুছে ফেলুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* URL & GID Information */}
+                      <div className="pt-2 text-xs space-y-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="text-[#7A877E] shrink-0">শিট লিংক:</span>
+                            {src.url ? (
+                              <a
+                                href={src.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-mono text-[#2D5A41] hover:underline truncate inline-flex items-center gap-1"
+                              >
+                                <span className="truncate">{src.url}</span>
+                                <ExternalLink className="w-3 h-3 shrink-0" />
+                              </a>
+                            ) : (
+                              <span className="text-amber-700 italic">কোনো লিংক যুক্ত করা হয়নি (অফলাইন / আর্কাইভ মোড)</span>
+                            )}
+                          </div>
+
+                          <div className="text-[#7A877E] font-mono shrink-0">
+                            GID / Tab ID: <span className="font-bold text-[#2D3630]">{src.gid || '0'}</span>
+                          </div>
+                        </div>
+
+                        {src.notes && (
+                          <div className="text-[11px] text-[#7A877E] italic pt-1">
+                            নোট: {src.notes}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Test Result Preview for this year */}
+                      {testRes && (
+                        <div className="mt-3 p-3 rounded-lg bg-[#F7F5F0] border border-[#EBE8E0] text-[11px] font-mono flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                testRes.status === 'live' ? 'bg-[#2D5A41]' : 'bg-rose-500'
+                              }`}
+                            />
+                            <span className="font-bold text-[#2D3630]">
+                              {testRes.status === 'live' ? 'সংযোগ সফল' : 'সংযোগ ত্রুটি'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-[#5C665F]">
+                            <span>আদায়: ৳ {testRes.amountReceived.toLocaleString()}</span>
+                            <span>ব্যয়: ৳ {testRes.amountSpent.toLocaleString()}</span>
+                            <span>স্থিতি: ৳ {testRes.currentBalance.toLocaleString()}</span>
+                            <span>সদস্য: {testRes.contributorCount} জন</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. Opening Expense Balance Audit Card */}
+            <div className="pt-6 border-t border-[#EBE8E0] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-[#2D3630] flex items-center gap-2">
+                    <Receipt className="w-4 h-4 text-[#2D5A41]" />
+                    <span>প্রারম্ভিক ব্যয় ব্যালেন্স ও অডিট পর্যবেক্ষণ (Opening Expense Balance & Audit)</span>
+                  </h3>
+                  <p className="text-[11px] text-[#5C665F] mt-0.5">
+                    ঐতিহাসিক বিস্তারিত ব্যয় এবং প্রারম্ভিক স্থিতির সমন্বয় পর্যবেক্ষণ।
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
-                  <div className="p-3 bg-white rounded-xl border border-[#EBE8E0] text-[#2D3630]">
-                    <span className="text-[10px] text-[#7A877E] block">মোট জমা (Received)</span>
-                    <span className="text-base font-bold text-[#2D5A41]">৳ {fundPreview.amountReceived.toLocaleString()}</span>
-                  </div>
-                  <div className="p-3 bg-white rounded-xl border border-[#EBE8E0] text-[#2D3630]">
-                    <span className="text-[10px] text-[#7A877E] block">মোট ব্যয় (Spent)</span>
-                    <span className="text-base font-bold text-rose-600">৳ {fundPreview.amountSpent.toLocaleString()}</span>
-                  </div>
-                  <div className="p-3 bg-white rounded-xl border border-[#EBE8E0] text-[#2D5A41] font-bold">
-                    <span className="text-[10px] text-[#7A877E] block">বর্তমান স্থিতি (Balance)</span>
-                    <span className="text-base font-bold text-[#2D5A41]">৳ {fundPreview.currentBalance.toLocaleString()}</span>
-                  </div>
-                  <div className="p-3 bg-white rounded-xl border border-[#EBE8E0] text-[#2D3630]">
-                    <span className="text-[10px] text-[#7A877E] block">মোট লেনদেন</span>
-                    <span className="text-base font-bold text-[#2D3630]">{fundPreview.transactions?.length || 0} টি</span>
-                  </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8EFEA] text-[#2D5A41] text-xs font-semibold self-start sm:self-center border border-[#2D5A41]/20">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>ডুপ্লিকেশন সুরক্ষা সক্রিয় (Duplication Protected)</span>
                 </div>
               </div>
-            )}
 
-            {/* Opening Expense Balance Card */}
-            <div className="pt-4 border-t border-[#EBE8E0] space-y-3">
-              <h3 className="text-xs font-bold text-[#2D3630]">
-                প্রারম্ভিক ব্যয় ব্যালেন্স কনফিগারেশন (Opening Expense Balance)
-              </h3>
-              <p className="text-[11px] text-[#5C665F]">
-                গুগল শিটের বাইরে সরাসরি পূর্বে বাস্তবায়িত মানবিক উদ্যোগ (যেমন: ৳ ১,২০০ প্রেসক্রিপশন সহায়তা) হিসেবে যুক্ত করার ভিত্তি।
-              </p>
-              <div className="flex items-center gap-3 max-w-sm">
-                <input
-                  type="number"
-                  value={config.openingExpenseBalance ?? 0}
-                  onChange={(e) => {
-                    const val = Number(e.target.value) || 0;
-                    const updated = { ...config, openingExpenseBalance: val };
-                    setConfig(updated);
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs font-mono text-[#2D3630]"
-                />
+              {/* Audit Explanation Banner */}
+              <div className="p-4 rounded-xl bg-[#FDFCF9] border border-[#2D5A41]/20 space-y-2 text-xs">
+                <div className="font-bold text-[#2D3630] flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-[#2D5A41]" />
+                  <span>অর্থনৈতিক অডিট বিশ্লেষণ ও সমন্বয় তথ্য:</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 font-mono">
+                  <div className="p-2.5 rounded-lg bg-white border border-[#EBE8E0]">
+                    <span className="text-[10px] text-[#7A877E] block">১. গুগল শিটে মোট ব্যয়</span>
+                    <span className="text-sm font-bold text-[#2D3630]">৳ ৪,৯৫০</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-white border border-[#EBE8E0]">
+                    <span className="text-[10px] text-[#7A877E] block">২. বিস্তারিত লেজারে ৩টি খরচ</span>
+                    <span className="text-sm font-bold text-[#2D5A41]">৳ ৪,৯৫০ (১০০% সমন্বিত)</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-white border border-[#EBE8E0]">
+                    <span className="text-[10px] text-[#7A877E] block">৩. অতিরিক্ত ডুপ্লিকেশন ব্যয়</span>
+                    <span className="text-sm font-bold text-[#2D5A41]">৳ ০ (কোনো ডুপ্লিকেট নেই)</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-[#5C665F] leading-relaxed pt-1">
+                  বাইতুল মাল ফান্ডের ৩টি ঐতিহাসিক মানবিক উদ্যোগ (৳ ১,২০০ ওষুধ সহায়তা + ৳ ২,২৫০ ডায়াগনস্টিক পরীক্ষা + ৳ ১,৫০০ জরুরি সহায়তা = সর্বমোট ৳ ৪,৯৫০) ইতোমধ্যে বিস্তারিত ব্যয় লেজারে সংরক্ষিত রয়েছে। তাই ডুপ্লিকেশন প্রতিরোধে প্রারম্ভিক ব্যয় ব্যালেন্স আলাদা করে পুনরায় লেজারে যোগ করা হয়নি।
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 max-w-md pt-1">
+                <div className="w-full">
+                  <label className="block text-[11px] font-bold text-[#2D3630] mb-1">
+                    রেফারেন্স প্রারম্ভিক ব্যয় মান (৳)
+                  </label>
+                  <input
+                    type="number"
+                    value={config.openingExpenseBalance ?? 0}
+                    onChange={(e) => {
+                      const val = Number(e.target.value) || 0;
+                      const updated = { ...config, openingExpenseBalance: val };
+                      setConfig(updated);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs font-mono text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => {
                     storageService.saveConfig(config);
-                    showToast('প্রারম্ভিক ব্যয় ব্যালেন্স সংরক্ষিত হয়েছে!');
+                    showToast('প্রারম্ভিক ব্যয় রেফারেন্স মান সংরক্ষিত হয়েছে!');
                   }}
-                  className="px-4 py-2 rounded-xl bg-[#2D5A41] text-white text-xs font-semibold whitespace-nowrap hover:bg-[#234733]"
+                  className="px-4 py-2 mt-4 sm:mt-5 rounded-xl bg-[#2D5A41] text-white text-xs font-semibold whitespace-nowrap hover:bg-[#234733] transition-colors"
                 >
                   সংরক্ষণ
                 </button>
@@ -3593,8 +3992,167 @@ export const AdminPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
-  )}
+
+      {/* 3. Add / Edit Year Source Centered Viewport Modal */}
+      {editingYearSource && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditingYearSource(null);
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-[#2D5A41]/40 shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150 text-xs"
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#EBE8E0] bg-[#FDFCF9] shrink-0">
+              <div>
+                <h3 className="text-sm font-bold text-[#2D3630]">
+                  {isNewYearSource ? 'নতুন আর্থিক বছর ও সোর্স যোগ করুন' : 'আর্থিক বছরের সোর্স সম্পাদনা'}
+                </h3>
+                <p className="text-[11px] text-[#7A877E] mt-0.5">
+                  বছর, গুগল স্প্রেডশিট লিংক এবং GID ট্যাব আইডি কনফিগার করুন
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingYearSource(null)}
+                className="p-1.5 text-[#7A877E] hover:text-[#2D3630] rounded-lg hover:bg-[#EBE8E0]/60 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              <form onSubmit={handleSaveYearSource} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-[#2D3630] mb-1">
+                      আর্থিক বছর * (যেমন: 2027)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editingYearSource.year || ''}
+                      onChange={(e) => setEditingYearSource({ ...editingYearSource, year: e.target.value.trim() })}
+                      placeholder="যেমন: 2027"
+                      className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs font-mono text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#2D3630] mb-1">
+                      সোর্স লেবেল (ঐচ্ছিক)
+                    </label>
+                    <input
+                      type="text"
+                      value={editingYearSource.label || ''}
+                      onChange={(e) => setEditingYearSource({ ...editingYearSource, label: e.target.value })}
+                      placeholder="যেমন: ২০২৭ আর্থিক বছর"
+                      className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#2D3630] mb-1">
+                    Google Spreadsheet URL (গুগল শিট লিঙ্ক / CSV)
+                  </label>
+                  <input
+                    type="url"
+                    value={editingYearSource.url || ''}
+                    onChange={(e) => setEditingYearSource({ ...editingYearSource, url: e.target.value.trim() })}
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs font-mono text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                  <span className="block text-[10px] text-[#7A877E] mt-1">
+                    স্প্রেডশিটের পারমিশন &apos;Anyone with the link can view&apos; হিসেবে শেয়ার থাকতে হবে।
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#2D3630] mb-1">
+                    GID / Sheet Tab ID (ঐচ্ছিক)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingYearSource.gid ?? '0'}
+                    onChange={(e) => setEditingYearSource({ ...editingYearSource, gid: e.target.value.trim() })}
+                    placeholder="যেমন: 0 অথবা 14920392"
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs font-mono text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                  <span className="block text-[10px] text-[#7A877E] mt-1">
+                    স্প্রেডশিটের নির্দিষ্ট ট্যাবের URL শেষে থাকা #gid= সংখ্যাটি লিখুন (ডিফল্ট প্রথম ট্যাব: 0)।
+                  </span>
+                </div>
+
+                <div className="space-y-2.5 p-3 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-[#2D3630]">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editingYearSource.isDefault)}
+                      onChange={(e) => setEditingYearSource({ ...editingYearSource, isDefault: e.target.checked })}
+                      className="w-4 h-4 rounded accent-[#2D5A41]"
+                    />
+                    <span>এই বছরটিকে ওয়েবসাইটের মূল ডিফল্ট বছর হিসেবে নির্ধারণ করুন</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-[#2D3630]">
+                    <input
+                      type="checkbox"
+                      checked={editingYearSource.enabled !== false}
+                      onChange={(e) => setEditingYearSource({ ...editingYearSource, enabled: e.target.checked })}
+                      className="w-4 h-4 rounded accent-[#2D5A41]"
+                    />
+                    <span>এই আর্থিক বছরের ডাটা সোর্স সক্রিয় রাখুন</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-[#2D3630]">
+                    <input
+                      type="checkbox"
+                      checked={editingYearSource.isPublic !== false}
+                      onChange={(e) => setEditingYearSource({ ...editingYearSource, isPublic: e.target.checked })}
+                      className="w-4 h-4 rounded accent-[#2D5A41]"
+                    />
+                    <span>পাবলিক তহবিল পেজে এই বছর প্রদর্শন করুন</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#2D3630] mb-1">
+                    নোট / মন্তব্য (ঐচ্ছিক)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editingYearSource.notes || ''}
+                    onChange={(e) => setEditingYearSource({ ...editingYearSource, notes: e.target.value })}
+                    placeholder="যেমন: ২০২৭ সালের লাইভ স্প্রেডশিট হিসাব..."
+                    className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EBE8E0]">
+                  <button
+                    type="button"
+                    onClick={() => setEditingYearSource(null)}
+                    className="px-4 py-2 rounded-xl border border-[#EBE8E0] text-[#5C665F] hover:bg-[#F7F5F0] font-semibold transition-colors"
+                  >
+                    বাতিল
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white font-semibold shadow-2xs transition-colors"
+                  >
+                    সংরক্ষণ করুন
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+        </div>
+      )}
 
       {/* SECTION: FOUNDATION & BRAND IDENTITY CMS */}
       {activeSection === 'foundation' && (

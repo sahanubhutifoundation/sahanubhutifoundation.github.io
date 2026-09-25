@@ -241,14 +241,24 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
           </div>
         </div>
 
-        {/* Discrepancy Note (if Sheet static row differs from active ledger) */}
-        {hasDiscrepancy && (
+        {/* Discrepancy / Reconciliation Audit Note */}
+        {hasDiscrepancy ? (
           <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <span className="font-bold block">অডিট ও সমন্বয় তথ্য:</span>
               <span>
                 গুগল শিটের স্থির সারসংক্ষেপ সেলে মোট ব্যয় ছিল ৳ {sheetSummaryCost.toLocaleString()} এবং ব্যালেন্স ছিল ৳ {sheetSummaryBalance.toLocaleString()}। বর্তমানে আপনার সক্রিয় লেজারে মোট ব্যয় ৳ {totalExpenseAmount.toLocaleString()} হওয়ায় ওয়েবসাইটটি স্বয়ংক্রিয়ভাবে সমন্বিত ব্যালেন্স ৳ {currentAvailableBalance.toLocaleString()} প্রদর্শন করছে।
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="p-3.5 rounded-xl bg-[#E8EFEA] border border-[#2D5A41]/20 text-[#2D5A41] text-xs flex items-start gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-[#2D5A41] shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">ব্যয় লেজার ও অডিট ডুপ্লিকেশন সুরক্ষা সক্রিয়:</span>
+              <span>
+                গুগল শিটের সারসংক্ষেপ ব্যয় (৳ {sheetSummaryCost.toLocaleString()}) এবং বিস্তারিত ব্যয়ের লেজার (৳ {totalExpenseAmount.toLocaleString()}) সম্পূর্ণ মিলে গেছে। ৩টি ঐতিহাসিক মানবিক সহায়তা ব্যয় বিস্তারিত লেজারে ইতোমধ্যে অন্তর্ভুক্ত থাকায় কোনো প্রারম্ভিক ব্যালেন্স ডুপ্লিকেশন ছাড়াই নির্ভুল হিসাব প্রদর্শিত হচ্ছে।
               </span>
             </div>
           </div>
@@ -357,31 +367,40 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
         </div>
       </div>
 
-      {/* 3. Add / Edit Expense Form Modal */}
+      {/* 3. Add / Edit Expense Centered Viewport Modal */}
       {editingExpense && (
         <div
-          id="expense-edit-form"
-          ref={formRef}
-          className="p-6 rounded-2xl bg-white border-2 border-[#2D5A41]/30 shadow-sm space-y-4 text-xs scroll-mt-6"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditingExpense(null);
+          }}
         >
-          <div className="flex items-center justify-between pb-3 border-b border-[#EBE8E0]">
-            <div>
-              <h3 className="text-sm font-bold text-[#2D3630]">
-                {editingExpense.id ? 'ব্যয়ের তথ্য সম্পাদনা' : 'নতুন ব্যয়ের হিসাব যুক্ত করুন'}
-              </h3>
-              <p className="text-[11px] text-[#7A877E] mt-0.5">
-                তারিখ, খাতের বিবরণ, পরিমাণ ও ভাউচারের ছবি প্রদান করুন।
-              </p>
+          <div
+            id="expense-edit-form"
+            ref={formRef}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl border border-[#2D5A41]/40 shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150 text-xs"
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#EBE8E0] bg-[#FDFCF9] shrink-0">
+              <div>
+                <h3 className="text-sm font-bold text-[#2D3630]">
+                  {editingExpense.id ? 'ব্যয়ের তথ্য সম্পাদনা' : 'নতুন ব্যয়ের হিসাব যুক্ত করুন'}
+                </h3>
+                <p className="text-[11px] text-[#7A877E] mt-0.5">
+                  তারিখ, খাতের বিবরণ, পরিমাণ ও ভাউচারের ছবি প্রদান করুন।
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingExpense(null)}
+                className="p-1.5 rounded-lg text-[#7A877E] hover:text-[#2D3630] hover:bg-[#EBE8E0]/60 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button
-              onClick={() => setEditingExpense(null)}
-              className="p-1 rounded-lg text-[#7A877E] hover:text-[#2D3630] hover:bg-[#F7F5F0]"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
 
-          <form onSubmit={handleSaveExpense} className="space-y-4">
+            <div className="p-6 overflow-y-auto flex-1">
+              <form onSubmit={handleSaveExpense} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
                 <label className="block font-bold text-[#2D3630] mb-1">
@@ -586,7 +605,9 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
             </div>
           </form>
         </div>
-      )}
+      </div>
+    </div>
+  )}
 
       {/* 4. Filter & Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">

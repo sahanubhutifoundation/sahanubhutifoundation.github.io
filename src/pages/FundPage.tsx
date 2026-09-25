@@ -52,41 +52,55 @@ export const FundPage: React.FC = () => {
   const [memberFilter, setMemberFilter] = useState<'all' | 'complete' | 'ongoing'>('all');
   const [activeReceiptUrl, setActiveReceiptUrl] = useState<string | null>(null);
 
-  // Available yearly sources from config
+  // Available yearly sources from config (only enabled and public on public page)
   const yearlySources: YearlyFundSource[] = useMemo(() => {
-    if (config.yearlyFundSources && config.yearlyFundSources.length > 0) {
-      return config.yearlyFundSources;
-    }
-    return [
-      {
-        year: '2026',
-        url: config.fundSourceUrl,
-        label: '২০২৬ আর্থিক বছর (চলতি)',
-        enabled: true,
-        isPublic: true,
-      },
-      {
-        year: '2025',
-        url: '',
-        label: '২০২৫ আর্থিক বছর',
-        enabled: true,
-        isPublic: true,
-      },
-      {
-        year: '2024',
-        url: '',
-        label: '২০২৪ আর্থিক বছর',
-        enabled: true,
-        isPublic: true,
-      },
-    ];
+    const list =
+      config.yearlyFundSources && config.yearlyFundSources.length > 0
+        ? config.yearlyFundSources
+        : [
+            {
+              year: '2026',
+              url: config.fundSourceUrl,
+              label: '২০২৬ আর্থিক বছর (চলতি)',
+              enabled: true,
+              isPublic: true,
+              isDefault: true,
+            },
+            {
+              year: '2025',
+              url: '',
+              label: '২০২৫ আর্থিক বছর',
+              enabled: true,
+              isPublic: true,
+            },
+            {
+              year: '2024',
+              url: '',
+              label: '২০২৪ আর্থিক বছর',
+              enabled: true,
+              isPublic: true,
+            },
+          ];
+    return list.filter((s) => s.enabled !== false && s.isPublic !== false);
   }, [config.yearlyFundSources, config.fundSourceUrl]);
 
-  // Selected year state (defaults to '2026' or first enabled year)
-  const [selectedYear, setSelectedYear] = useState<string>(() => {
-    const active = yearlySources.find((s) => s.enabled);
+  // Default year determination
+  const defaultYear = useMemo(() => {
+    const defaultSrc = yearlySources.find((s) => s.isDefault);
+    if (defaultSrc) return defaultSrc.year;
+    const active = yearlySources[0];
     return active ? active.year : '2026';
-  });
+  }, [yearlySources]);
+
+  // Selected year state (defaults to defaultYear)
+  const [selectedYear, setSelectedYear] = useState<string>(() => defaultYear);
+
+  // Sync if selected year is no longer available in configured sources
+  useEffect(() => {
+    if (yearlySources.length > 0 && !yearlySources.some((s) => s.year === selectedYear)) {
+      setSelectedYear(defaultYear);
+    }
+  }, [yearlySources, defaultYear, selectedYear]);
 
   // Current year source configuration
   const currentSource = useMemo(() => {
@@ -105,15 +119,41 @@ export const FundPage: React.FC = () => {
         setVisibility(storageService.getFundVisibility());
         setMembersList(storageService.getMembers());
 
-        const activeYearSource = freshConfig.yearlyFundSources?.find(
-          (s) => s.year === selectedYear
-        );
-        const targetUrl = activeYearSource?.url || (selectedYear === '2026' ? freshConfig.fundSourceUrl : '');
+        const sources = freshConfig.yearlyFundSources || [];
+        const activeYearSource = sources.find((s) => s.year === selectedYear);
+        
+        // Exact target URL & GID configured specifically for this year
+        const targetUrl = activeYearSource?.url?.trim() || '';
+        const explicitGid = activeYearSource?.gid?.trim();
 
-        const res = await fetchFundData(targetUrl, isManual, selectedYear);
+        // If this year has no configured URL, return clean not_found state
+        if (!targetUrl) {
+          const res = await fetchFundData('', isManual, selectedYear);
+          setFundData(res);
+          return;
+        }
+
+        const res = await fetchFundData(targetUrl, isManual, selectedYear, explicitGid);
         setFundData(res);
       } catch (e) {
         console.warn('Fund load error:', e);
+        setFundData({
+          totalFund: 0,
+          amountReceived: 0,
+          amountSpent: 0,
+          currentBalance: 0,
+          contributorCount: 0,
+          yearlyReceived: {},
+          monthlyTotals: {},
+          transactions: [],
+          expenses: [],
+          lastUpdated: new Date().toISOString(),
+          sourceUrl: '',
+          sourceType: 'google_sheet',
+          status: 'error',
+          year: selectedYear,
+          errorMessage: `${selectedYear} আর্থিক বছরের তথ্য লোড করতে সমস্যা হয়েছে।`,
+        });
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -359,9 +399,9 @@ export const FundPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Selected Year Not Found / Source Unavailable Notification */}
+        {/* Selected Year Not Configured Notification */}
         {fundData?.status === 'not_found' && (
-          <div className="p-8 rounded-2xl bg-[#FDFCF9] border border-[#EBE8E0] text-center space-y-3">
+          <div className="p-8 rounded-2xl bg-[#FDFCF9] border border-[#EBE8E0] text-center space-y-3 shadow-2xs">
             <div className="w-12 h-12 rounded-2xl bg-[#F7F5F0] text-[#7A877E] mx-auto flex items-center justify-center">
               <CalendarDays className="w-6 h-6" />
             </div>
@@ -372,33 +412,63 @@ export const FundPage: React.FC = () => {
               এই আর্থিক বছরের জন্য কোনো গুগল স্প্রেডশিট বা ডাটাবেজ লিংক যুক্ত করা হয়নি। প্রশাসনিক
               প্যানেল থেকে লিংক কনফিগার করার পর তথ্য স্বয়ংক্রিয়ভাবে প্রদর্শিত হবে।
             </p>
-            <div className="pt-2">
+            {defaultYear && defaultYear !== selectedYear && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedYear(defaultYear)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2D5A41] text-white text-xs font-semibold hover:bg-[#234733] transition-colors shadow-2xs"
+                >
+                  <span>সক্রিয় {defaultYear} সালের হিসাব দেখুন</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Selected Year Connection Error / Source Unavailable Notification */}
+        {fundData?.status === 'error' && (
+          <div className="p-8 sm:p-10 rounded-2xl bg-[#FDFCF9] border border-amber-200 text-center space-y-4 shadow-2xs">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 mx-auto flex items-center justify-center border border-amber-200">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-[#2D3630]">
+                {selectedYear} আর্থিক বছরের ডাটা সোর্স বর্তমানে অনুপলব্ধ
+              </h3>
+              <p className="text-xs sm:text-sm text-[#7A877E] max-w-lg mx-auto mt-1 leading-relaxed">
+                {fundData.errorMessage || 'গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি। স্প্রেডশিটের শেয়ারিং পারমিশন বা নেটওয়ার্ক সংযোগ যাচাই করুন।'}
+              </p>
+            </div>
+            {currentSource?.url && (
+              <div className="text-[11px] text-[#5C665F] font-mono bg-[#F7F5F0] p-2.5 rounded-xl max-w-md mx-auto truncate border border-[#EBE8E0]">
+                কনফিগার করা সোর্স: {currentSource.url}
+              </div>
+            )}
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
               <button
                 type="button"
-                onClick={() => setSelectedYear('2026')}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2D5A41] text-white text-xs font-semibold hover:bg-[#234733] transition-colors"
+                onClick={() => loadData(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2D5A41] text-white text-xs font-semibold hover:bg-[#234733] transition-colors shadow-2xs"
               >
-                <span>চলতি ২০২৬ সালের হিসাব দেখুন</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                <span>পুনরায় লোড করুন</span>
               </button>
+              {defaultYear && defaultYear !== selectedYear && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedYear(defaultYear)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-[#EBE8E0] text-[#2D3630] text-xs font-semibold hover:bg-[#F7F5F0] transition-colors"
+                >
+                  <span>সক্রিয় {defaultYear} সালের তহবিলে ফিরে যান</span>
+                </button>
+              )}
             </div>
           </div>
         )}
 
-        {/* Temporary connection error notice if error */}
-        {fundData?.status === 'error' && (
-          <div className="p-4 rounded-xl bg-[#FDF2F0] border border-[#F5D5D0] text-[#9E3628] flex items-start gap-3 text-xs sm:text-sm">
-            <AlertCircle className="w-5 h-5 text-[#C25442] shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold block">
-                {language === 'bn' ? 'সংযোগ সংক্রান্ত তথ্য:' : 'Connection note:'}
-              </span>
-              <span>{fundData.errorMessage || t('fundDataUnavailable')}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Core Metric Cards (Based on Google Sheet Real Totals and Visibility Settings) */}
-        {fundData?.status !== 'not_found' && (
+        {/* Core Metric Cards (Rendered ONLY when source is live or verified cached, preventing fake zero values) */}
+        {fundData && (fundData.status === 'live' || fundData.status === 'fallback') && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {/* Card 1: Total Received */}
             {visibility.showTotalReceived !== false && (
@@ -480,9 +550,10 @@ export const FundPage: React.FC = () => {
           </div>
         )}
 
-        {/* Yearly Growth Overview (2024, 2025, 2026) */}
+        {/* Yearly Growth Overview */}
         {visibility.showYearlyOverview !== false &&
-          fundData?.status !== 'not_found' &&
+          fundData &&
+          (fundData.status === 'live' || fundData.status === 'fallback') &&
           fundData?.yearlyReceived &&
           Object.keys(fundData.yearlyReceived).length > 0 && (
             <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
@@ -546,9 +617,10 @@ export const FundPage: React.FC = () => {
             </div>
           )}
 
-        {/* 2026 Monthly Breakdown Grid */}
+        {/* Monthly Breakdown Grid */}
         {visibility.showMonthlyFundDetails !== false &&
-          fundData?.status !== 'not_found' &&
+          fundData &&
+          (fundData.status === 'live' || fundData.status === 'fallback') &&
           fundData?.monthlyTotals &&
           Object.keys(fundData.monthlyTotals).length > 0 && (
             <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
@@ -603,7 +675,8 @@ export const FundPage: React.FC = () => {
 
         {/* Member Monthly Contribution Status Table (REAL SHEET STRUCTURE) */}
         {visibility.showMemberContributionDetails !== false &&
-          fundData?.status !== 'not_found' &&
+          fundData &&
+          (fundData.status === 'live' || fundData.status === 'fallback') &&
           fundData?.memberRecords &&
           fundData.memberRecords.length > 0 && (
             <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
@@ -884,7 +957,9 @@ export const FundPage: React.FC = () => {
         )}
 
         {/* Fund Utilization & Purpose Section */}
-        {visibility.showExpenseRatio !== false && fundData?.status !== 'not_found' && (
+        {visibility.showExpenseRatio !== false &&
+          fundData &&
+          (fundData.status === 'live' || fundData.status === 'fallback') && (
           <div className="p-6 sm:p-8 rounded-2xl bg-[#18231B] text-[#D3DDD5] border border-[#28382C] shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>

@@ -230,6 +230,7 @@ export interface YearlyFundSource {
   label?: string;
   enabled: boolean;
   isPublic: boolean;
+  isDefault?: boolean;
   notes?: string;
 }
 

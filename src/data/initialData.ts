@@ -570,9 +570,11 @@ export const initialConfig: FoundationConfig = {
     {
       year: '2026',
       url: 'https://docs.google.com/spreadsheets/d/1bh2WGcphb2ZTVzyaE9Yo3UHCOe_NkQtzoolS9UPuETg/edit?usp=sharing',
+      gid: '0',
       label: '২০২৬ আর্থিক বছর (চলতি)',
       enabled: true,
       isPublic: true,
+      isDefault: true,
       notes: 'গুগল স্প্রেডশিট থেকে লাইভ বাইতুল মাল হিসাব',
     },
     {

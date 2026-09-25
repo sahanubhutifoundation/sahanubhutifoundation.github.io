@@ -1,8 +1,8 @@
 import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord } from '../types';
 import { storageService } from './storageService';
 
-const CACHE_KEY = 'sf_fund_cache_data_v3';
-const CACHE_TIME_KEY = 'sf_fund_cache_time_v3';
+const CACHE_PREFIX = 'sf_fund_cache_data_v4_';
+const CACHE_TIME_PREFIX = 'sf_fund_cache_time_v4_';
 
 export const MONTH_KEYS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
@@ -24,7 +24,7 @@ export const MONTH_NAMES_BN: Record<string, string> = {
 /**
  * Normalizes any Google Sheet or external data URL into export and fallback URLs
  */
-export function normalizeFundSourceUrl(rawUrl: string): { exportUrl: string; gvizUrl: string } {
+export function normalizeFundSourceUrl(rawUrl: string, explicitGid?: string): { exportUrl: string; gvizUrl: string } {
   if (!rawUrl || !rawUrl.trim()) {
     return { exportUrl: '', gvizUrl: '' };
   }
@@ -34,7 +34,7 @@ export function normalizeFundSourceUrl(rawUrl: string): { exportUrl: string; gvi
   if (sheetMatch && sheetMatch[1]) {
     const sheetId = sheetMatch[1];
     const gidMatch = trimmed.match(/[#&?]gid=([0-9]+)/);
-    const gid = gidMatch ? gidMatch[1] : '0';
+    const gid = explicitGid?.trim() || (gidMatch ? gidMatch[1] : '0');
 
     return {
       exportUrl: `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`,
@@ -479,23 +479,30 @@ function parseGenericTransactions(rows: string[][], rawSourceUrl: string): FundD
 /**
  * Saves successfully loaded fund data in local cache
  */
-function cacheFundData(data: FundData): void {
+function cacheFundData(data: FundData, year?: string): void {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-    localStorage.setItem(CACHE_TIME_KEY, new Date().toISOString());
+    const key = `${CACHE_PREFIX}${year || data.year || 'default'}`;
+    const timeKey = `${CACHE_TIME_PREFIX}${year || data.year || 'default'}`;
+    localStorage.setItem(key, JSON.stringify(data));
+    localStorage.setItem(timeKey, new Date().toISOString());
   } catch (e) {
     console.warn('Could not cache fund data:', e);
   }
 }
 
 /**
- * Gets cached fund data as fallback
+ * Gets cached fund data as fallback for a specific year
  */
-export function getCachedFundData(): FundData | null {
+export function getCachedFundData(year?: string): FundData | null {
   try {
-    const cached = localStorage.getItem(CACHE_KEY);
+    const key = `${CACHE_PREFIX}${year || 'default'}`;
+    const cached = localStorage.getItem(key);
     if (cached) {
       const data = JSON.parse(cached) as FundData;
+      // Guarantee year matches
+      if (year && data.year && data.year !== year) {
+        return null;
+      }
       const dbExpenses = storageService.getExpenses();
       const fundDeductedExpenses = dbExpenses.filter(
         (e) => e.deductionMode !== 'separate' && e.deductionMode !== 'display_only'
@@ -514,6 +521,7 @@ export function getCachedFundData(): FundData | null {
       data.safetyRatio = Math.max(0, 100 - (data.expenseRatio || 0));
       return {
         ...data,
+        year: year || data.year,
         status: 'fallback',
       };
     }
@@ -529,7 +537,8 @@ export function getCachedFundData(): FundData | null {
 export async function fetchFundData(
   rawSourceUrl: string,
   forceFresh = false,
-  selectedYear?: string
+  selectedYear?: string,
+  explicitGid?: string
 ): Promise<FundData> {
   // If the sheet source URL is not configured or empty, return clean 'not_found' status
   if (!rawSourceUrl || !rawSourceUrl.trim()) {
@@ -549,12 +558,12 @@ export async function fetchFundData(
       status: 'not_found',
       year: selectedYear,
       errorMessage: selectedYear
-        ? `${selectedYear} আর্থিক বছরের জন্য গুগল স্প্রেডশিট বা ডাটাবেজ লিংক কনফিগার করা হয়নি।`
+        ? `${selectedYear} আর্থিক বছরের জন্য গুগল স্প্রেডশিট বা ডাটা সোর্স লিংক কনফিগার করা হয়নি।`
         : 'তহবিলের জন্য কোনো গুগল স্প্রেডশিট লিংক কনফিগার করা হয়নি।',
     };
   }
 
-  const { exportUrl: baseExportUrl, gvizUrl: baseGvizUrl } = normalizeFundSourceUrl(rawSourceUrl);
+  const { exportUrl: baseExportUrl, gvizUrl: baseGvizUrl } = normalizeFundSourceUrl(rawSourceUrl, explicitGid);
 
   const exportUrl =
     forceFresh && baseExportUrl
@@ -566,54 +575,27 @@ export async function fetchFundData(
       : baseGvizUrl;
 
   const dbExpenses = storageService.getExpenses();
-  const fundDeductedExpenses = dbExpenses.filter(
-    (e) => e.deductionMode !== 'separate' && e.deductionMode !== 'display_only'
-  );
-  const dbExpenseTotal = fundDeductedExpenses.reduce(
-    (acc, item) => acc + (Number(item.amount) || 0),
-    0
-  );
-  const spent = dbExpenseTotal > 0 ? dbExpenseTotal : 0;
-  const received = 23320;
-  const ratio = received > 0 ? (spent / received) * 100 : 0;
-
-  const emptyFallback: FundData = {
-    totalFund: received,
-    amountReceived: received,
-    amountSpent: spent,
-    currentBalance: received - spent,
-    sheetSummaryCost: 0,
-    sheetSummaryBalance: received - spent,
-    expenseRatio: ratio,
-    safetyRatio: Math.max(0, 100 - ratio),
-    contributorCount: 26,
-    yearlyReceived: { '2024': 1210, '2025': 10120, '2026': 11990 },
-    monthlyTotals: {
-      Jan: 2003,
-      Feb: 1803,
-      Mar: 1653,
-      Apr: 1033,
-      May: 863,
-      Jun: 813,
-      Jul: 663,
-      Aug: 663,
-      Sep: 663,
-      Oct: 663,
-      Nov: 583,
-      Dec: 583,
-    },
-    transactions: [],
-    expenses: dbExpenses,
-    lastUpdated: new Date().toISOString(),
-    sourceUrl: rawSourceUrl,
-    sourceType: 'google_sheet',
-    status: 'fallback',
-    year: selectedYear,
-    errorMessage: 'সার্ভার সংযোগ বিচ্ছিন্ন থাকায় অফলাইন হিসাব প্রদর্শিত হচ্ছে।',
-  };
 
   if (!exportUrl && !gvizUrl) {
-    return emptyFallback;
+    return {
+      totalFund: 0,
+      amountReceived: 0,
+      amountSpent: 0,
+      currentBalance: 0,
+      contributorCount: 0,
+      yearlyReceived: {},
+      monthlyTotals: {},
+      transactions: [],
+      expenses: [],
+      lastUpdated: new Date().toISOString(),
+      sourceUrl: rawSourceUrl,
+      sourceType: 'google_sheet',
+      status: 'error',
+      year: selectedYear,
+      errorMessage: selectedYear
+        ? `${selectedYear} আর্থিক বছরের গুগল স্প্রেডশিট লিংকটি সঠিক নয়।`
+        : 'গুগল স্প্রেডশিট লিংকটি সঠিক নয়।',
+    };
   }
 
   // Attempt 1: Fetch via export URL (Google Sheets export format=csv)
@@ -631,7 +613,7 @@ export async function fetchFundData(
         if (rows.length >= 3) {
           const result = parseFundSheet(rows, rawSourceUrl);
           result.year = selectedYear;
-          cacheFundData(result);
+          cacheFundData(result, selectedYear);
           return result;
         }
       }
@@ -655,7 +637,7 @@ export async function fetchFundData(
         if (rows.length >= 3) {
           const result = parseFundSheet(rows, rawSourceUrl);
           result.year = selectedYear;
-          cacheFundData(result);
+          cacheFundData(result, selectedYear);
           return result;
         }
       }
@@ -664,8 +646,8 @@ export async function fetchFundData(
     console.warn('Fallback gviz fetch failed...', err);
   }
 
-  // Attempt 3: If network fails, serve previously cached verified data
-  const cached = getCachedFundData();
+  // Attempt 3: If network fails, serve previously cached verified data FOR THIS SPECIFIC YEAR
+  const cached = getCachedFundData(selectedYear);
   if (cached) {
     return {
       ...cached,
@@ -675,5 +657,24 @@ export async function fetchFundData(
     };
   }
 
-  return emptyFallback;
+  // Clear source-unavailable state (NEVER substitute another year's data or fake static numbers!)
+  return {
+    totalFund: 0,
+    amountReceived: 0,
+    amountSpent: 0,
+    currentBalance: 0,
+    contributorCount: 0,
+    yearlyReceived: {},
+    monthlyTotals: {},
+    transactions: [],
+    expenses: [],
+    lastUpdated: new Date().toISOString(),
+    sourceUrl: rawSourceUrl,
+    sourceType: 'google_sheet',
+    status: 'error',
+    year: selectedYear,
+    errorMessage: selectedYear
+      ? `${selectedYear} আর্থিক বছরের গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা যায়নি। অনুগ্রহ করে স্প্রেডশিটের শেয়ারিং পারমিশন (Anyone with the link can view) এবং নেটওয়ার্ক সংযোগ যাচাই করুন।`
+      : 'গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি। স্প্রেডশিটের শেয়ারিং পারমিশন যাচাই করুন।',
+  };
 }

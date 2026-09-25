@@ -110,6 +110,9 @@ export const storageService = {
       openingExpenseBalance: typeof saved.openingExpenseBalance === 'number'
         ? saved.openingExpenseBalance
         : initialConfig.openingExpenseBalance,
+      yearlyFundSources: Array.isArray(saved.yearlyFundSources) && saved.yearlyFundSources.length > 0
+        ? saved.yearlyFundSources
+        : initialConfig.yearlyFundSources,
     };
   },
 
