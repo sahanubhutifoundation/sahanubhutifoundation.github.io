@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { PageHero } from '../components/PageHero';
 import { ActivityFallbackCover } from '../components/ActivityFallbackCover';
 import { storageService } from '../services/storageService';
-import { Activity } from '../types';
+import { Activity, ExpenseRecord } from '../types';
 import { 
   Calendar, 
   Tag, 
@@ -27,10 +27,18 @@ export const ActivityDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { t, tMulti, isRTL, language } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const [activity, setActivity] = useState<Activity | null>(null);
   const [prevActivity, setPrevActivity] = useState<Activity | null>(null);
   const [nextActivity, setNextActivity] = useState<Activity | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const linkedExpenses = useMemo(() => {
+    if (!activity) return [];
+    return storageService.getExpenses().filter(
+      (e) => (e.activityId === activity.id || e.linkedActivityId === activity.id || (activity.linkedExpenseId && e.id === activity.linkedExpenseId))
+    );
+  }, [activity]);
 
   useEffect(() => {
     const list = storageService.getActivities().filter((a) => a.isPublished);
@@ -104,13 +112,23 @@ export const ActivityDetailPage: React.FC = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         {/* Navigation & Meta Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#EBE8E0]">
-          <Link
-            to="/activities"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5C665F] hover:text-[#2D5A41] transition-colors group self-start"
-          >
-            <ArrowLeft className={`w-4 h-4 transition-transform group-hover:-translate-x-1 ${isRTL ? 'rotate-180 group-hover:translate-x-1' : ''}`} />
-            <span>সকল কার্যক্রমে ফিরে যান</span>
-          </Link>
+          {location.state?.fromFund ? (
+            <Link
+              to={location.state?.selectedYear ? `/fund?year=${location.state.selectedYear}` : '/fund'}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2D5A41] hover:text-[#234733] transition-colors group self-start px-3 py-1.5 rounded-lg bg-[#E8EFEA] hover:bg-[#D9E5DC] border border-[#2D5A41]/20 shadow-3xs"
+            >
+              <ArrowLeft className={`w-4 h-4 transition-transform group-hover:-translate-x-1 ${isRTL ? 'rotate-180 group-hover:translate-x-1' : ''}`} />
+              <span>তহবিল বিবরণীতে ফিরে যান ({location.state?.selectedYear || 'ফান্ড'})</span>
+            </Link>
+          ) : (
+            <Link
+              to="/activities"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5C665F] hover:text-[#2D5A41] transition-colors group self-start"
+            >
+              <ArrowLeft className={`w-4 h-4 transition-transform group-hover:-translate-x-1 ${isRTL ? 'rotate-180 group-hover:translate-x-1' : ''}`} />
+              <span>সকল কার্যক্রমে ফিরে যান</span>
+            </Link>
+          )}
 
           <div className="flex items-center gap-2.5 flex-wrap">
             {activity.category && (
@@ -223,29 +241,50 @@ export const ActivityDetailPage: React.FC = () => {
         </article>
 
         {/* Financial Transparency Link / Record if linked */}
-        {(activity.financialRecord || activity.linkedExpenseId) && (
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-3xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-[#E8EFEA] text-[#2D5A41] shrink-0">
-                <Wallet className="w-5 h-5" />
+        {(linkedExpenses.length > 0 || activity.financialRecord || activity.linkedExpenseId) && (
+          <div className="p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-3xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[#EBE8E0]">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-[#E8EFEA] text-[#2D5A41] shrink-0">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-[#2D3630]">
+                    তহবিল ও ব্যয় স্বচ্ছতা রেকর্ড (Financial Transparency)
+                  </h4>
+                  <p className="text-[11px] text-[#7A877E] mt-0.5">
+                    এই কার্যক্রমের যাবতীয় ব্যয় ভাউচার ও নিরীক্ষিত অডিট রেকর্ড কেন্দ্রীয় তহবিলের ব্যয়ের লেজারে অন্তর্ভুক্ত।
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-[#2D3630]">
-                  তহবিল ও ব্যয় স্বচ্ছতা রেকর্ড
-                </h4>
-                <p className="text-[11px] text-[#7A877E] mt-0.5">
-                  এই কার্যক্রমের যাবতীয় ব্যয় ভাউচার ও নিরীক্ষিত অডিট রেকর্ড ওপেন ট্রেইল লেজারে অন্তর্ভুক্ত।
-                </p>
-              </div>
+
+              <Link
+                to={location.state?.selectedYear ? `/fund?year=${location.state.selectedYear}` : '/fund'}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#2D5A41] text-[#2D5A41] hover:bg-[#E8EFEA] text-xs font-bold transition-colors shrink-0 self-start sm:self-auto"
+              >
+                <span>তহবিল বিবরণী দেখুন</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </Link>
             </div>
 
-            <Link
-              to="/transparency"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#2D5A41] text-[#2D5A41] hover:bg-[#E8EFEA] text-xs font-bold transition-colors shrink-0 self-start sm:self-auto"
-            >
-              <span>ব্যয় বিবরণী দেখুন</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </Link>
+            {linkedExpenses.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-[#5C665F]">সংযুক্ত অনুমোদিত ব্যয় (Canonical Ledger Records):</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {linkedExpenses.map((exp) => (
+                    <div key={exp.id} className="p-3 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] flex items-center justify-between text-xs">
+                      <div>
+                        <span className="font-bold text-[#2D3630] block">{typeof exp.title === 'string' ? exp.title : (exp.title as any)?.bn || ''}</span>
+                        <span className="text-[10px] text-[#7A877E]">{exp.date}</span>
+                      </div>
+                      <span className="font-mono font-bold text-rose-600 bg-white px-2 py-0.5 rounded-md border border-[#EBE8E0]">
+                        -৳ {Number(exp.amount).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

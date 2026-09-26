@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { PageHero } from '../components/PageHero';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -40,6 +40,7 @@ import {
 
 export const FundPage: React.FC = () => {
   const { t, language } = useLanguage();
+  const location = useLocation();
   const [config, setConfig] = useState(storageService.getConfig());
   const [visibility, setVisibility] = useState<FundVisibilitySettings>(
     storageService.getFundVisibility()
@@ -92,8 +93,27 @@ export const FundPage: React.FC = () => {
     return active ? active.year : '2026';
   }, [yearlySources]);
 
-  // Selected year state (defaults to defaultYear)
-  const [selectedYear, setSelectedYear] = useState<string>(() => defaultYear);
+  // Selected year state (defaults to defaultYear, URL param, or localStorage)
+  const [selectedYear, setSelectedYear] = useState<string>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlYear = urlParams.get('year');
+      if (urlYear && yearlySources.some((s) => s.year === urlYear)) return urlYear;
+      const cachedYear = localStorage.getItem('sf_fund_last_selected_year');
+      if (cachedYear && yearlySources.some((s) => s.year === cachedYear)) return cachedYear;
+    } catch {}
+    return defaultYear;
+  });
+
+  const handleSelectYear = (yr: string) => {
+    setSelectedYear(yr);
+    try {
+      localStorage.setItem('sf_fund_last_selected_year', yr);
+      const url = new URL(window.location.href);
+      url.searchParams.set('year', yr);
+      window.history.replaceState(null, '', url.toString());
+    } catch {}
+  };
 
   // Sync if selected year is no longer available in configured sources
   useEffect(() => {
@@ -101,6 +121,17 @@ export const FundPage: React.FC = () => {
       setSelectedYear(defaultYear);
     }
   }, [yearlySources, defaultYear, selectedYear]);
+
+  // Synchronize when navigating back or when URL query / location state changes
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const yrFromUrl = urlParams.get('year');
+    const yrFromState = (location.state as any)?.selectedYear;
+    const targetYr = yrFromUrl || yrFromState;
+    if (targetYr && yearlySources.some((s) => s.year === targetYr) && targetYr !== selectedYear) {
+      setSelectedYear(targetYr);
+    }
+  }, [location.search, location.state, yearlySources, selectedYear]);
 
   // Current year source configuration
   const currentSource = useMemo(() => {
@@ -325,7 +356,7 @@ export const FundPage: React.FC = () => {
                 <button
                   key={source.year}
                   type="button"
-                  onClick={() => setSelectedYear(source.year)}
+                  onClick={() => handleSelectYear(source.year)}
                   className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
                     selectedYear === source.year
                       ? 'bg-white text-[#2D5A41] shadow-2xs font-bold'
@@ -902,6 +933,18 @@ export const FundPage: React.FC = () => {
                           <span className="text-[10px] text-[#2D5A41] font-medium block mt-0.5">
                             গ্রহীতা: {getLocalizedValue(exp.recipient, language)}
                           </span>
+                        )}
+                        {(exp.activityId || exp.linkedActivityId) && (
+                          <div className="mt-1.5">
+                            <Link
+                              to={`/activities/${exp.activityId || exp.linkedActivityId}`}
+                              state={{ fromFund: true, selectedYear }}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#E8EFEA] hover:bg-[#D9E5DC] text-[#2D5A41] hover:text-[#234733] text-[11px] font-semibold border border-[#2D5A41]/20 transition-colors group shadow-3xs"
+                            >
+                              <ExternalLink className="w-3 h-3 group-hover:scale-110 transition-transform" />
+                              <span>সম্পর্কিত কার্যক্রম দেখুন</span>
+                            </Link>
+                          </div>
                         )}
                       </td>
 

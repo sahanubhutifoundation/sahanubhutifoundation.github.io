@@ -504,9 +504,47 @@ export interface FoundationConfig {
   fundExpenseHeadings?: FundExpenseHeadings;
   fundMemberLinkSettings?: FundMemberLinkSettings;
   contactPageConfig?: ContactPageConfig;
+  footerAppearance?: FooterAppearanceSettings;
+  homeSectionsAppearance?: HomeSectionsAppearanceConfig;
   customTranslations?: {
     [key: string]: MultilingualText;
   };
+}
+
+export interface FooterAppearanceSettings {
+  bgType?: 'solid' | 'image';
+  bgColor?: string;
+  bgImageUrl?: string;
+  bgPosition?: 'center' | 'top' | 'bottom';
+  bgFit?: 'cover' | 'contain' | 'auto';
+  overlayStrength?: number; // 0 to 100
+  textColor?: string;
+  secondaryTextColor?: string;
+  borderColor?: string;
+}
+
+export interface HomeSectionAppearance {
+  bgType?: 'default' | 'solid' | 'image';
+  bgColor?: string;
+  bgImageUrl?: string;
+  bgPosition?: 'center' | 'top' | 'bottom';
+  bgFit?: 'cover' | 'contain' | 'auto';
+  overlayStrength?: number; // 0 to 100
+  cardBgColor?: string;
+  borderColor?: string;
+  borderRadius?: 'none' | 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl';
+  shadowStyle?: 'none' | 'xs' | 'sm' | 'md' | 'lg';
+  textColor?: string;
+}
+
+export interface HomeSectionsAppearanceConfig {
+  hero?: HomeSectionAppearance;
+  about?: HomeSectionAppearance;
+  fund?: HomeSectionAppearance;
+  activities?: HomeSectionAppearance;
+  members?: HomeSectionAppearance;
+  notices?: HomeSectionAppearance;
+  cta?: HomeSectionAppearance;
 }
 
 export interface AdminUser {

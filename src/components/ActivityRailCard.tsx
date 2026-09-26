@@ -133,7 +133,7 @@ export const ActivityRailCard: React.FC<ActivityRailCardProps> = ({
         <div className="px-4 sm:px-5 pb-4 pt-3 border-t border-[#EBE8E0]/70 flex items-center justify-between mt-auto">
           <Link
             to={detailUrl}
-            className="text-xs font-bold text-[#2D5A41] hover:text-[#234733] inline-flex items-center gap-1.5 focus:outline-hidden focus:ring-1 focus:ring-[#2D5A41] rounded py-0.5"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#E8EFEA] hover:bg-[#2D5A41] text-[#2D5A41] hover:text-white text-xs font-semibold border border-[#2D5A41]/20 transition-all shadow-3xs active:scale-98 group"
           >
             <span>{ctaLabel}</span>
             <ArrowRight

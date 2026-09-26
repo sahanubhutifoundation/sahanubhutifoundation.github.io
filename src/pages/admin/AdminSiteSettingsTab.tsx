@@ -36,6 +36,7 @@ import {
   MultilingualText,
   LogoOverrides,
   FooterVisibilitySettings,
+  FooterAppearanceSettings,
   ContactPageConfig,
   AboutValueCard,
   AboutFutureCard,
@@ -139,6 +140,17 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
     setFormData({
       ...formData,
       footerVisibility: {
+        ...current,
+        [key]: val,
+      },
+    });
+  };
+
+  const updateFooterAppearance = (key: keyof FooterAppearanceSettings, val: any) => {
+    const current = formData.footerAppearance || {};
+    setFormData({
+      ...formData,
+      footerAppearance: {
         ...current,
         [key]: val,
       },
@@ -2134,6 +2146,276 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                   </label>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Footer Visual Appearance Controls */}
+          <div className="pt-5 border-t border-[#EBE8E0] space-y-4">
+            <div>
+              <h4 className="font-bold text-[#2D3630] text-sm flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-[#2D5A41]" />
+                <span>ফুটার ভিজ্যুয়াল ও থিম কন্ট্রোল (Footer Visual Appearance)</span>
+              </h4>
+              <p className="text-[11px] text-[#7A877E] mt-0.5">
+                ফুটারের ব্যাকগ্রাউন্ড কালার, ব্যাকগ্রাউন্ড ছবি, ওভারলে স্বচ্ছতা, টেক্সট কালার ও বর্ডার স্টাইল এখান থেকে সরাসরি কাস্টমাইজ করুন।
+              </p>
+            </div>
+
+            {/* Background Mode Toggle */}
+            <div className="p-4 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] space-y-3">
+              <span className="block font-bold text-[#2D3630]">ব্যাকগ্রাউন্ড ধরন (Background Mode):</span>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-[#2D3630]">
+                  <input
+                    type="radio"
+                    name="footerBgType"
+                    value="solid"
+                    checked={formData.footerAppearance?.bgType !== 'image'}
+                    onChange={() => updateFooterAppearance('bgType', 'solid')}
+                    className="w-4 h-4 accent-[#2D5A41]"
+                  />
+                  <span>সলিড ব্যাকগ্রাউন্ড কালার (Solid Color)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-[#2D3630]">
+                  <input
+                    type="radio"
+                    name="footerBgType"
+                    value="image"
+                    checked={formData.footerAppearance?.bgType === 'image'}
+                    onChange={() => updateFooterAppearance('bgType', 'image')}
+                    className="w-4 h-4 accent-[#2D5A41]"
+                  />
+                  <span>কাস্টম ব্যাকগ্রাউন্ড ছবি (Image Background)</span>
+                </label>
+              </div>
+
+              {/* Background Color Picker & Hex Input */}
+              <div className="pt-2">
+                <label className="block font-semibold text-[#2D3630] mb-1">
+                  ফুটার মূল ব্যাকগ্রাউন্ড কালার
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={formData.footerAppearance?.bgColor || '#18231B'}
+                    onChange={(e) => updateFooterAppearance('bgColor', e.target.value)}
+                    className="w-10 h-10 rounded-lg cursor-pointer border border-[#EBE8E0] p-1 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={formData.footerAppearance?.bgColor || '#18231B'}
+                    onChange={(e) => updateFooterAppearance('bgColor', e.target.value)}
+                    placeholder="#18231B"
+                    className="w-32 px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] font-mono text-xs focus:outline-hidden focus:border-[#2D5A41]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => updateFooterAppearance('bgColor', '#18231B')}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] text-[11px] text-[#5C665F] hover:bg-white"
+                  >
+                    ডিফল্ট ডার্ক গ্রিন
+                  </button>
+                </div>
+              </div>
+
+              {/* Background Image Upload & Config (shown when image mode selected) */}
+              {formData.footerAppearance?.bgType === 'image' && (
+                <div className="p-3.5 rounded-xl bg-white border border-[#EBE8E0] space-y-3 mt-3 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[#2D3630]">ফুটার ব্যাকগ্রাউন্ড ছবি নির্বাচন:</span>
+                    {formData.footerAppearance?.bgImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateFooterAppearance('bgImageUrl', '');
+                          updateFooterAppearance('bgType', 'solid');
+                        }}
+                        className="text-xs text-rose-600 hover:text-rose-800 font-semibold"
+                      >
+                        ছবি মুছে সলিড কালারে ফিরুন
+                      </button>
+                    )}
+                  </div>
+
+                  <MediaUploadField
+                    label="ফুটার ব্যাকগ্রাউন্ড ছবি আপলোড"
+                    value={formData.footerAppearance?.bgImageUrl || ''}
+                    onChange={(url) => updateFooterAppearance('bgImageUrl', url)}
+                    helperText="উচ্চমানের ল্যান্ডস্কেপ বা প্যাটার্ন ছবি (JPG, PNG, WebP)"
+                    bucket="foundation"
+                  />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#EBE8E0]">
+                    <div>
+                      <label className="block font-semibold text-[#2D3630] mb-1">ইমেজ পজিশন</label>
+                      <select
+                        value={formData.footerAppearance?.bgPosition || 'center'}
+                        onChange={(e) => updateFooterAppearance('bgPosition', e.target.value as any)}
+                        className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630]"
+                      >
+                        <option value="center">সেন্টার (Center)</option>
+                        <option value="top">টপ (Top)</option>
+                        <option value="bottom">বটম (Bottom)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-[#2D3630] mb-1">ফিট বিহেভিয়ার</label>
+                      <select
+                        value={formData.footerAppearance?.bgFit || 'cover'}
+                        onChange={(e) => updateFooterAppearance('bgFit', e.target.value as any)}
+                        className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630]"
+                      >
+                        <option value="cover">সম্পূর্ণ কভার (Cover)</option>
+                        <option value="contain">কন্টেইন (Contain)</option>
+                        <option value="auto">আসল সাইজ (Auto)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-semibold text-[#2D3630]">ওভারলে তীব্রতা</label>
+                        <span className="font-mono text-xs text-[#2D5A41] font-bold">
+                          {formData.footerAppearance?.overlayStrength ?? 70}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={formData.footerAppearance?.overlayStrength ?? 70}
+                        onChange={(e) => updateFooterAppearance('overlayStrength', Number(e.target.value))}
+                        className="w-full accent-[#2D5A41] cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Typography & Border Colors */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+              <div>
+                <label className="block font-semibold text-[#2D3630] mb-1">
+                  মূল টেক্সট কালার (Primary Text)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={formData.footerAppearance?.textColor || '#D3DDD5'}
+                    onChange={(e) => updateFooterAppearance('textColor', e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer border border-[#EBE8E0] p-0.5 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={formData.footerAppearance?.textColor || '#D3DDD5'}
+                    onChange={(e) => updateFooterAppearance('textColor', e.target.value)}
+                    placeholder="#D3DDD5"
+                    className="w-24 px-2 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-[#2D3630] mb-1">
+                  সেকেন্ডারি টেক্সট কালার (Muted)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={formData.footerAppearance?.secondaryTextColor || '#8A9B8F'}
+                    onChange={(e) => updateFooterAppearance('secondaryTextColor', e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer border border-[#EBE8E0] p-0.5 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={formData.footerAppearance?.secondaryTextColor || '#8A9B8F'}
+                    onChange={(e) => updateFooterAppearance('secondaryTextColor', e.target.value)}
+                    placeholder="#8A9B8F"
+                    className="w-24 px-2 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-[#2D3630] mb-1">
+                  টপ বর্ডার ও ডিভাইডার কালার
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={formData.footerAppearance?.borderColor || '#28382C'}
+                    onChange={(e) => updateFooterAppearance('borderColor', e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer border border-[#EBE8E0] p-0.5 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={formData.footerAppearance?.borderColor || '#28382C'}
+                    onChange={(e) => updateFooterAppearance('borderColor', e.target.value)}
+                    placeholder="#28382C"
+                    className="w-24 px-2 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] font-mono text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Real-time Footer Appearance Preview Box */}
+            <div className="rounded-2xl border border-[#EBE8E0] overflow-hidden shadow-xs">
+              <div className="px-4 py-2 bg-[#FDFCF9] border-b border-[#EBE8E0] text-[11px] font-bold text-[#5C665F] flex items-center justify-between">
+                <span>লাইভ প্রিভিউ (Footer Appearance Preview)</span>
+                <span className="text-[10px] text-[#A4B3A8]">রিয়েল-টাইম রেন্ডার</span>
+              </div>
+              <div
+                style={{
+                  backgroundColor: formData.footerAppearance?.bgColor || '#18231B',
+                  color: formData.footerAppearance?.textColor || '#D3DDD5',
+                  borderTopColor: formData.footerAppearance?.borderColor || '#28382C',
+                }}
+                className="p-6 relative border-t overflow-hidden"
+              >
+                {formData.footerAppearance?.bgType === 'image' && formData.footerAppearance?.bgImageUrl && (
+                  <>
+                    <div
+                      className="absolute inset-0 pointer-events-none"
+                      style={{
+                        backgroundImage: `url(${formData.footerAppearance.bgImageUrl})`,
+                        backgroundPosition: formData.footerAppearance.bgPosition || 'center',
+                        backgroundSize: formData.footerAppearance.bgFit || 'cover',
+                        backgroundRepeat: 'no-repeat',
+                      }}
+                    />
+                    <div
+                      className="absolute inset-0 pointer-events-none"
+                      style={{
+                        backgroundColor: formData.footerAppearance?.bgColor || '#18231B',
+                        opacity: (formData.footerAppearance?.overlayStrength ?? 70) / 100,
+                      }}
+                    />
+                  </>
+                )}
+                <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1 text-center sm:text-left">
+                    <span className="font-bold text-sm block">
+                      {formData.nameBn || 'সহানুভূতি ফাউন্ডেশন'}
+                    </span>
+                    <span
+                      style={{ color: formData.footerAppearance?.secondaryTextColor || '#8A9B8F' }}
+                      className="text-xs block"
+                    >
+                      {formData.footerDescription?.bn || 'একটি অরাজনৈতিক, অলাভজনক ও পারিবারিক কল্যাণ তহবিল'}
+                    </span>
+                  </div>
+                  <div
+                    style={{ borderColor: formData.footerAppearance?.borderColor || '#28382C' }}
+                    className="border-t sm:border-t-0 sm:border-l sm:pl-4 pt-2 sm:pt-0 text-[11px]"
+                  >
+                    <span style={{ color: formData.footerAppearance?.secondaryTextColor || '#8A9B8F' }}>
+                      {formData.footerCopyright?.bn || `© ${new Date().getFullYear()} ${formData.nameBn}`}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

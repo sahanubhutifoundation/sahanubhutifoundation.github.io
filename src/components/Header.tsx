@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { Logo } from './Logo';
 import { Language } from '../types';
 import { storageService } from '../services/storageService';
-import { Menu, X, Globe, HeartHandshake } from 'lucide-react';
+import { Menu, X, Globe, HeartHandshake, Home } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const { language, setLanguage, t, tMulti, isRTL } = useLanguage();
@@ -12,9 +12,18 @@ export const Header: React.FC = () => {
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isAdminHash, setIsAdminHash] = useState(() => window.location.hash.startsWith('#admin'));
   const lastScrollY = useRef(0);
   const location = useLocation();
   const config = storageService.getConfig();
+
+  useEffect(() => {
+    const handleHash = () => setIsAdminHash(window.location.hash.startsWith('#admin'));
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
+  const isAdminRoute = location.pathname === '/admin' || isAdminHash;
 
   // Scroll detection: hide on scroll down, show on scroll up, show full at top
   useEffect(() => {
@@ -95,30 +104,37 @@ export const Header: React.FC = () => {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  `px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 relative ${
-                    isActive
-                      ? 'text-[#2D5A41] font-semibold bg-[#E8EFEA] shadow-2xs'
-                      : 'text-[#5C665F] hover:text-[#2D3630] hover:bg-[#F1EDE4]/60'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <span>{item.label}</span>
-                    {isActive && (
-                      <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-[#2D5A41] rounded-full" />
-                    )}
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </nav>
+          {isAdminRoute ? (
+            <div className="hidden lg:flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#E8EFEA] border border-[#2D5A41]/20 text-[#2D5A41] text-xs font-bold">
+              <span className="w-2 h-2 rounded-full bg-[#2D5A41] animate-pulse" />
+              <span>অ্যাডমিন ম্যানেজমেন্ট প্যানেল</span>
+            </div>
+          ) : (
+            <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    `px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 relative ${
+                      isActive
+                        ? 'text-[#2D5A41] font-semibold bg-[#E8EFEA] shadow-2xs'
+                        : 'text-[#5C665F] hover:text-[#2D3630] hover:bg-[#F1EDE4]/60'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span>{item.label}</span>
+                      {isActive && (
+                        <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-[#2D5A41] rounded-full" />
+                      )}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+          )}
 
           {/* Right Area: Language Switcher & Quick CTA */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -173,14 +189,28 @@ export const Header: React.FC = () => {
             )}
 
             {/* Quick Action Button for Desktop */}
-            {config.showHeaderCta !== false && (
+            {isAdminRoute ? (
               <Link
-                to={config.headerCtaLink || '/contact'}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#2D5A41] hover:bg-[#234733] shadow-xs hover:shadow-sm transition-all active:scale-98"
+                to="/"
+                onClick={() => {
+                  window.location.hash = '';
+                }}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#2D5A41] bg-[#E8EFEA] hover:bg-[#D9E5DC] border border-[#2D5A41]/20 shadow-xs transition-all active:scale-98"
+                title="মূল ওয়েবসাইট দেখুন"
               >
-                <HeartHandshake className="w-3.5 h-3.5" />
-                <span>{tMulti(config.headerCtaText) || t('heroCtaContact')}</span>
+                <Home className="w-3.5 h-3.5" />
+                <span>মূল ওয়েবসাইট</span>
               </Link>
+            ) : (
+              config.showHeaderCta !== false && (
+                <Link
+                  to={config.headerCtaLink || '/contact'}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#2D5A41] hover:bg-[#234733] shadow-xs hover:shadow-sm transition-all active:scale-98"
+                >
+                  <HeartHandshake className="w-3.5 h-3.5" />
+                  <span>{tMulti(config.headerCtaText) || t('heroCtaContact')}</span>
+                </Link>
+              )
             )}
 
             {/* Mobile Menu Button */}
@@ -199,24 +229,44 @@ export const Header: React.FC = () => {
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
         <div className="lg:hidden max-w-7xl mx-auto px-3 sm:px-6 mt-1 animate-in slide-in-from-top-2 duration-150">
-          <div className="rounded-2xl border border-[#EBE8E0]/90 bg-[#FDFCF9]/95 backdrop-blur-xl shadow-lg p-4 space-y-1">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.to;
-              return (
+          <div className="rounded-2xl border border-[#EBE8E0]/90 bg-[#FDFCF9]/95 backdrop-blur-xl shadow-lg p-4 space-y-2">
+            {isAdminRoute ? (
+              <div className="space-y-2 p-1">
+                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#E8EFEA] text-[#2D5A41] text-xs font-bold border border-[#2D5A41]/20">
+                  <span className="w-2 h-2 rounded-full bg-[#2D5A41] animate-pulse" />
+                  <span>অ্যাডমিন ম্যানেজমেন্ট সেন্টারে আছেন</span>
+                </div>
                 <Link
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`block px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-[#E8EFEA] text-[#2D5A41] font-bold border border-[#2D5A41]/20'
-                      : 'text-[#2D3630] hover:bg-[#F7F5F0]'
-                  }`}
+                  to="/"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    window.location.hash = '';
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold text-white bg-[#2D5A41] hover:bg-[#234733] transition-colors"
                 >
-                  {item.label}
+                  <Home className="w-4 h-4" />
+                  <span>মূল ওয়েবসাইটে ফিরে যান</span>
                 </Link>
-              );
-            })}
+              </div>
+            ) : (
+              navItems.map((item) => {
+                const isActive = location.pathname === item.to;
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`block px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-[#E8EFEA] text-[#2D5A41] font-bold border border-[#2D5A41]/20'
+                        : 'text-[#2D3630] hover:bg-[#F7F5F0]'
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })
+            )}
 
             {/* Mobile Language Switcher bar */}
             <div className="pt-4 mt-3 border-t border-[#EBE8E0]">

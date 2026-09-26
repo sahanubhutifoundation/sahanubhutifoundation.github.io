@@ -472,8 +472,10 @@ export const HomePage: React.FC = () => {
           ? (config.homeActivitiesWideDesktopCols || 5)
           : (config.homeActivitiesDesktopCols || 4);
 
-        const activityGapPx = isMobile ? 16 : 20;
-        const activityFlexBasis = `calc((100% - ${(activityCardsPerView - 1) * activityGapPx}px) / ${activityCardsPerView})`;
+        const activityGapPx = isMobile ? 14 : 20;
+        const activityFlexBasis = isMobile
+          ? 'calc(84vw - 20px)'
+          : `calc((100% - ${(activityCardsPerView - 1) * activityGapPx}px) / ${activityCardsPerView})`;
         const activityCardStyle: React.CSSProperties = {
           flex: `0 0 ${activityFlexBasis}`,
           width: activityFlexBasis,
@@ -549,7 +551,7 @@ export const HomePage: React.FC = () => {
             {activities.length > 0 ? (
               <div
                 ref={activitiesRailRef}
-                className="flex items-stretch overflow-x-auto scroll-smooth snap-x snap-mandatory gap-4 sm:gap-5 pb-3 scrollbar-none touch-pan-x"
+                className="flex items-stretch overflow-x-auto scroll-smooth snap-x snap-mandatory gap-3.5 sm:gap-5 pb-3 scrollbar-none overscroll-x-contain touch-auto px-1"
                 style={{
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none',
@@ -604,7 +606,7 @@ export const HomePage: React.FC = () => {
             {config.homeShowViewAllMembers !== false && (
               <Link
                 to="/members"
-                className="text-xs sm:text-sm font-semibold text-[#2D5A41] hover:text-[#234733] inline-flex items-center gap-1 group"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#E8EFEA] hover:bg-[#D9E5DC] text-[#2D5A41] hover:text-[#234733] text-xs font-bold border border-[#2D5A41]/20 shadow-3xs transition-all active:scale-98 group"
               >
                 <span>{config.homeViewAllMembersLabel ? tMulti(config.homeViewAllMembersLabel) : t('viewAll')}</span>
                 <ArrowRight className={`w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform ${isRTL ? 'rotate-180 group-hover:-translate-x-0.5' : ''}`} />
@@ -772,9 +774,10 @@ export const HomePage: React.FC = () => {
               </div>
               <Link
                 to="/notice"
-                className="text-xs sm:text-sm font-semibold text-[#2D5A41] hover:underline"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-[#F7F5F0] text-[#2D5A41] hover:text-[#234733] text-xs font-bold border border-[#EBE8E0] shadow-3xs transition-all active:scale-98 group"
               >
-                {t('viewAll')}
+                <span>{t('viewAll')}</span>
+                <ArrowRight className={`w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform ${isRTL ? 'rotate-180 group-hover:-translate-x-0.5' : ''}`} />
               </Link>
             </div>
 

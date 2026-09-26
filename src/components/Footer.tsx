@@ -30,27 +30,76 @@ export const Footer: React.FC = () => {
   const footerDesc = tMulti(config.footerDescription) || t('footerAboutText');
   const footerCopy = tMulti(config.footerCopyright) || `© ${currentYear} ${config.nameEn} (${config.nameBn})। ${t('allRightsReserved')}`;
 
+  const app = config.footerAppearance || {};
+  const hasBgImage = app.bgType === 'image' && Boolean(app.bgImageUrl);
+  const bgColor = app.bgColor || '#18231B';
+  const textColor = app.textColor || '#D3DDD5';
+  const secondaryColor = app.secondaryTextColor || '#8A9B8F';
+  const borderColor = app.borderColor || '#28382C';
+  const overlayStrength = (app.overlayStrength ?? 70) / 100;
+
   return (
-    <footer className="bg-[#18231B] text-[#D3DDD5] border-t border-[#28382C] pt-12 pb-8 sm:pt-16 sm:pb-12 text-sm relative overflow-hidden">
-      {/* Subtle background ambient warmth */}
-      <div
-        className="absolute top-0 right-1/4 w-72 h-72 rounded-full bg-[#2D5A41]/15 blur-3xl pointer-events-none"
-        aria-hidden="true"
-      />
-      <div
-        className="absolute bottom-0 left-1/4 w-72 h-72 rounded-full bg-[#3D4C40]/20 blur-3xl pointer-events-none"
-        aria-hidden="true"
-      />
+    <footer
+      style={{
+        backgroundColor: bgColor,
+        color: textColor,
+        borderTopColor: borderColor,
+      }}
+      className="border-t pt-12 pb-8 sm:pt-16 sm:pb-12 text-sm relative overflow-hidden"
+    >
+      {/* Background Image layer if configured */}
+      {hasBgImage && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url(${app.bgImageUrl})`,
+            backgroundPosition: app.bgPosition || 'center',
+            backgroundSize: app.bgFit || 'cover',
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
+      )}
+
+      {/* Contrast Overlay if Background Image active */}
+      {hasBgImage && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundColor: bgColor,
+            opacity: overlayStrength,
+          }}
+        />
+      )}
+
+      {/* Subtle background ambient warmth for solid mode */}
+      {!hasBgImage && (
+        <>
+          <div
+            className="absolute top-0 right-1/4 w-72 h-72 rounded-full bg-[#2D5A41]/15 blur-3xl pointer-events-none"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute bottom-0 left-1/4 w-72 h-72 rounded-full bg-[#3D4C40]/20 blur-3xl pointer-events-none"
+            aria-hidden="true"
+          />
+        </>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12 pb-12 border-b border-[#28382C]">
+        <div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12 pb-12 border-b"
+          style={{ borderColor }}
+        >
           {/* Col 1: Foundation Info & Logo */}
           {showDesc && (
             <div className="space-y-4">
               <Link to="/" className="inline-block">
                 <Logo variant="dark" size="md" location="footer" />
               </Link>
-              <p className="text-xs sm:text-sm text-[#8A9B8F] leading-relaxed max-w-sm">
+              <p
+                className="text-xs sm:text-sm leading-relaxed max-w-sm"
+                style={{ color: secondaryColor }}
+              >
                 {footerDesc}
               </p>
               {vis.showSocial !== false && (
@@ -240,7 +289,10 @@ export const Footer: React.FC = () => {
 
         {/* Bottom bar with copyright & subtle admin link */}
         {showCopyright && (
-          <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#6A7B70]">
+          <div
+            className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs"
+            style={{ color: secondaryColor }}
+          >
             <div>{footerCopy}</div>
             <div className="flex items-center gap-4">
               <Link

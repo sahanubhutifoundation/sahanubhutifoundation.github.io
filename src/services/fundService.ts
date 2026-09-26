@@ -127,7 +127,7 @@ export function parseNumber(val: any): number {
 /**
  * Parses the actual Google Sheet structure of Sahanubhuti Foundation
  */
-function parseFundSheet(rows: string[][], rawSourceUrl: string): FundData {
+function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: string): FundData {
   let headerRowIndex = -1;
   const colMap: Record<string, number> = {};
 
@@ -167,7 +167,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string): FundData {
   let totalReceived = 0;
   let totalCost = 0;
   let availableBalance = 0;
-  const activeYear = 2026;
+  const activeYear = selectedYear ? parseInt(selectedYear) || 2026 : 2026;
 
   for (let r = headerRowIndex + 1; r < rows.length; r++) {
     const rawRow = rows[r];
@@ -322,9 +322,10 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string): FundData {
     }
   }
 
-  // Calculate 2026 total if not explicit
-  if (!yearlyReceived['2026'] && Object.keys(monthlyTotals).length > 0) {
-    yearlyReceived['2026'] = Object.values(monthlyTotals).reduce((a, b) => a + b, 0);
+  // Calculate selected year total if not explicit
+  const targetYearKey = selectedYear || '2026';
+  if (!yearlyReceived[targetYearKey] && Object.keys(monthlyTotals).length > 0) {
+    yearlyReceived[targetYearKey] = Object.values(monthlyTotals).reduce((a, b) => a + b, 0);
   }
 
   // Calculate grand total received if not explicit
@@ -611,7 +612,7 @@ export async function fetchFundData(
       if (text && text.length > 50) {
         const rows = parseCSV(text);
         if (rows.length >= 3) {
-          const result = parseFundSheet(rows, rawSourceUrl);
+          const result = parseFundSheet(rows, rawSourceUrl, selectedYear);
           result.year = selectedYear;
           cacheFundData(result, selectedYear);
           return result;
@@ -635,7 +636,7 @@ export async function fetchFundData(
       if (text && text.length > 50) {
         const rows = parseCSV(text);
         if (rows.length >= 3) {
-          const result = parseFundSheet(rows, rawSourceUrl);
+          const result = parseFundSheet(rows, rawSourceUrl, selectedYear);
           result.year = selectedYear;
           cacheFundData(result, selectedYear);
           return result;

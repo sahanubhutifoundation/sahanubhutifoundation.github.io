@@ -20,8 +20,9 @@ import {
   User,
   FileSpreadsheet,
   Loader2,
+  ExternalLink,
 } from 'lucide-react';
-import { ExpenseRecord, FundVisibilitySettings, FundData } from '../../types';
+import { ExpenseRecord, FundVisibilitySettings, FundData, Activity } from '../../types';
 import { storageService } from '../../services/storageService';
 import { MediaUploadField } from '../../components/MediaUploadField';
 import { getLocalizedValue, normalizeExpense } from '../../utils/foundationHelpers';
@@ -58,7 +59,12 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [previewReceiptUrl, setPreviewReceiptUrl] = useState<string | null>(null);
+  const [activitiesList, setActivitiesList] = useState<Activity[]>([]);
   const formRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setActivitiesList(storageService.getActivities());
+  }, []);
 
   // Financial calculations
   const totalExpenseAmount = expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
@@ -121,7 +127,8 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
       isVerified: editingExpense.isVerified !== false,
       deductionMode: editingExpense.deductionMode || 'deduct',
       fundingSource: editingExpense.fundingSource || 'foundation_fund',
-      linkedActivityId: editingExpense.linkedActivityId || '',
+      activityId: editingExpense.activityId || editingExpense.linkedActivityId || undefined,
+      linkedActivityId: editingExpense.activityId || editingExpense.linkedActivityId || undefined,
       year: editingExpense.year || (editingExpense.date ? editingExpense.date.split('-')[0] : '2026'),
       createdAt: editingExpense.createdAt || new Date().toISOString(),
     };
@@ -575,6 +582,55 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
               bucket="receipts"
             />
 
+            {/* Optional Link to Activity */}
+            <div className="p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block font-bold text-[#2D3630]">
+                  কার্যক্রমের সাথে যুক্ত করুন (Link to Activity) — ঐচ্ছিক
+                </label>
+                {(editingExpense.activityId || editingExpense.linkedActivityId) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingExpense({
+                        ...editingExpense,
+                        activityId: undefined,
+                        linkedActivityId: undefined,
+                      })
+                    }
+                    className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
+                  >
+                    লিংক মুছে ফেলুন (Unlink)
+                  </button>
+                )}
+              </div>
+              <select
+                value={editingExpense.activityId || editingExpense.linkedActivityId || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEditingExpense({
+                    ...editingExpense,
+                    activityId: val || undefined,
+                    linkedActivityId: val || undefined,
+                  });
+                }}
+                className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+              >
+                <option value="">-- কোনো কার্যক্রমের সাথে যুক্ত নয় (None) --</option>
+                {activitiesList.map((act) => {
+                  const actTitle = getLocalizedValue(act.title, 'bn') || 'শিরোনামহীন কার্যক্রম';
+                  return (
+                    <option key={act.id} value={act.id}>
+                      {actTitle} {act.date ? `(${act.date})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+              <span className="text-[10px] text-[#7A877E] block">
+                এই ব্যয়ের সাথে সম্পর্কিত নির্দিষ্ট কোনো কার্যক্রম (ইভেন্ট / সহায়তা পোস্ট) নির্বাচন করলে পাবলিক ফান্ড পেজে সরাসরি কার্যক্রমের লিংক দৃশ্যমান হবে।
+              </span>
+            </div>
+
             <div>
               <label className="block font-bold text-[#2D3630] mb-1">বিস্তারিত বিবরণ / নোট (ঐচ্ছিক)</label>
               <textarea
@@ -671,6 +727,17 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
                           {getLocalizedValue(exp.description, 'bn')}
                         </p>
                       )}
+                      {(exp.activityId || exp.linkedActivityId) && (() => {
+                        const actId = exp.activityId || exp.linkedActivityId;
+                        const act = activitiesList.find((a) => a.id === actId);
+                        const actTitle = act ? getLocalizedValue(act.title, 'bn') : actId;
+                        return (
+                          <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-[#E8EFEA] text-[#2D5A41] text-[10px] font-semibold">
+                            <ExternalLink className="w-2.5 h-2.5" />
+                            <span>কার্যক্রম: {actTitle}</span>
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     <td className="py-3 px-4 whitespace-nowrap">
