@@ -15,7 +15,19 @@ export const Header: React.FC = () => {
   const [isAdminHash, setIsAdminHash] = useState(() => window.location.hash.startsWith('#admin'));
   const lastScrollY = useRef(0);
   const location = useLocation();
-  const config = storageService.getConfig();
+  const [config, setConfig] = useState(() => storageService.getConfig());
+
+  useEffect(() => {
+    const handleUpdate = () => setConfig(storageService.getConfig());
+    window.addEventListener('sf_config_updated', handleUpdate);
+    window.addEventListener('sf_data_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('sf_config_updated', handleUpdate);
+      window.removeEventListener('sf_data_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     const handleHash = () => setIsAdminHash(window.location.hash.startsWith('#admin'));

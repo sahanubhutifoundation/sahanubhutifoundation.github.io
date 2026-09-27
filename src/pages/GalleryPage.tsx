@@ -16,16 +16,45 @@ export const GalleryPage: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [activeItem, setActiveItem] = useState<GalleryItem | null>(null);
 
-  useEffect(() => {
+  const loadMediaItems = () => {
     // Strictly image-only: safely filter out any legacy video records
-    const galleryItems = storageService
+    const rawGalleryItems = storageService
       .getGalleryItems()
       .filter((g) => g.isPublished && g.type !== 'video' && (g.url || g.mediaUrl));
 
-    // Also include published activities where showOnMediaPage is true
-    const activitiesWithMedia = storageService
-      .getActivities()
-      .filter((a) => a.isPublished && a.showOnMediaPage && a.coverImage)
+    const allActivities = storageService.getActivities();
+
+    // Process stored gallery items: if linked to an activity, validate against current activity state
+    const validGalleryItems: GalleryItem[] = [];
+    const seenActivityIds = new Set<string>();
+
+    for (const item of rawGalleryItems) {
+      if (item.activityId) {
+        const act = allActivities.find((a) => a.id === item.activityId);
+        // If linked activity was deleted, unpublished, or showOnMediaPage turned off, omit gracefully
+        if (!act || !act.isPublished || !act.showOnMediaPage || !act.coverImage) {
+          continue;
+        }
+        // Always reflect latest activity title, date, and cover image (if renamed or updated)
+        validGalleryItems.push({
+          ...item,
+          title: act.title,
+          url: act.coverImage || item.url,
+          mediaUrl: act.coverImage || item.mediaUrl,
+          thumbnailUrl: act.coverImage || item.thumbnailUrl,
+          date: act.date || item.date,
+          year: act.date ? act.date.split('-')[0] : item.year,
+          category: act.category || item.category || 'কার্যক্রম',
+        });
+        seenActivityIds.add(act.id);
+      } else {
+        validGalleryItems.push(item);
+      }
+    }
+
+    // Also include any published activities where showOnMediaPage is true that aren't yet in gallery items
+    const activitiesWithMedia = allActivities
+      .filter((a) => a.isPublished && a.showOnMediaPage && a.coverImage && !seenActivityIds.has(a.id))
       .map((a) => ({
         id: `gal-act-${a.id}`,
         title: a.title,
@@ -40,15 +69,30 @@ export const GalleryPage: React.FC = () => {
         isPublished: true,
       }));
 
-    const combined = [...galleryItems];
-    activitiesWithMedia.forEach((actItem) => {
-      const alreadyExists = combined.some((g) => g.activityId === actItem.activityId || g.id === actItem.id);
-      if (!alreadyExists) {
-        combined.push(actItem as GalleryItem);
-      }
+    const combined = [...validGalleryItems, ...(activitiesWithMedia as GalleryItem[])];
+
+    // Sort by date descending (newest first)
+    combined.sort((a, b) => {
+      const dateA = a.date || (a.year ? `${a.year}-01-01` : '');
+      const dateB = b.date || (b.year ? `${b.year}-01-01` : '');
+      return dateB.localeCompare(dateA);
     });
 
     setItems(combined);
+  };
+
+  useEffect(() => {
+    loadMediaItems();
+
+    const handleUpdate = () => loadMediaItems();
+    window.addEventListener('sf_data_updated', handleUpdate);
+    window.addEventListener('sf_cloud_synced', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('sf_data_updated', handleUpdate);
+      window.removeEventListener('sf_cloud_synced', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, []);
 
   const categories = ['all', ...Array.from(new Set(items.map((i) => i.category).filter(Boolean)))];

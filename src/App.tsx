@@ -21,6 +21,42 @@ import { AdminPage } from './pages/admin/AdminPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { storageService } from './services/storageService';
 import { supabaseService } from './services/supabaseService';
+import { syncBrowserIdentity } from './utils/browserIdentity';
+
+/**
+ * Synchronizes browser tab title, favicon, apple-touch-icon, and Open Graph tags
+ * with the canonical Foundation config and current route.
+ */
+const BrowserIdentitySync: React.FC = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    let pageTitle = '';
+    const path = location.pathname;
+    if (path.startsWith('/about')) pageTitle = 'আমাদের সম্পর্কে';
+    else if (path.startsWith('/activities')) pageTitle = 'কার্যক্রম';
+    else if (path.startsWith('/members')) pageTitle = 'সদস্যবৃন্দ';
+    else if (path.startsWith('/fund')) pageTitle = 'তহবিল ও হিসাব';
+    else if (path.startsWith('/gallery')) pageTitle = 'মিডিয়া ও গ্যালারি';
+    else if (path.startsWith('/notice')) pageTitle = 'নোটিশ বোর্ড';
+    else if (path.startsWith('/contact')) pageTitle = 'যোগাযোগ';
+    else if (path.startsWith('/admin')) pageTitle = 'অ্যাডমিন প্যানেল';
+
+    syncBrowserIdentity(pageTitle);
+
+    const handleUpdate = () => syncBrowserIdentity(pageTitle);
+    window.addEventListener('sf_config_updated', handleUpdate);
+    window.addEventListener('sf_data_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('sf_config_updated', handleUpdate);
+      window.removeEventListener('sf_data_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [location.pathname]);
+
+  return null;
+};
 
 /**
  * Listens for hash-based admin routing: /#adminfoundation
@@ -86,6 +122,7 @@ export function App() {
     <LanguageProvider>
       <BrowserRouter>
         <ScrollToTop />
+        <BrowserIdentitySync />
         <HashRouteListener>
           <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-slate-800 selection:bg-orange-100 selection:text-orange-900 font-sans">
             <Header />

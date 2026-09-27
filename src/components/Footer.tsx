@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { Logo } from './Logo';
@@ -17,7 +17,19 @@ import {
 
 export const Footer: React.FC = () => {
   const { t, tMulti, language } = useLanguage();
-  const config = storageService.getConfig();
+  const [config, setConfig] = useState(() => storageService.getConfig());
+
+  useEffect(() => {
+    const handleUpdate = () => setConfig(storageService.getConfig());
+    window.addEventListener('sf_config_updated', handleUpdate);
+    window.addEventListener('sf_data_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('sf_config_updated', handleUpdate);
+      window.removeEventListener('sf_data_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
 
   const currentYear = new Date().getFullYear();
   const vis = config.footerVisibility || {};

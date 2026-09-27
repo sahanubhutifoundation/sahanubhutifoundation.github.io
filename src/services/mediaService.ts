@@ -123,10 +123,20 @@ export const mediaService = {
       if (supabaseService.isAvailable()) {
         try {
           const targetBucket = options?.bucket || (isVideo ? 'gallery' : 'gallery');
-          const cloudUrl = await supabaseService.uploadMedia(file, targetBucket);
-          if (cloudUrl) {
-            returnUrl = cloudUrl;
-            // Clean up old replaced media file to prevent orphaned storage objects
+          const uploadRes = await supabaseService.uploadMediaDetailed(file, targetBucket);
+          if (!uploadRes.success) {
+            // Strictly catch storage full, permission denied, or oversized files:
+            // Safely stop upload, keep existing media unchanged, and return informative error message.
+            if (uploadRes.code === 'STORAGE_FULL' || uploadRes.code === 'PERMISSION_DENIED' || uploadRes.code === 'FILE_TOO_LARGE') {
+              return {
+                success: false,
+                error: uploadRes.error,
+              };
+            }
+            // Other transient failures fallback to high-quality compressed local cache
+          } else if (uploadRes.url) {
+            returnUrl = uploadRes.url;
+            // Clean up old replaced media file ONLY AFTER replacement upload has successfully completed
             if (
               options?.previousUrl &&
               !options.previousUrl.startsWith('/assets/') &&

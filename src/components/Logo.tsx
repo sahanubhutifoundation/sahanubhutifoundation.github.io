@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { storageService } from '../services/storageService';
 
@@ -18,7 +18,20 @@ export const Logo: React.FC<LogoProps> = ({
   location,
 }) => {
   const { language } = useLanguage();
-  const config = storageService.getConfig();
+  const [config, setConfig] = useState(() => storageService.getConfig());
+
+  useEffect(() => {
+    const handleUpdate = () => setConfig(storageService.getConfig());
+    window.addEventListener('sf_config_updated', handleUpdate);
+    window.addEventListener('sf_data_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('sf_config_updated', handleUpdate);
+      window.removeEventListener('sf_data_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
   const isDark = variant === 'dark';
 
   const defaultLogo = isDark ? '/assets/logo-white.svg' : '/assets/logo.svg';

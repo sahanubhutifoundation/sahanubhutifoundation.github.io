@@ -884,6 +884,7 @@ export const supabaseService = {
         beneficiaries: typeof row.beneficiaries === 'object' && row.beneficiaries !== null ? row.beneficiaries : undefined,
         outcomes: typeof row.outcomes === 'object' && row.outcomes !== null ? row.outcomes : undefined,
         showShortSummaryInDetail: Boolean(row.show_short_summary_in_detail),
+        showOnMediaPage: Boolean(row.show_on_media_page ?? row.showOnMediaPage),
         date: row.date,
         category: row.category || 'humanitarian',
         coverImage: row.cover_image || row.image,
@@ -921,6 +922,8 @@ export const supabaseService = {
         image: a.coverImage || (a.images && a.images[0]) || null,
         images: a.images || [],
         gallery_images: a.galleryImages || [],
+        show_on_media_page: Boolean(a.showOnMediaPage),
+        show_short_summary_in_detail: Boolean(a.showShortSummaryInDetail),
         is_published: a.isPublished !== false,
         created_at: a.createdAt || now,
         updated_at: now,
@@ -928,10 +931,18 @@ export const supabaseService = {
 
       let { error } = await supabase.from('activities').upsert(payload, { onConflict: 'id' });
 
-      // Schema mismatch progressive fallback for missing columns (e.g. cover_image, gallery_images)
+      // Schema mismatch progressive fallback for missing columns (e.g. cover_image, gallery_images, show_on_media_page)
       while (error && (error.message?.includes('column') || error.code === 'PGRST204' || (error as any).code === '42703')) {
         const errMsg = error.message.toLowerCase();
         let stripped = false;
+        if (errMsg.includes('show_on_media_page') && 'show_on_media_page' in payload) {
+          delete payload.show_on_media_page;
+          stripped = true;
+        }
+        if (errMsg.includes('show_short_summary_in_detail') && 'show_short_summary_in_detail' in payload) {
+          delete payload.show_short_summary_in_detail;
+          stripped = true;
+        }
         if (errMsg.includes('cover_image') && 'cover_image' in payload) {
           delete payload.cover_image;
           stripped = true;
@@ -1936,19 +1947,24 @@ export const supabaseService = {
   // --------------------------------------------------------------------------
   // 10. MEDIA STORAGE UPLOAD & MANAGEMENT
   // --------------------------------------------------------------------------
-  async uploadMedia(
+  async uploadMediaDetailed(
     file: File,
     bucketName: string = 'gallery',
     folder: string = ''
-  ): Promise<string | null> {
+  ): Promise<{ success: boolean; url?: string; error?: string; code?: string }> {
     const supabase = getSupabase();
-    if (!supabase) return null;
+    if (!supabase) {
+      return { success: false, error: 'সেন্ট্রাল ডাটাবেজ সংযোগ সক্রিয় নেই।' };
+    }
 
-    // Safety checks for file size (5MB for images/receipts, 10MB for documents/gallery)
     const maxSizeBytes = bucketName === 'gallery' || bucketName === 'notices' ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
     if (file.size > maxSizeBytes) {
-      console.warn(`File size ${file.size} exceeds maximum ${maxSizeBytes} bytes for bucket ${bucketName}`);
-      return null;
+      const mb = Math.round(maxSizeBytes / (1024 * 1024));
+      return {
+        success: false,
+        code: 'FILE_TOO_LARGE',
+        error: `ফাইলের আকার অতিরিক্ত বড়। অনুগ্রহ করে সর্বোচ্চ ${mb} MB সাইজের ফাইল নির্বাচন করুন।`,
+      };
     }
 
     try {
@@ -1962,16 +1978,61 @@ export const supabaseService = {
       });
 
       if (error) {
-        console.warn('Storage upload error (will fallback):', error.message);
-        return null;
+        const msg = (error.message || '').toLowerCase();
+        if (msg.includes('quota') || msg.includes('storage limit') || msg.includes('payload too large') || (error as any).statusCode === '413') {
+          return {
+            success: false,
+            code: 'STORAGE_FULL',
+            error: 'স্টোরেজে পর্যাপ্ত জায়গা নেই। অন্য ফাইল ব্যবহার করুন বা স্টোরেজ সীমা পরীক্ষা করুন।',
+          };
+        }
+        if (msg.includes('permission') || msg.includes('unauthorized') || msg.includes('policy') || (error as any).statusCode === '403') {
+          return {
+            success: false,
+            code: 'PERMISSION_DENIED',
+            error: 'স্টোরেজে ফাইল আপলোড করার অনুমতি নেই (Permission Denied)।',
+          };
+        }
+        if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch')) {
+          return {
+            success: false,
+            code: 'NETWORK_ERROR',
+            error: 'নেটওয়ার্ক ত্রুটির কারণে ফাইল আপলোড করা যায়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।',
+          };
+        }
+        return {
+          success: false,
+          code: 'UPLOAD_ERROR',
+          error: error.message || 'স্টোরেজে ফাইল আপলোড ব্যর্থ হয়েছে।',
+        };
       }
 
       const { data } = supabase.storage.from(bucketName).getPublicUrl(filePath);
-      return data?.publicUrl || null;
-    } catch (e) {
-      console.warn('Storage upload exception:', e);
-      return null;
+      return { success: true, url: data?.publicUrl || undefined };
+    } catch (e: any) {
+      const errStr = String(e?.message || e).toLowerCase();
+      if (errStr.includes('network') || errStr.includes('fetch')) {
+        return {
+          success: false,
+          code: 'NETWORK_ERROR',
+          error: 'নেটওয়ার্ক ত্রুটির কারণে ফাইল আপলোড করা যায়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।',
+        };
+      }
+      return {
+        success: false,
+        code: 'EXCEPTION',
+        error: e?.message || 'ফাইল আপলোডের সময় ত্রুটি ঘটেছে।',
+      };
     }
+  },
+
+  async uploadMedia(
+    file: File,
+    bucketName: string = 'gallery',
+    folder: string = ''
+  ): Promise<string | null> {
+    const res = await this.uploadMediaDetailed(file, bucketName, folder);
+    return res.success && res.url ? res.url : null;
   },
 
   async deleteMedia(urlOrPath: string, bucketName: string = 'gallery'): Promise<boolean> {
