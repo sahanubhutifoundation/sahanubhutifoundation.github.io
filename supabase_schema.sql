@@ -106,6 +106,8 @@ CREATE TABLE IF NOT EXISTS public.activities (
   category TEXT DEFAULT 'humanitarian',
   image TEXT,
   cover_image TEXT,
+  show_on_media_page BOOLEAN DEFAULT false,
+  show_short_summary_in_detail BOOLEAN DEFAULT false,
   is_published BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
@@ -123,6 +125,7 @@ ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS location JSONB;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS beneficiaries JSONB;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS outcomes JSONB;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_short_summary_in_detail BOOLEAN DEFAULT false;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_on_media_page BOOLEAN DEFAULT false;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS gallery_images JSONB DEFAULT '[]'::jsonb;

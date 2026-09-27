@@ -932,11 +932,13 @@ export const supabaseService = {
       let { error } = await supabase.from('activities').upsert(payload, { onConflict: 'id' });
 
       // Schema mismatch progressive fallback for missing columns (e.g. cover_image, gallery_images, show_on_media_page)
+      let strippedShowOnMedia = false;
       while (error && (error.message?.includes('column') || error.code === 'PGRST204' || (error as any).code === '42703')) {
         const errMsg = error.message.toLowerCase();
         let stripped = false;
         if (errMsg.includes('show_on_media_page') && 'show_on_media_page' in payload) {
           delete payload.show_on_media_page;
+          strippedShowOnMedia = true;
           stripped = true;
         }
         if (errMsg.includes('show_short_summary_in_detail') && 'show_short_summary_in_detail' in payload) {
@@ -966,6 +968,9 @@ export const supabaseService = {
         if (!stripped) {
           const missingCol = extractMissingColumn(error.message);
           if (missingCol && missingCol in payload) {
+            if (missingCol === 'show_on_media_page') {
+              strippedShowOnMedia = true;
+            }
             delete payload[missingCol];
             stripped = true;
           } else {
@@ -985,6 +990,16 @@ export const supabaseService = {
         };
       }
 
+      // If show_on_media_page was stripped due to schema mismatch, surface a controlled Admin error
+      if (strippedShowOnMedia) {
+        return {
+          success: false,
+          error: 'ডাটাবেজে "show_on_media_page" কলামটি বিদ্যমান নেই (Schema Mismatch)। অনুগ্রহ করে Supabase-এ কলামটি যুক্ত করুন: ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_on_media_page BOOLEAN DEFAULT false;',
+          code: 'SCHEMA_MISMATCH_SHOW_ON_MEDIA_PAGE',
+          details: 'Column show_on_media_page missing in activities table',
+        };
+      }
+
       const { data: verified, error: verifyErr } = await supabase
         .from('activities')
         .select('*')
@@ -996,6 +1011,28 @@ export const supabaseService = {
           success: false,
           error: 'কার্যক্রম সংরক্ষণ যাচাইকরণ ব্যর্থ হয়েছে।',
           details: verifyErr?.message,
+        };
+      }
+
+      // Explicit verification: verified database row must contain the expected show_on_media_page column
+      if (verified.show_on_media_page === undefined && verified.showOnMediaPage === undefined) {
+        return {
+          success: false,
+          error: 'ডাটাবেজে "show_on_media_page" কলামটি পাওয়া যায়নি। অনুগ্রহ করে SQL স্কিমায় ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_on_media_page BOOLEAN DEFAULT false; যুক্ত করুন।',
+          code: 'SCHEMA_MISMATCH_SHOW_ON_MEDIA_PAGE',
+          details: 'Database did not return show_on_media_page column',
+        };
+      }
+
+      const verifiedShowOnMedia = verified.show_on_media_page !== undefined
+        ? Boolean(verified.show_on_media_page)
+        : Boolean(verified.showOnMediaPage);
+
+      if (verifiedShowOnMedia !== Boolean(a.showOnMediaPage)) {
+        return {
+          success: false,
+          error: `ডাটাবেজ ভেরিফিকেশন অমিল: টগল মান ${Boolean(a.showOnMediaPage)} চাওয়া হয়েছিল কিন্তু ডাটাবেজ থেকে পাওয়া গেছে ${verifiedShowOnMedia}।`,
+          code: 'VERIFICATION_MISMATCH',
         };
       }
 
@@ -1025,6 +1062,12 @@ export const supabaseService = {
         fullDescription: typeof verified.description === 'object' && verified.description !== null
           ? verified.description
           : { bn: verified.description || '', en: verified.description || '', ar: verified.description || '' },
+        purpose: typeof verified.purpose === 'object' && verified.purpose !== null ? verified.purpose : a.purpose,
+        location: typeof verified.location === 'object' && verified.location !== null ? verified.location : a.location,
+        beneficiaries: typeof verified.beneficiaries === 'object' && verified.beneficiaries !== null ? verified.beneficiaries : a.beneficiaries,
+        outcomes: typeof verified.outcomes === 'object' && verified.outcomes !== null ? verified.outcomes : a.outcomes,
+        showShortSummaryInDetail: Boolean(verified.show_short_summary_in_detail ?? verified.showShortSummaryInDetail),
+        showOnMediaPage: verifiedShowOnMedia,
         date: verified.date,
         category: verified.category || 'humanitarian',
         coverImage: verified.cover_image || verified.image || undefined,
@@ -1032,6 +1075,7 @@ export const supabaseService = {
         galleryImages: Array.isArray(verified.gallery_images) ? verified.gallery_images : [],
         isPublished: verified.is_published !== false,
         createdAt: verified.created_at || now,
+        updatedAt: verified.updated_at || now,
       };
 
       return {

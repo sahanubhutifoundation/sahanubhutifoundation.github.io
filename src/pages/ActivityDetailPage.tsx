@@ -163,13 +163,14 @@ export const ActivityDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Cover Image */}
-        <div className="rounded-2xl overflow-hidden shadow-sm border border-[#EBE8E0] bg-[#F7F5F0] max-h-[460px] relative">
+        {/* Cover Image - Preserves Complete Original Aspect Ratio Without Cropping */}
+        <div className="rounded-2xl overflow-hidden shadow-sm border border-[#EBE8E0] bg-[#1E2621]/5 flex items-center justify-center">
           {activity.coverImage ? (
             <img
               src={activity.coverImage}
               alt={tMulti(activity.title)}
-              className="w-full h-full object-cover max-h-[460px]"
+              className="w-full h-auto max-h-[640px] object-contain mx-auto block rounded-2xl"
+              loading="eager"
             />
           ) : (
             <div className="h-64 sm:h-80 w-full">

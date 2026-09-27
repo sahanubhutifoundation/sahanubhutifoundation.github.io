@@ -589,8 +589,10 @@ export const AdminPage: React.FC = () => {
       setActivities(res.data);
 
       // Sync activity image to gallery if showOnMediaPage is true
+      const allGal = storageService.getGalleryItems();
+      const existingGal = allGal.find((g) => g.activityId === newAct.id || g.id === `gal-act-${newAct.id}`);
+
       if (newAct.showOnMediaPage && newAct.coverImage) {
-        const existingGal = gallery.find((g) => g.activityId === newAct.id || g.id === `gal-act-${newAct.id}`);
         const actGalItem: GalleryItem = {
           id: existingGal ? existingGal.id : `gal-act-${newAct.id}`,
           type: 'photo',
@@ -611,7 +613,6 @@ export const AdminPage: React.FC = () => {
         }
       } else {
         // If unchecked or coverImage was removed, remove any linked media gallery item
-        const existingGal = gallery.find((g) => g.activityId === newAct.id || g.id === `gal-act-${newAct.id}`);
         if (existingGal) {
           const galRes = await storageService.deleteGalleryItemAsync(existingGal.id);
           if (galRes.success && galRes.data) {
@@ -1444,7 +1445,7 @@ export const AdminPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setEditingActivity({ isPublished: true });
+                  setEditingActivity({ isPublished: true, showShortSummaryInDetail: false, showOnMediaPage: false });
                   setActiveSection('activities');
                 }}
                 className="p-3 rounded-xl border border-[#EBE8E0] hover:border-[#2D5A41]/40 hover:bg-[#F7F5F0] text-xs font-bold text-[#2D3630] flex flex-col items-center gap-2 text-center transition-all"
@@ -2486,7 +2487,7 @@ export const AdminPage: React.FC = () => {
 
             {activitySubTab === 'list' && (
               <button
-                onClick={() => setEditingActivity({ isPublished: true, showShortSummaryInDetail: false })}
+                onClick={() => setEditingActivity({ isPublished: true, showShortSummaryInDetail: false, showOnMediaPage: false })}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold shadow-2xs transition-colors self-start sm:self-auto"
               >
                 <Plus className="w-4 h-4" />
@@ -2615,20 +2616,25 @@ export const AdminPage: React.FC = () => {
                           bucket="activities"
                         />
 
-                        {editingActivity.coverImage && (
-                          <label className="flex items-center gap-2.5 p-3 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] cursor-pointer hover:bg-[#EFECE3] transition-colors">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(editingActivity.showOnMediaPage)}
-                              onChange={(e) => setEditingActivity({ ...editingActivity, showOnMediaPage: e.target.checked })}
-                              className="w-4 h-4 rounded accent-[#2D5A41] cursor-pointer"
-                            />
-                            <div className="select-none">
-                              <span className="text-xs font-bold text-[#2D3630] block">মিডিয়া পেজে এই ছবি প্রদর্শন করুন</span>
-                              <span className="text-[11px] text-[#7A877E] block">সক্রিয় থাকলে কার্যক্রমের কভার ছবিটি পাবলিক মিডিয়া / গ্যালারি পেজে প্রদর্শিত হবে এবং ভিজিটররা ক্লিক করে এই কার্যক্রমে যেতে পারবে।</span>
-                            </div>
-                          </label>
-                        )}
+                        <label className="flex items-center gap-2.5 p-3 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] cursor-pointer hover:bg-[#EFECE3] transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(editingActivity.showOnMediaPage)}
+                            onChange={(e) => setEditingActivity({ ...editingActivity, showOnMediaPage: e.target.checked })}
+                            className="w-4 h-4 rounded accent-[#2D5A41] cursor-pointer"
+                          />
+                          <div className="select-none">
+                            <span className="text-xs font-bold text-[#2D3630] block">মিডিয়া পেজে এই ছবি প্রদর্শন করুন</span>
+                            <span className="text-[11px] text-[#7A877E] block">
+                              সক্রিয় থাকলে কার্যক্রমের কভার ছবিটি পাবলিক মিডিয়া / গ্যালারি পেজে প্রদর্শিত হবে এবং ভিজিটররা ক্লিক করে এই কার্যক্রমে যেতে পারবে।
+                              {!editingActivity.coverImage && (
+                                <span className="text-amber-700 block font-semibold mt-0.5">
+                                  (কভার ছবি আপলোড করার পর এটি মিডিয়া পেজে দৃশ্যমান হবে)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </label>
                       </div>
 
                     {/* Strict Short Summary */}
@@ -2853,6 +2859,11 @@ export const AdminPage: React.FC = () => {
                           >
                             {act.isPublished ? 'প্রকাশিত' : 'ড্রাফট'}
                           </span>
+                          {act.showOnMediaPage && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                              মিডিয়া পেজে যুক্ত
+                            </span>
+                          )}
                         </div>
                         <strong className="text-[#2D3630] text-sm block truncate">
                           {typeof act.title === 'string' ? act.title : act.title.bn}
@@ -2870,7 +2881,13 @@ export const AdminPage: React.FC = () => {
 
                     <div className="flex items-center gap-2 self-end sm:self-center shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#EBE8E0] w-full sm:w-auto justify-end">
                       <button
-                        onClick={() => setEditingActivity(act)}
+                        onClick={() =>
+                          setEditingActivity({
+                            ...act,
+                            showOnMediaPage: Boolean(act.showOnMediaPage),
+                            showShortSummaryInDetail: Boolean(act.showShortSummaryInDetail),
+                          })
+                        }
                         className="p-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] hover:text-[#2D5A41] hover:bg-[#F7F5F0]"
                         title="সম্পাদনা"
                       >

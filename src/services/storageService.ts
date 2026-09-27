@@ -339,6 +339,8 @@ export const storageService = {
     // Strict separation: never copy fullDescription into shortSummary or vice versa
     const cleanedActivity: Activity = {
       ...activity,
+      showOnMediaPage: Boolean(activity.showOnMediaPage),
+      showShortSummaryInDetail: Boolean(activity.showShortSummaryInDetail),
       summary: activity.summary || activity.shortSummary || { bn: '', en: '', ar: '' },
       shortSummary: activity.shortSummary || activity.summary || { bn: '', en: '', ar: '' },
       description: activity.description || activity.fullDescription || { bn: '', en: '', ar: '' },
@@ -885,6 +887,8 @@ export const storageService = {
   async saveActivityAsync(activity: Activity): Promise<OperationResult<Activity[]>> {
     const cleanedActivity: Activity = {
       ...activity,
+      showOnMediaPage: Boolean(activity.showOnMediaPage),
+      showShortSummaryInDetail: Boolean(activity.showShortSummaryInDetail),
       summary: activity.summary || activity.shortSummary || { bn: '', en: '', ar: '' },
       shortSummary: activity.shortSummary || activity.summary || { bn: '', en: '', ar: '' },
       description: activity.description || activity.fullDescription || { bn: '', en: '', ar: '' },

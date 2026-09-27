@@ -109,6 +109,8 @@ CREATE TABLE IF NOT EXISTS public.activities (
   category TEXT DEFAULT 'humanitarian',
   image TEXT,
   cover_image TEXT,
+  show_on_media_page BOOLEAN DEFAULT false,
+  show_short_summary_in_detail BOOLEAN DEFAULT false,
   images JSONB DEFAULT '[]'::jsonb,
   gallery_images JSONB DEFAULT '[]'::jsonb,
   is_published BOOLEAN DEFAULT true,
@@ -121,6 +123,10 @@ ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS cover_image TEXT;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS image TEXT;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS slug TEXT;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS summary JSONB;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS short_summary JSONB;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS full_description JSONB;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_on_media_page BOOLEAN DEFAULT false;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_short_summary_in_detail BOOLEAN DEFAULT false;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS gallery_images JSONB DEFAULT '[]'::jsonb;
 
@@ -289,6 +295,8 @@ ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS config JSONB;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS slug TEXT;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS summary JSONB;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS cover_image TEXT;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_on_media_page BOOLEAN DEFAULT false;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_short_summary_in_detail BOOLEAN DEFAULT false;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS gallery_images JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS body JSONB;

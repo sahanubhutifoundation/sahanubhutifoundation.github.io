@@ -17,14 +17,12 @@ function cleanEnvString(val: unknown): string {
 
 // Environment variables for Supabase - supports standard anon key and newer publishable key naming
 const rawSupabaseUrl = cleanEnvString(
-  import.meta.env.VITE_SUPABASE_URL ||
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
   (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL : '')
 );
 
 const supabaseAnonKey = cleanEnvString(
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  import.meta.env.VITE_SUPABASE_KEY ||
+  (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_SUPABASE_ANON_KEY || import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env?.VITE_SUPABASE_KEY)) ||
   (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_ANON_KEY || process.env?.VITE_SUPABASE_PUBLISHABLE_KEY || process.env?.VITE_SUPABASE_KEY) : '')
 );
 
