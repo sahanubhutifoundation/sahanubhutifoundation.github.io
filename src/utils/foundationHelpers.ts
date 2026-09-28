@@ -1,4 +1,4 @@
-import { Language, FoundationConfig, ExpenseRecord } from '../types';
+import { Language, FoundationConfig, ExpenseRecord, MultilingualText } from '../types';
 
 const bnDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
 const arDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
@@ -220,12 +220,65 @@ export function normalizeExpense(exp: any, lang: Language = 'bn'): ExpenseRecord
     isVerified: Boolean(exp.isVerified ?? exp.is_verified ?? exp.verified_by),
     year: exp.year != null ? String(exp.year) : undefined,
     isPublic: exp.isPublic !== false && exp.is_public !== false,
-    activityId: exp.activityId || exp.activity_id || undefined,
-    linkedActivityId: exp.linkedActivityId || exp.linked_activity_id || undefined,
+    activityId: exp.activityId || exp.activity_id || exp.linkedActivityId || exp.linked_activity_id || undefined,
+    linkedActivityId: exp.activityId || exp.activity_id || exp.linkedActivityId || exp.linked_activity_id || undefined,
     fundingSource: exp.fundingSource || exp.funding_source || 'foundation_fund',
     deductionMode: exp.deductionMode || exp.deduction_mode || 'deduct',
     createdAt: exp.createdAt || exp.created_at || new Date().toISOString(),
     updatedAt: exp.updatedAt || exp.updated_at || undefined,
   };
 }
+
+/**
+ * Public multilingual resolver for Members:
+ * Selected language -> English fallback if available -> Bangla fallback if available
+ */
+export function resolveMemberField(
+  val?: string | MultilingualText,
+  bnVal?: string,
+  enVal?: string,
+  arVal?: string,
+  lang: string = 'bn'
+): string {
+  const objBn = typeof val === 'object' && val !== null ? val.bn : undefined;
+  const objEn = typeof val === 'object' && val !== null ? val.en : undefined;
+  const objAr = typeof val === 'object' && val !== null ? val.ar : undefined;
+
+  const actualBn = (bnVal && bnVal.trim()) || (objBn && objBn.trim()) || (typeof val === 'string' ? val.trim() : '');
+  const actualEn = (enVal && enVal.trim()) || (objEn && objEn.trim()) || '';
+  const actualAr = (arVal && arVal.trim()) || (objAr && objAr.trim()) || '';
+
+  if (lang === 'ar') {
+    return actualAr || actualEn || actualBn;
+  }
+  if (lang === 'en') {
+    return actualEn || actualBn;
+  }
+  return actualBn || actualEn || actualAr;
+}
+
+/**
+ * Public multilingual resolver for Activity Categories:
+ * Selected language -> English fallback if available -> Bangla fallback if available
+ */
+export function resolveCategoryLabel(
+  catName?: string | MultilingualText,
+  categories?: any[],
+  lang: string = 'bn'
+): string {
+  if (!catName) return '';
+  if (typeof catName === 'object') {
+    return catName[lang as 'bn' | 'en' | 'ar'] || catName.bn || catName.en || '';
+  }
+  if (Array.isArray(categories)) {
+    const found = categories.find(
+      (c) => c.name?.bn === catName || c.id === catName || c.name?.en === catName || c.name?.ar === catName
+    );
+    if (found?.name) {
+      return found.name[lang as 'bn' | 'en' | 'ar'] || found.name.bn || found.name.en || catName;
+    }
+  }
+  return catName;
+}
+
 

@@ -64,6 +64,15 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
 
   useEffect(() => {
     setActivitiesList(storageService.getActivities());
+    const handleUpdate = () => {
+      setActivitiesList(storageService.getActivities());
+    };
+    window.addEventListener('sf_data_updated', handleUpdate);
+    window.addEventListener('sf_cloud_synced', handleUpdate);
+    return () => {
+      window.removeEventListener('sf_data_updated', handleUpdate);
+      window.removeEventListener('sf_cloud_synced', handleUpdate);
+    };
   }, []);
 
   // Financial calculations

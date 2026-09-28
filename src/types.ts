@@ -31,18 +31,41 @@ export interface Member {
   id: string;
   serial: number;
   name: string;
+  nameBn?: string;
+  nameEn?: string;
+  nameAr?: string;
+  nameMulti?: MultilingualText;
   gender?: Gender;
   role?: string; // Designation text e.g. সভাপতি, প্রধান সমন্বয়ক
+  roleBn?: string;
+  roleEn?: string;
+  roleAr?: string;
+  roleMulti?: MultilingualText;
   designationId?: string; // ID referencing Designation definition
   photoUrl?: string;
   phone?: string;
   email?: string;
   location?: string;
+  locationBn?: string;
+  locationEn?: string;
+  locationAr?: string;
+  locationMulti?: MultilingualText;
   address?: string;
+  addressBn?: string;
+  addressEn?: string;
+  addressAr?: string;
   joiningDate?: string;
   showJoiningDate?: boolean;
   bio?: string;
+  bioBn?: string;
+  bioEn?: string;
+  bioAr?: string;
+  bioMulti?: MultilingualText;
   responsibilities?: string;
+  responsibilitiesBn?: string;
+  responsibilitiesEn?: string;
+  responsibilitiesAr?: string;
+  responsibilitiesMulti?: MultilingualText;
   isActive: boolean;
   isFamilyMember?: boolean;
   cropZoom?: number;
@@ -147,6 +170,8 @@ export interface Activity {
   outcomes?: MultilingualText;
   showShortSummaryInDetail?: boolean;
   showOnMediaPage?: boolean;
+  badge?: MultilingualText;
+  badgeEmoji?: string;
   createdAt: string;
   updatedAt?: string;
 }

@@ -164,20 +164,25 @@ export const ActivityDetailPage: React.FC = () => {
         </div>
 
         {/* Cover Image - Preserves Complete Original Aspect Ratio Without Cropping */}
-        <div className="rounded-2xl overflow-hidden shadow-sm border border-[#EBE8E0] bg-[#1E2621]/5 flex items-center justify-center">
-          {activity.coverImage ? (
-            <img
-              src={activity.coverImage}
-              alt={tMulti(activity.title)}
-              className="w-full h-auto max-h-[640px] object-contain mx-auto block rounded-2xl"
-              loading="eager"
-            />
-          ) : (
-            <div className="h-64 sm:h-80 w-full">
-              <ActivityFallbackCover category={activity.category} />
+        {(() => {
+          const coverImg = activity.coverImage || (activity as any).image || (activity.images && activity.images.length > 0 ? activity.images[0] : undefined);
+          return (
+            <div className="w-full rounded-2xl overflow-hidden border border-[#EBE8E0] bg-[#1E2621]/3 shadow-2xs flex items-center justify-center p-1 sm:p-2">
+              {coverImg ? (
+                <img
+                  src={coverImg}
+                  alt={tMulti(activity.title)}
+                  className="w-full h-auto max-w-full max-h-[85vh] object-contain mx-auto block rounded-xl"
+                  loading="eager"
+                />
+              ) : (
+                <div className="h-64 sm:h-80 w-full">
+                  <ActivityFallbackCover category={activity.category} />
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })()}
 
         {/* Highlight Metadata Grid (Location, Beneficiaries, Purpose) */}
         {(locationText || beneficiariesText || purposeText) && (

@@ -931,20 +931,40 @@ export const supabaseService = {
 
       let { error } = await supabase.from('activities').upsert(payload, { onConflict: 'id' });
 
-      // Schema mismatch progressive fallback for missing columns (e.g. cover_image, gallery_images, show_on_media_page)
-      let strippedShowOnMedia = false;
+      // Immediate controlled schema mismatch error if show_on_media_page or show_short_summary_in_detail is missing
+      if (
+        error &&
+        (error.message?.toLowerCase().includes('show_on_media_page') ||
+         extractMissingColumn(error.message) === 'show_on_media_page')
+      ) {
+        return {
+          success: false,
+          error: 'সংরক্ষণ ব্যর্থ: ডাটাবেজে "show_on_media_page" কলামটি বিদ্যমান নেই (Schema Mismatch)। অনুগ্রহ করে Supabase SQL Editor-এ রান করুন: ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_on_media_page BOOLEAN NOT NULL DEFAULT false;',
+          code: 'SCHEMA_MISMATCH_SHOW_ON_MEDIA_PAGE',
+          details: error.message,
+        };
+      }
+      if (
+        error &&
+        (error.message?.toLowerCase().includes('show_short_summary_in_detail') ||
+         extractMissingColumn(error.message) === 'show_short_summary_in_detail')
+      ) {
+        return {
+          success: false,
+          error: 'সংরক্ষণ ব্যর্থ: ডাটাবেজে "show_short_summary_in_detail" কলামটি বিদ্যমান নেই (Schema Mismatch)। অনুগ্রহ করে Supabase SQL Editor-এ রান করুন: ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_short_summary_in_detail BOOLEAN NOT NULL DEFAULT false;',
+          code: 'SCHEMA_MISMATCH_SHOW_SHORT_SUMMARY',
+          details: error.message,
+        };
+      }
+
+      // Schema mismatch progressive fallback for optional secondary columns (e.g. cover_image, gallery_images)
+      // Never silently strip canonical columns
       while (error && (error.message?.includes('column') || error.code === 'PGRST204' || (error as any).code === '42703')) {
         const errMsg = error.message.toLowerCase();
+        if (errMsg.includes('show_on_media_page') || errMsg.includes('show_short_summary_in_detail')) {
+          break;
+        }
         let stripped = false;
-        if (errMsg.includes('show_on_media_page') && 'show_on_media_page' in payload) {
-          delete payload.show_on_media_page;
-          strippedShowOnMedia = true;
-          stripped = true;
-        }
-        if (errMsg.includes('show_short_summary_in_detail') && 'show_short_summary_in_detail' in payload) {
-          delete payload.show_short_summary_in_detail;
-          stripped = true;
-        }
         if (errMsg.includes('cover_image') && 'cover_image' in payload) {
           delete payload.cover_image;
           stripped = true;
@@ -967,10 +987,10 @@ export const supabaseService = {
         }
         if (!stripped) {
           const missingCol = extractMissingColumn(error.message);
+          if (missingCol === 'show_on_media_page' || missingCol === 'show_short_summary_in_detail') {
+            break;
+          }
           if (missingCol && missingCol in payload) {
-            if (missingCol === 'show_on_media_page') {
-              strippedShowOnMedia = true;
-            }
             delete payload[missingCol];
             stripped = true;
           } else {
@@ -982,21 +1002,22 @@ export const supabaseService = {
       }
 
       if (error) {
+        if (
+          error.message?.toLowerCase().includes('show_on_media_page') ||
+          extractMissingColumn(error.message) === 'show_on_media_page'
+        ) {
+          return {
+            success: false,
+            error: 'সংরক্ষণ ব্যর্থ: ডাটাবেজে "show_on_media_page" কলামটি বিদ্যমান নেই (Schema Mismatch)। অনুগ্রহ করে Supabase SQL Editor-এ রান করুন: ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_on_media_page BOOLEAN NOT NULL DEFAULT false;',
+            code: 'SCHEMA_MISMATCH_SHOW_ON_MEDIA_PAGE',
+            details: error.message,
+          };
+        }
         return {
           success: false,
           error: `কার্যক্রম সংরক্ষণ ব্যর্থ: ${error.message}`,
           code: error.code,
           details: error.details || error.message,
-        };
-      }
-
-      // If show_on_media_page was stripped due to schema mismatch, surface a controlled Admin error
-      if (strippedShowOnMedia) {
-        return {
-          success: false,
-          error: 'ডাটাবেজে "show_on_media_page" কলামটি বিদ্যমান নেই (Schema Mismatch)। অনুগ্রহ করে Supabase-এ কলামটি যুক্ত করুন: ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_on_media_page BOOLEAN DEFAULT false;',
-          code: 'SCHEMA_MISMATCH_SHOW_ON_MEDIA_PAGE',
-          details: 'Column show_on_media_page missing in activities table',
         };
       }
 
@@ -1580,6 +1601,8 @@ export const supabaseService = {
           isVerified: Boolean(row.is_verified || row.verified_by),
           isPublic: row.is_public !== false,
           year: row.year || undefined,
+          activityId: row.activity_id || undefined,
+          linkedActivityId: row.activity_id || undefined,
           createdAt: row.created_at || new Date().toISOString(),
           updatedAt: row.updated_at,
         })
@@ -1619,15 +1642,33 @@ export const supabaseService = {
         is_verified: Boolean(e.isVerified),
         is_public: e.isPublic !== false,
         year: yr,
+        activity_id: e.activityId || e.linkedActivityId || null,
         created_at: e.createdAt || now,
         updated_at: now,
       };
 
       let { error } = await supabase.from('expenses').upsert(payload, { onConflict: 'id' });
 
-      // Progressive fallback if live Postgres table doesn't have certain columns
+      // Immediate controlled schema mismatch error if activity_id column is missing
+      if (
+        error &&
+        (error.message?.toLowerCase().includes('activity_id') ||
+         extractMissingColumn(error.message) === 'activity_id')
+      ) {
+        return {
+          success: false,
+          error: 'সংরক্ষণ ব্যর্থ: ডাটাবেজে "activity_id" কলামটি বিদ্যমান নেই (Schema Mismatch)। অনুগ্রহ করে Supabase SQL Editor-এ রান করুন: ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS activity_id UUID NULL;',
+          code: 'SCHEMA_MISMATCH_ACTIVITY_ID',
+          details: error.message,
+        };
+      }
+
+      // Progressive fallback if live Postgres table doesn't have certain optional columns
       while (error && (error.message?.includes('column') || error.code === 'PGRST204' || (error as any).code === '42703')) {
         const errMsg = error.message.toLowerCase();
+        if (errMsg.includes('activity_id')) {
+          break;
+        }
         let stripped = false;
         if (errMsg.includes('is_recipient_public') && 'is_recipient_public' in payload) {
           delete payload.is_recipient_public;
@@ -1667,6 +1708,9 @@ export const supabaseService = {
         }
         if (!stripped) {
           const missingCol = extractMissingColumn(error.message);
+          if (missingCol === 'activity_id') {
+            break;
+          }
           if (missingCol && missingCol in payload) {
             delete payload[missingCol];
             stripped = true;
@@ -1679,6 +1723,17 @@ export const supabaseService = {
       }
 
       if (error) {
+        if (
+          error.message?.toLowerCase().includes('activity_id') ||
+          extractMissingColumn(error.message) === 'activity_id'
+        ) {
+          return {
+            success: false,
+            error: 'সংরক্ষণ ব্যর্থ: ডাটাবেজে "activity_id" কলামটি বিদ্যমান নেই (Schema Mismatch)। অনুগ্রহ করে Supabase SQL Editor-এ রান করুন: ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS activity_id UUID NULL;',
+            code: 'SCHEMA_MISMATCH_ACTIVITY_ID',
+            details: error.message,
+          };
+        }
         return {
           success: false,
           error: `ব্যয় রেকর্ড সংরক্ষণ ব্যর্থ: ${error.message}`,
@@ -1701,6 +1756,16 @@ export const supabaseService = {
         };
       }
 
+      // Explicit verification: if an activity was linked, the returned DB row must match
+      const expectedActivityId = e.activityId || e.linkedActivityId || null;
+      if (expectedActivityId && verified.activity_id !== expectedActivityId) {
+        return {
+          success: false,
+          error: `ব্যয় রেকর্ডে কার্যক্রম লিংক সংরক্ষণ যাচাই ব্যর্থ: প্রত্যাশিত ছিল "${expectedActivityId}", ডাটাবেজ থেকে পাওয়া গেছে "${verified.activity_id}"`,
+          code: 'VERIFICATION_MISMATCH',
+        };
+      }
+
       const verifiedExpense: ExpenseRecord = normalizeExpense({
         id: verified.id,
         date: verified.date,
@@ -1716,6 +1781,8 @@ export const supabaseService = {
         isVerified: Boolean(verified.is_verified || verified.verified_by),
         isPublic: verified.is_public !== false,
         year: verified.year || undefined,
+        activityId: verified.activity_id || undefined,
+        linkedActivityId: verified.activity_id || undefined,
         createdAt: verified.created_at || now,
         updatedAt: verified.updated_at || now,
       });

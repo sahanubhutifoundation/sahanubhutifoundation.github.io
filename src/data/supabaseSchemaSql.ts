@@ -141,6 +141,7 @@ ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS recipient TEXT;
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS is_recipient_public BOOLEAN DEFAULT false;
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS deduction_mode TEXT DEFAULT 'deduct';
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS funding_source TEXT DEFAULT 'foundation_fund';
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS activity_id TEXT;
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS linked_activity_id TEXT;
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS custom_category TEXT;
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS receipt_url TEXT;
@@ -231,6 +232,7 @@ CREATE TABLE IF NOT EXISTS public.expenses (
   is_verified BOOLEAN DEFAULT false,
   is_public BOOLEAN DEFAULT true,
   year INT,
+  activity_id UUID,
   created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
@@ -295,8 +297,8 @@ ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS config JSONB;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS slug TEXT;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS summary JSONB;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS cover_image TEXT;
-ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_on_media_page BOOLEAN DEFAULT false;
-ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_short_summary_in_detail BOOLEAN DEFAULT false;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_on_media_page BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS show_short_summary_in_detail BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS gallery_images JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.notices ADD COLUMN IF NOT EXISTS body JSONB;
@@ -314,6 +316,7 @@ ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS purpose JSONB DEFAULT '{"bn
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS recipient TEXT;
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS is_recipient_public BOOLEAN DEFAULT false;
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS activity_id UUID NULL;
 
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
