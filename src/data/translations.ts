@@ -657,4 +657,521 @@ export const translations: TranslationDictionary = {
     en: 'Add New',
     ar: 'إضافة جديد',
   },
+
+  // Additional Multilingual Public UI Keys
+  viewLinkedActivity: {
+    bn: 'সম্পর্কিত কার্যক্রম দেখুন',
+    en: 'View Linked Activity',
+    ar: 'عرض النشاط المرتبط',
+  },
+  financialNotice: {
+    bn: 'খরচ সংক্রান্ত অবগতি',
+    en: 'Expense Notice & Disclosure',
+    ar: 'إشعار بالمصروفات والإفصاح المالي',
+  },
+  financialTransparency: {
+    bn: 'তহবিল ও ব্যয় স্বচ্ছতা রেকর্ড',
+    en: 'Financial Transparency Record',
+    ar: 'سجل الشفافية المالية',
+  },
+  financialTransparencyDesc: {
+    bn: 'এই কার্যক্রমের যাবতীয় ব্যয় ভাউচার ও নিরীক্ষিত অডিট রেকর্ড কেন্দ্রীয় তহবিলের ব্যয়ের লেজারে অন্তর্ভুক্ত।',
+    en: 'All expense vouchers and audited records of this activity are included in the central fund expense ledger.',
+    ar: 'جميع إيصالات المصروفات وسجلات التدقيق لهذا النشاط مدرجة في دفتر مصروفات الصندوق المركزي.',
+  },
+  viewFundStatement: {
+    bn: 'তহবিল বিবরণী দেখুন',
+    en: 'View Fund Statement',
+    ar: 'عرض كشف الصندوق',
+  },
+  backToFundStatement: {
+    bn: 'তহবিল বিবরণীতে ফিরে যান',
+    en: 'Back to Fund Statement',
+    ar: 'العودة إلى كشف الصندوق',
+  },
+  canonicalLedgerRecords: {
+    bn: 'সংযুক্ত অনুমোদিত ব্যয় (Canonical Ledger Records):',
+    en: 'Linked Approved Expenses (Canonical Ledger Records):',
+    ar: 'المصروفات المعتمدة المرتبطة (سجلات الدفتر المعتمد):',
+  },
+  activityGalleryTitle: {
+    bn: 'কার্যক্রমের স্থিরচিত্র (Photo Gallery)',
+    en: 'Activity Photo Gallery',
+    ar: 'معرض صور النشاط',
+  },
+  backToActivities: {
+    bn: 'সকল কার্যক্রমে ফিরে যান',
+    en: 'Back to All Activities',
+    ar: 'العودة إلى جميع الأنشطة',
+  },
+  shareBtn: {
+    bn: 'শেয়ার',
+    en: 'Share',
+    ar: 'مشاركة',
+  },
+  copiedToast: {
+    bn: 'কপি হয়েছে!',
+    en: 'Copied!',
+    ar: 'تم النسخ!',
+  },
+  copyLink: {
+    bn: 'লিংক কপি করুন',
+    en: 'Copy Link',
+    ar: 'نسخ الرابط',
+  },
+  activityNotFound: {
+    bn: 'কার্যক্রমটি খুঁজে পাওয়া যায়নি',
+    en: 'Activity Not Found',
+    ar: 'النشاط غير موجود',
+  },
+  activityNotFoundHint: {
+    bn: 'অনুরোধকৃত কার্যক্রমটি অপ্রকাশিত হতে পারে অথবা লিংকটি পরিবর্তিত হয়েছে।',
+    en: 'The requested activity may be unpublished or the link has changed.',
+    ar: 'النشاط المطلوب قد يكون غير منشور أو تم تغيير الرابط.',
+  },
+  prevActivity: {
+    bn: 'পূর্ববর্তী কার্যক্রম',
+    en: 'Previous Activity',
+    ar: 'النشاط السابق',
+  },
+  noPrevActivity: {
+    bn: 'কোনো পূর্ববর্তী কার্যক্রম নেই',
+    en: 'No previous activity',
+    ar: 'لا يوجد نشاط سابق',
+  },
+  nextActivity: {
+    bn: 'পরবর্তী কার্যক্রম',
+    en: 'Next Activity',
+    ar: 'النشاط التالي',
+  },
+  noNextActivity: {
+    bn: 'কোনো পরবর্তী কার্যক্রম নেই',
+    en: 'No next activity',
+    ar: 'لا يوجد نشاط تالٍ',
+  },
+  activityPurposeContext: {
+    bn: 'উদ্দেশ্য ও প্রেক্ষাপট',
+    en: 'Purpose & Context',
+    ar: 'الهدف والسياق',
+  },
+  activityLocationLabel: {
+    bn: 'কার্যক্রমের স্থান',
+    en: 'Activity Location',
+    ar: 'موقع النشاط',
+  },
+  activityBeneficiariesLabel: {
+    bn: 'সুবিধাভোগী',
+    en: 'Beneficiaries',
+    ar: 'المستفيدون',
+  },
+  activityOutcomesLabel: {
+    bn: 'অর্জন ও ফলাফল (Key Outcomes)',
+    en: 'Key Outcomes & Results',
+    ar: 'النتائج والمكتسبات',
+  },
+  transparentBaitulMal: {
+    bn: 'স্বচ্ছ বাইতুল মাল তহবিল',
+    en: 'Transparent Baytul Mal Fund',
+    ar: 'صندوق بيت المال الشفاف',
+  },
+  liveGoogleSheetConnected: {
+    bn: 'লাইভ গুগল শিট সংযুক্ত',
+    en: 'Live Google Sheet Connected',
+    ar: 'متصل بجدول بيانات جوجل المباشر',
+  },
+  savedCacheData: {
+    bn: 'সংরক্ষিত ক্যাশ তথ্য',
+    en: 'Cached Data',
+    ar: 'بيانات مخزنة مؤقتًا',
+  },
+  dataUnavailable: {
+    bn: 'তথ্য অনুপলব্ধ',
+    en: 'Data Unavailable',
+    ar: 'البيانات غير متوفرة',
+  },
+  verifyingConnection: {
+    bn: 'সংযোগ যাচাই করা হচ্ছে',
+    en: 'Verifying Connection...',
+    ar: 'جاري التحقق من الاتصال...',
+  },
+  viewGoogleSheet: {
+    bn: 'গুগল শিট দেখুন',
+    en: 'View Google Sheet',
+    ar: 'عرض جدول بيانات جوجل',
+  },
+  sourceSheet: {
+    bn: 'মূল উৎস শিট',
+    en: 'Original Source Sheet',
+    ar: 'ورقة المصدر الأصلية',
+  },
+  yearDataNotConnected: {
+    bn: 'আর্থিক বছরের তথ্য এখনো সংযুক্ত করা হয়নি',
+    en: 'Fiscal Year Data Not Yet Connected',
+    ar: 'لم يتم ربط بيانات السنة المالية بعد',
+  },
+  yearDataNotConnectedDesc: {
+    bn: 'এই আর্থিক বছরের জন্য কোনো গুগল স্প্রেডশিট বা ডাটাবেজ লিংক যুক্ত করা হয়নি। প্রশাসনিক প্যানেল থেকে লিংক কনফিগার করার পর তথ্য স্বয়ংক্রিয়ভাবে প্রদর্শিত হবে।',
+    en: 'No Google Spreadsheet or database link has been configured for this fiscal year. Once configured from the admin panel, data will appear automatically.',
+    ar: 'لم يتم تكوين جدول بيانات جوجل أو رابط قاعدة بيانات لهذه السنة المالية. بعد التهيئة من لوحة التحكم، ستظهر البيانات تلقائيًا.',
+  },
+  viewActiveYearData: {
+    bn: 'সালের হিসাব দেখুন',
+    en: 'View Year Records',
+    ar: 'عرض حسابات سنة',
+  },
+  yearDataSourceUnavailable: {
+    bn: 'আর্থিক বছরের ডাটা সোর্স বর্তমানে অনুপলব্ধ',
+    en: 'Fiscal Year Data Source Currently Unavailable',
+    ar: 'مصدر بيانات السنة المالية غير متوفر حاليًا',
+  },
+  reloadBtn: {
+    bn: 'পুনরায় লোড করুন',
+    en: 'Reload',
+    ar: 'إعادة التحميل',
+  },
+  backToActiveYearFund: {
+    bn: 'সালের তহবিলে ফিরে যান',
+    en: 'Back to Year Fund',
+    ar: 'العودة إلى صندوق سنة',
+  },
+  totalBaitulMalCollection: {
+    bn: 'সর্বমোট সংগৃহীত বাইতুল মাল আদায়',
+    en: 'Total Baytul Mal Collections',
+    ar: 'إجمالي تحصيلات بيت المال',
+  },
+  approvedMedicalAidExpenses: {
+    bn: 'অনুমোদিত ওষুধ ও মানবিক সহায়তা ব্যয়',
+    en: 'Approved Healthcare & Relief Aid Expenses',
+    ar: 'مصروفات الرعاية الصحية والمساعدات المعتمدة',
+  },
+  currentNetCashBalance: {
+    bn: 'বাইতুল মালে বর্তমান কার্যকর নগদ স্থিতি',
+    en: 'Current Net Cash Balance in Baytul Mal',
+    ar: 'الرصيد النقدي الفعلي الحالي في بيت المال',
+  },
+  expenseRatio: {
+    bn: 'মোট ব্যয়ের হার',
+    en: 'Expense Ratio',
+    ar: 'نسبة المصروفات',
+  },
+  safetyRatio: {
+    bn: 'তহবিল নিরাপত্তা সঞ্চয় স্থিতি',
+    en: 'Fund Reserve Safety Ratio',
+    ar: 'نسبة أمان احتياطي الصندوق',
+  },
+  activeContributors: {
+    bn: 'নিয়মিত জমাদানকারী সদস্য',
+    en: 'Regular Contributing Members',
+    ar: 'الأعضاء المساهمون بانتظام',
+  },
+  memberContributionBreakdown: {
+    bn: 'সদস্যভিত্তিক জমা ও চাঁদার তালিকা',
+    en: 'Member Contribution & Collection Breakdown',
+    ar: 'بيان اشتراكات وتبرعات الأعضاء',
+  },
+  searchMemberPlaceholder: {
+    bn: 'সদস্যের নাম বা নম্বর দিয়ে খুঁজুন...',
+    en: 'Search by member name or serial...',
+    ar: 'ابحث باسم العضو أو رقمه...',
+  },
+  noContributionsFound: {
+    bn: 'কোনো জমার তথ্য পাওয়া যায়নি',
+    en: 'No contribution records found',
+    ar: 'لم يتم العثور على سجلات مساهمات',
+  },
+  totalAmount: {
+    bn: 'মোট পরিমাণ',
+    en: 'Total Amount',
+    ar: 'المبلغ الإجمالي',
+  },
+  monthLabel: {
+    bn: 'মাস',
+    en: 'Month',
+    ar: 'الشهر',
+  },
+  yearLabel: {
+    bn: 'বছর',
+    en: 'Year',
+    ar: 'السنة',
+  },
+  recipientLabel: {
+    bn: 'গ্রহীতা',
+    en: 'Recipient',
+    ar: 'المستفيد',
+  },
+  categoryLabel: {
+    bn: 'বিভাগ',
+    en: 'Category',
+    ar: 'القسم',
+  },
+  locationLabel: {
+    bn: 'এলাকা',
+    en: 'Location',
+    ar: 'المنطقة',
+  },
+  receiptVoucher: {
+    bn: 'রসিদ / ভাউচার',
+    en: 'Receipt / Voucher',
+    ar: 'الإيصال / الفاتورة',
+  },
+  verifiedBadge: {
+    bn: 'অনুমোদিত ও ভেরিফাইড',
+    en: 'Audited & Verified',
+    ar: 'معتمد ومُدقق',
+  },
+  contactToJoin: {
+    bn: 'সদস্য হতে যোগাযোগ করুন',
+    en: 'Contact to Join',
+    ar: 'تواصل للانضمام كعضو',
+  },
+  familyMemberListTag: {
+    bn: 'পারিবারিক সদস্য তালিকা',
+    en: 'Family Members Directory',
+    ar: 'دليل أفراد العائلة',
+  },
+  expenseAmountLabel: {
+    bn: 'ব্যয়:',
+    en: 'Expense:',
+    ar: 'المصروف:',
+  },
+  fundTag: {
+    bn: 'স্বচ্ছ বাইতুল মাল তহবিল',
+    en: 'Transparent Baitul Mal Fund',
+    ar: 'صندوق بيت المال الشفاف',
+  },
+  liveSheetConnected: {
+    bn: 'লাইভ গুগল শিট সংযুক্ত',
+    en: 'Live Google Sheet Connected',
+    ar: 'جدول بيانات جوجل المباشر متصل',
+  },
+  cachedData: {
+    bn: 'সংরক্ষিত ক্যাশ তথ্য',
+    en: 'Cached Data',
+    ar: 'البيانات المخزنة مؤقتاً',
+  },
+  sourceUnavailable: {
+    bn: 'তথ্য অনুপলব্ধ',
+    en: 'Data Unavailable',
+    ar: 'البيانات غير متوفرة',
+  },
+  checkingConnection: {
+    bn: 'সংযোগ যাচাই করা হচ্ছে',
+    en: 'Checking Connection...',
+    ar: 'جارٍ التحقق من الاتصال...',
+  },
+  viewSourceSheet: {
+    bn: 'মূল উৎস শিট',
+    en: 'Source Sheet',
+    ar: 'الجدول المصدر',
+  },
+  totalBaitulMalCollected: {
+    bn: 'সর্বমোট সংগৃহীত বাইতুল মাল আদায়',
+    en: 'Total Baitul Mal Collections',
+    ar: 'إجمالي أموال بيت المال المحصلة',
+  },
+  approvedReliefExpenses: {
+    bn: 'অনুমোদিত ওষুধ ও মানবিক সহায়তা ব্যয়',
+    en: 'Approved Healthcare & Relief Expenses',
+    ar: 'مصروفات المساعدات الطبية والإغاثية المعتمدة',
+  },
+  currentCashBalance: {
+    bn: 'বাইতুল মালে বর্তমান কার্যকর নগদ স্থিতি',
+    en: 'Current Net Cash Balance in Baitul Mal',
+    ar: 'الرصيد النقدي الفعلي الحالي في بيت المال',
+  },
+  committedMembers: {
+    bn: 'মাসিক অঙ্গীকারাবদ্ধ অংশীদার সদস্য',
+    en: 'Committed Monthly Partner Members',
+    ar: 'الأعضاء الشركاء الملتزمون شهرياً',
+  },
+  yearlyFundComparison: {
+    bn: 'প্রতি বছরের সংগৃহীত মোট তহবিলের তুলনামূলক চিত্র',
+    en: 'Yearly Fund Collection Comparison',
+    ar: 'مقارنة إجمالي الأموال المحصلة سنوياً',
+  },
+  totalCollectedAmount: {
+    bn: 'সর্বমোট আদায়',
+    en: 'Total Collected',
+    ar: 'إجمالي المحصل',
+  },
+  monthlyInstallmentStats: {
+    bn: 'প্রতি মাসের আদায়কৃত নিয়মিত মাসিক কিস্তির পরিসংখ্যান',
+    en: 'Monthly Installment Collection Statistics',
+    ar: 'إحصائيات أقساط التحصيل الشهرية',
+  },
+  memberCommitmentLedger: {
+    bn: 'সদস্যদের নিয়মিত মাসিক অঙ্গীকার ও জমাকৃত কিস্তির স্বচ্ছ বিবরণী',
+    en: 'Member Commitments & Installment Ledger',
+    ar: 'سجل التزامات وأقساط اشتراكات الأعضاء',
+  },
+  searchMemberNamePlaceholder: {
+    bn: 'সদস্যের নাম খুঁজুন...',
+    en: 'Search member by name...',
+    ar: 'ابحث عن اسم العضو...',
+  },
+  filterAll: {
+    bn: 'সকল',
+    en: 'All',
+    ar: 'الكل',
+  },
+  filterCompleted: {
+    bn: 'পরিপূর্ণ',
+    en: 'Completed',
+    ar: 'مكتمل',
+  },
+  filterOngoing: {
+    bn: 'চলমান',
+    en: 'Ongoing',
+    ar: 'قيد المتابعة',
+  },
+  colMemberName: {
+    bn: 'সদস্যের নাম',
+    en: 'Member Name',
+    ar: 'اسم العضو',
+  },
+  colMonthlyRate: {
+    bn: 'মাসিক হার',
+    en: 'Monthly Rate',
+    ar: 'المعدل الشهري',
+  },
+  colTotalDeposited: {
+    bn: 'মোট জমা',
+    en: 'Total Deposited',
+    ar: 'إجمالي المودع',
+  },
+  colProgress: {
+    bn: 'অগ্রগতি',
+    en: 'Progress',
+    ar: 'التقدم',
+  },
+  noMemberRecordsFound: {
+    bn: 'কোনো সদস্যের তথ্য পাওয়া যায়নি।',
+    en: 'No member records found.',
+    ar: 'لم يتم العثور على سجلات للأعضاء.',
+  },
+  separateFund: {
+    bn: 'পৃথক তহবিল',
+    en: 'Separate Fund',
+    ar: 'صندوق منفصل',
+  },
+  fundUsageAndSafetyRatio: {
+    bn: 'তহবিল ব্যবহার ও নিরাপত্তা অনুপাত',
+    en: 'Fund Utilization & Reserve Ratio',
+    ar: 'نسبة استخدام الأموال واحتياطي الأمان',
+  },
+  healthcareSpendingRate: {
+    bn: 'মানবিক সহায়তা ও চিকিৎসায় ব্যয়িত হার',
+    en: 'Healthcare & Relief Spending Rate',
+    ar: 'معدل الإنفاق على الرعاية الصحية والإغاثة',
+  },
+  fundUsageDesc: {
+    bn: 'সর্বমোট সংগৃহীত তহবিলের বিপরীতে মানবিক কাজে ব্যয় এবং বাইতুল মালের অবশিষ্ট মওজুদ',
+    en: 'Humanitarian expenditures compared to total collections and remaining reserve.',
+    ar: 'مصروفات الأعمال الإنسانية مقابل إجمالي التبرعات والاحتياطي المتبقي.',
+  },
+  spendingRatio: {
+    bn: 'ব্যয় অনুপাত',
+    en: 'Spending Ratio',
+    ar: 'نسبة الإنفاق',
+  },
+  totalAidSpent: {
+    bn: 'মোট মানবিক সহায়তা ব্যয়:',
+    en: 'Total Relief Aid Spent:',
+    ar: 'إجمالي المساعدات الإنسانية المصروفة:',
+  },
+  effectiveCashInBaitulMal: {
+    bn: 'বাইতুল মালে কার্যকর নগদ স্থিতি:',
+    en: 'Effective Cash in Baitul Mal:',
+    ar: 'الرصيد الفعلي في بيت المال:',
+  },
+  voucherProof: {
+    bn: 'ব্যয়ের প্রমাণপত্র / ভাউচার কপি',
+    en: 'Expense Receipt / Voucher Proof',
+    ar: 'إيصال / مستند إثبات الصرف',
+  },
+  currentYearLabel: {
+    bn: 'চলতি বছর',
+    en: 'Current Year',
+    ar: 'العام الحالي',
+  },
+  yearSuffix: {
+    bn: 'সাল',
+    en: '',
+    ar: 'عام',
+  },
+  monthsSuffix: {
+    bn: 'মাস',
+    en: 'months',
+    ar: 'أشهر',
+  },
+  paidStatus: {
+    bn: 'পরিশোধিত',
+    en: 'Paid',
+    ar: 'مدفوع',
+  },
+  dueStatus: {
+    bn: 'বাকি',
+    en: 'Due',
+    ar: 'متبقي',
+  },
+  recipientColonLabel: {
+    bn: 'গ্রহীতা:',
+    en: 'Recipient:',
+    ar: 'المستفيد:',
+  },
+  categoryRelief: {
+    bn: 'জরুরি ত্রাণ',
+    en: 'Emergency Relief',
+    ar: 'الإغاثة العاجلة',
+  },
+  categoryMedical: {
+    bn: 'চিকিৎসা সহায়তা',
+    en: 'Medical Assistance',
+    ar: 'المساعدات الطبية',
+  },
+  categoryEducation: {
+    bn: 'শিক্ষা সহায়তা',
+    en: 'Education Support',
+    ar: 'دعم التعليم',
+  },
+  categoryOrphanWidow: {
+    bn: 'এতিম/বিধবা সহায়তা',
+    en: 'Orphan & Widow Support',
+    ar: 'كفالة الأيتام والأرامل',
+  },
+  categoryOther: {
+    bn: 'অন্যান্য ব্যয়',
+    en: 'Other Expenses',
+    ar: 'مصروفات أخرى',
+  },
+  joinMemberNoticeTitle: {
+    bn: 'পরিবারের সকল সদস্যের প্রতি আন্তরিক আহ্বান',
+    en: 'A Sincere Invitation to All Family Members',
+    ar: 'دعوة صادقة لجميع أفراد العائلة',
+  },
+  joinMemberNoticeDesc: {
+    bn: 'আমাদের এই উদ্যোগকে আরও শক্তিশালী ও গতিশীল করতে পরিবারের যেকেউ সদস্য হিসেবে যুক্ত হতে যোগাযোগ করতে পারেন।',
+    en: 'To make this initiative stronger and more dynamic, any family member is warmly invited to get in touch and join.',
+    ar: 'لجعل هذه المبادرة أكثر قوة وفاعلية، ندعو جميع أفراد العائلة للتواصل والانضمام كأعضاء.',
+  },
+  joinMemberBtn: {
+    bn: 'সদস্য হতে যোগাযোগ করুন',
+    en: 'Get in Touch to Join',
+    ar: 'تواصل معنا للانضمام',
+  },
+  memberSince: {
+    bn: 'সদস্য:',
+    en: 'Member since:',
+    ar: 'عضو منذ:',
+  },
+  membersCompileMsg: {
+    bn: 'সদস্য তালিকা বর্তমানে সংকলন করা হচ্ছে। অ্যাডমিন প্যানেল থেকে ক্রমানুসারে সদস্য যুক্ত করা যাবে।',
+    en: 'Member directory is currently being compiled. Members can be added sequentially from the Admin Panel.',
+    ar: 'يجري تجميع دليل الأعضاء حالياً. يمكن إضافة الأعضاء بالتسلسل من لوحة الإدارة.',
+  },
+  fillContactForm: {
+    bn: 'যোগাযোগ ফর্ম পূরণ করুন',
+    en: 'Fill Contact Form',
+    ar: 'ملء نموذج الاتصال',
+  },
 };

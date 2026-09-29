@@ -106,6 +106,7 @@ export const AdminPage: React.FC = () => {
   const [aboutLang, setAboutLang] = useState<'bn' | 'en' | 'ar'>('bn');
   const [activityLang, setActivityLang] = useState<'bn' | 'en' | 'ar'>('bn');
   const [noticeLang, setNoticeLang] = useState<'bn' | 'en' | 'ar'>('bn');
+  const [memberLang, setMemberLang] = useState<'bn' | 'en' | 'ar'>('bn');
 
   // Forms / Modals state
   const [editingMember, setEditingMember] = useState<Partial<Member> | null>(null);
@@ -448,19 +449,71 @@ export const AdminPage: React.FC = () => {
   // Member operations
   const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingMember || !editingMember.name) return;
+    if (!editingMember || (!editingMember.name && !editingMember.nameBn)) return;
 
     triggerSyncStatus('saving', 'সদস্য সংরক্ষণ হচ্ছে...');
+    const defaultBnName = editingMember.nameBn || editingMember.name || '';
+    const defaultBnRole = editingMember.roleBn || editingMember.role || '';
+    const defaultBnAddress = editingMember.addressBn || editingMember.address || '';
+    const defaultBnLocation = editingMember.locationBn || editingMember.location || defaultBnAddress;
+    const defaultBnBio = editingMember.bioBn || editingMember.bio || '';
+    const defaultBnResp = editingMember.responsibilitiesBn || editingMember.responsibilities || '';
+
     const newMember: Member = {
       id: editingMember.id || `mem-${Date.now()}`,
       serial: Number(editingMember.serial) || members.length + 1,
-      name: editingMember.name,
+      name: defaultBnName,
+      nameBn: defaultBnName,
+      nameEn: editingMember.nameEn || '',
+      nameAr: editingMember.nameAr || '',
+      nameMulti: {
+        bn: defaultBnName,
+        en: editingMember.nameEn || '',
+        ar: editingMember.nameAr || '',
+      },
       gender: editingMember.gender,
-      role: editingMember.role || '',
+      role: defaultBnRole,
+      roleBn: defaultBnRole,
+      roleEn: editingMember.roleEn || '',
+      roleAr: editingMember.roleAr || '',
+      roleMulti: {
+        bn: defaultBnRole,
+        en: editingMember.roleEn || '',
+        ar: editingMember.roleAr || '',
+      },
       designationId: editingMember.designationId,
       photoUrl: editingMember.photoUrl || '',
-      bio: editingMember.bio || '',
-      address: editingMember.address || '',
+      bio: defaultBnBio,
+      bioBn: defaultBnBio,
+      bioEn: editingMember.bioEn || '',
+      bioAr: editingMember.bioAr || '',
+      bioMulti: {
+        bn: defaultBnBio,
+        en: editingMember.bioEn || '',
+        ar: editingMember.bioAr || '',
+      },
+      address: defaultBnAddress,
+      addressBn: defaultBnAddress,
+      addressEn: editingMember.addressEn || '',
+      addressAr: editingMember.addressAr || '',
+      location: defaultBnLocation,
+      locationBn: defaultBnLocation,
+      locationEn: editingMember.locationEn || editingMember.addressEn || '',
+      locationAr: editingMember.locationAr || editingMember.addressAr || '',
+      locationMulti: {
+        bn: defaultBnLocation,
+        en: editingMember.locationEn || editingMember.addressEn || '',
+        ar: editingMember.locationAr || editingMember.addressAr || '',
+      },
+      responsibilities: defaultBnResp,
+      responsibilitiesBn: defaultBnResp,
+      responsibilitiesEn: editingMember.responsibilitiesEn || '',
+      responsibilitiesAr: editingMember.responsibilitiesAr || '',
+      responsibilitiesMulti: {
+        bn: defaultBnResp,
+        en: editingMember.responsibilitiesEn || '',
+        ar: editingMember.responsibilitiesAr || '',
+      },
       phone: editingMember.phone || '',
       showPhone: editingMember.showPhone !== false,
       email: editingMember.email || '',
@@ -1788,6 +1841,34 @@ export const AdminPage: React.FC = () => {
 
                 <div className="p-6 overflow-y-auto flex-1">
                   <form onSubmit={handleSaveMember} id="member-modal-form" className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    {/* Multilingual Tab Switcher for Member */}
+                    <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-[#2D3630] mr-1">তথ্য সম্পাদনার ভাষা:</span>
+                        {(['bn', 'en', 'ar'] as const).map((langKey) => (
+                          <button
+                            key={langKey}
+                            type="button"
+                            onClick={() => setMemberLang(langKey)}
+                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                              memberLang === langKey
+                                ? 'bg-[#2D5A41] text-white shadow-2xs'
+                                : 'bg-white text-[#5C665F] hover:text-[#2D3630] border border-[#EBE8E0]'
+                            }`}
+                          >
+                            {langKey === 'bn' ? 'বাংলা (BN)' : langKey === 'en' ? 'English (EN)' : 'العربية (AR)'}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-[11px] text-[#7A877E] font-medium">
+                        {memberLang === 'bn'
+                          ? 'বাংলা কনটেন্ট এডিট হচ্ছে (ডিফল্ট)'
+                          : memberLang === 'en'
+                          ? 'Editing English translation'
+                          : 'تحرير بيانات العضو باللغة العربية'}
+                      </span>
+                    </div>
+
                     <div>
                       <label className="block font-bold text-[#2D3630] mb-1">
                         ক্রমিক নম্বর (Serial No) <span className="text-rose-500">*</span>
@@ -1807,13 +1888,30 @@ export const AdminPage: React.FC = () => {
 
                     <div>
                       <label className="block font-bold text-[#2D3630] mb-1">
-                        সদস্যের পূর্ণ নাম <span className="text-rose-500">*</span>
+                        সদস্যের পূর্ণ নাম ({memberLang.toUpperCase()}) {memberLang === 'bn' ? <span className="text-rose-500">*</span> : <span className="text-[#7A877E] font-normal">(ঐচ্ছিক)</span>}
                       </label>
                       <input
                         type="text"
-                        required
-                        value={editingMember.name || ''}
-                        onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                        required={memberLang === 'bn'}
+                        dir={memberLang === 'ar' ? 'rtl' : 'ltr'}
+                        placeholder={memberLang === 'bn' ? 'যেমন: মোহাম্মদ রহিম' : memberLang === 'en' ? 'e.g., Mohammad Rahim' : 'مثال: محمد رحيم'}
+                        value={
+                          memberLang === 'bn'
+                            ? (editingMember.nameBn ?? editingMember.name ?? '')
+                            : memberLang === 'en'
+                            ? (editingMember.nameEn ?? '')
+                            : (editingMember.nameAr ?? '')
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (memberLang === 'bn') {
+                            setEditingMember({ ...editingMember, nameBn: val, name: val });
+                          } else if (memberLang === 'en') {
+                            setEditingMember({ ...editingMember, nameEn: val });
+                          } else {
+                            setEditingMember({ ...editingMember, nameAr: val });
+                          }
+                        }}
                         className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                       />
                     </div>
@@ -1850,6 +1948,9 @@ export const AdminPage: React.FC = () => {
                                 ...editingMember,
                                 designationId: desId || undefined,
                                 role: selected ? selected.name.bn : editingMember.role,
+                                roleBn: selected ? selected.name.bn : editingMember.roleBn,
+                                roleEn: selected ? (selected.name.en || editingMember.roleEn) : editingMember.roleEn,
+                                roleAr: selected ? (selected.name.ar || editingMember.roleAr) : editingMember.roleAr,
                               });
                             }}
                             className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
@@ -1867,15 +1968,29 @@ export const AdminPage: React.FC = () => {
 
                         <div>
                           <span className="block text-[11px] text-[#5C665F] mb-1">
-                            পদবীর নাম (বাংলায় প্রদর্শন):
+                            পদবীর নাম ({memberLang.toUpperCase()} প্রদর্শন):
                           </span>
                           <input
                             type="text"
-                            placeholder="যেমন: প্রতিষ্ঠাতা সদস্য / প্রধান উপদেষ্টা"
-                            value={editingMember.role || ''}
-                            onChange={(e) =>
-                              setEditingMember({ ...editingMember, role: e.target.value })
+                            dir={memberLang === 'ar' ? 'rtl' : 'ltr'}
+                            placeholder={memberLang === 'bn' ? 'যেমন: প্রতিষ্ঠাতা সদস্য / প্রধান উপদেষ্টা' : memberLang === 'en' ? 'e.g., Founding Member / Chief Advisor' : 'مثال: عضو مؤسس / مستشار رئيسي'}
+                            value={
+                              memberLang === 'bn'
+                                ? (editingMember.roleBn ?? editingMember.role ?? '')
+                                : memberLang === 'en'
+                                ? (editingMember.roleEn ?? '')
+                                : (editingMember.roleAr ?? '')
                             }
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (memberLang === 'bn') {
+                                setEditingMember({ ...editingMember, roleBn: val, role: val });
+                              } else if (memberLang === 'en') {
+                                setEditingMember({ ...editingMember, roleEn: val });
+                              } else {
+                                setEditingMember({ ...editingMember, roleAr: val });
+                              }
+                            }}
                             className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
                           />
                         </div>
@@ -2250,22 +2365,88 @@ export const AdminPage: React.FC = () => {
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className="block font-bold text-[#2D3630] mb-1">ঠিকানা / বর্তমান অবস্থান</label>
+                      <label className="block font-bold text-[#2D3630] mb-1">
+                        ঠিকানা / বর্তমান অবস্থান ({memberLang.toUpperCase()})
+                      </label>
                       <input
                         type="text"
-                        placeholder="যেমন: মৌলভী বাড়ি, শর্শদী, ফেনী"
-                        value={editingMember.address || ''}
-                        onChange={(e) => setEditingMember({ ...editingMember, address: e.target.value })}
+                        dir={memberLang === 'ar' ? 'rtl' : 'ltr'}
+                        placeholder={memberLang === 'bn' ? 'যেমন: মৌলভী বাড়ি, শর্শদী, ফেনী' : memberLang === 'en' ? 'e.g., Moulvi Bari, Sharshadi, Feni' : 'مثال: منزل مولفي، شارشدي، فيني'}
+                        value={
+                          memberLang === 'bn'
+                            ? (editingMember.addressBn ?? editingMember.address ?? '')
+                            : memberLang === 'en'
+                            ? (editingMember.addressEn ?? '')
+                            : (editingMember.addressAr ?? '')
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (memberLang === 'bn') {
+                            setEditingMember({ ...editingMember, addressBn: val, address: val, locationBn: val, location: val });
+                          } else if (memberLang === 'en') {
+                            setEditingMember({ ...editingMember, addressEn: val, locationEn: val });
+                          } else {
+                            setEditingMember({ ...editingMember, addressAr: val, locationAr: val });
+                          }
+                        }}
                         className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                       />
                     </div>
 
                     <div className="sm:col-span-2">
-                      <label className="block font-bold text-[#2D3630] mb-1">সংক্ষিপ্ত পরিচিতি / মন্তব্য</label>
+                      <label className="block font-bold text-[#2D3630] mb-1">
+                        সংক্ষিপ্ত পরিচিতি / মন্তব্য ({memberLang.toUpperCase()})
+                      </label>
                       <textarea
                         rows={2}
-                        value={editingMember.bio || ''}
-                        onChange={(e) => setEditingMember({ ...editingMember, bio: e.target.value })}
+                        dir={memberLang === 'ar' ? 'rtl' : 'ltr'}
+                        placeholder={memberLang === 'bn' ? 'সদস্যের সংক্ষিপ্ত আত্মপরিচয় বা মন্তব্য...' : memberLang === 'en' ? 'Brief member biography or note...' : 'نبذة تعريفية مختصرة عن العضو...'}
+                        value={
+                          memberLang === 'bn'
+                            ? (editingMember.bioBn ?? editingMember.bio ?? '')
+                            : memberLang === 'en'
+                            ? (editingMember.bioEn ?? '')
+                            : (editingMember.bioAr ?? '')
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (memberLang === 'bn') {
+                            setEditingMember({ ...editingMember, bioBn: val, bio: val });
+                          } else if (memberLang === 'en') {
+                            setEditingMember({ ...editingMember, bioEn: val });
+                          } else {
+                            setEditingMember({ ...editingMember, bioAr: val });
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block font-bold text-[#2D3630] mb-1">
+                        দায়িত্ব ও কার্যক্রম ({memberLang.toUpperCase()})
+                      </label>
+                      <textarea
+                        rows={2}
+                        dir={memberLang === 'ar' ? 'rtl' : 'ltr'}
+                        placeholder={memberLang === 'bn' ? 'ফাউন্ডেশনে সদস্যের নির্দিষ্ট দায়িত্ব বা ভূমিকা...' : memberLang === 'en' ? 'Specific responsibilities or role in the foundation...' : 'المسؤوليات أو الأدوار المحددة في المؤسسة...'}
+                        value={
+                          memberLang === 'bn'
+                            ? (editingMember.responsibilitiesBn ?? editingMember.responsibilities ?? '')
+                            : memberLang === 'en'
+                            ? (editingMember.responsibilitiesEn ?? '')
+                            : (editingMember.responsibilitiesAr ?? '')
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (memberLang === 'bn') {
+                            setEditingMember({ ...editingMember, responsibilitiesBn: val, responsibilities: val });
+                          } else if (memberLang === 'en') {
+                            setEditingMember({ ...editingMember, responsibilitiesEn: val });
+                          } else {
+                            setEditingMember({ ...editingMember, responsibilitiesAr: val });
+                          }
+                        }}
                         className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                       />
                     </div>

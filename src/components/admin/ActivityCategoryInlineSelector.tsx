@@ -20,6 +20,7 @@ export const ActivityCategoryInlineSelector: React.FC<ActivityCategoryInlineSele
   const [isInlineAdding, setIsInlineAdding] = useState(false);
   const [newCatBn, setNewCatBn] = useState('');
   const [newCatEn, setNewCatEn] = useState('');
+  const [newCatAr, setNewCatAr] = useState('');
 
   const loadCategories = () => {
     const list = storageService.getActivityCategories();
@@ -39,13 +40,14 @@ export const ActivityCategoryInlineSelector: React.FC<ActivityCategoryInlineSele
 
     const trimmedBn = newCatBn.trim();
     const trimmedEn = newCatEn.trim() || trimmedBn;
+    const trimmedAr = newCatAr.trim() || trimmedBn;
 
     const newCategory: ActivityCategoryItem = {
       id: `act-cat-${Date.now()}`,
       name: {
         bn: trimmedBn,
         en: trimmedEn,
-        ar: trimmedBn,
+        ar: trimmedAr,
       },
       slug: trimmedEn.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       order: categories.length + 1,
@@ -58,6 +60,7 @@ export const ActivityCategoryInlineSelector: React.FC<ActivityCategoryInlineSele
     onChange(trimmedBn);
     setNewCatBn('');
     setNewCatEn('');
+    setNewCatAr('');
     setIsInlineAdding(false);
     showToast(`"${trimmedBn}" নতুন বিভাগ যুক্ত ও নির্বাচন করা হয়েছে`);
   };
@@ -110,7 +113,7 @@ export const ActivityCategoryInlineSelector: React.FC<ActivityCategoryInlineSele
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
               <label className="block text-[11px] font-semibold text-[#5C665F] mb-0.5">
                 বিভাগের নাম (বাংলা) *
@@ -134,6 +137,19 @@ export const ActivityCategoryInlineSelector: React.FC<ActivityCategoryInlineSele
                 value={newCatEn}
                 onChange={(e) => setNewCatEn(e.target.value)}
                 placeholder="e.g., Medical Aid"
+                className="w-full px-2.5 py-1.5 rounded-md border border-[#EBE8E0] bg-white text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#5C665F] mb-0.5">
+                নাম (العربية - ঐচ্ছিক)
+              </label>
+              <input
+                type="text"
+                dir="rtl"
+                value={newCatAr}
+                onChange={(e) => setNewCatAr(e.target.value)}
+                placeholder="مثال: المساعدات الطبية"
                 className="w-full px-2.5 py-1.5 rounded-md border border-[#EBE8E0] bg-white text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
               />
             </div>

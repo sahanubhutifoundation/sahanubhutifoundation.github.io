@@ -99,6 +99,25 @@ function extractMissingColumn(errorMessage: string): string | null {
   return null;
 }
 
+function stringToDeterministicUuid(str: string | null | undefined): string | null {
+  if (!str) return null;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)) return str;
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const part1 = (h1 >>> 0).toString(16).padStart(8, '0');
+  const part2 = (h2 >>> 0).toString(16).padStart(8, '0');
+  const part3 = ((h1 ^ h2) >>> 0).toString(16).padStart(8, '0');
+  const part4 = ((h1 + h2) >>> 0).toString(16).padStart(8, '0');
+  const full = (part1 + part2 + part3 + part4).slice(0, 32);
+  return `${full.slice(0, 8)}-${full.slice(8, 12)}-4${full.slice(13, 16)}-a${full.slice(17, 20)}-${full.slice(20, 32)}`;
+}
+
 export const supabaseService = {
   isAvailable(): boolean {
     return isSupabaseConfigured() && getSupabase() !== null;
@@ -540,22 +559,84 @@ export const supabaseService = {
         const wa = row.whatsapp || meta.whatsapp || undefined;
         const imoVal = row.imo || meta.imo || undefined;
 
+        const nameBn = row.name_bn || meta.nameBn || row.name;
+        const nameEn = row.name_en || meta.nameEn || undefined;
+        const nameAr = row.name_ar || meta.nameAr || undefined;
+        const roleBn = row.role_bn || meta.roleBn || row.role || undefined;
+        const roleEn = row.role_en || meta.roleEn || undefined;
+        const roleAr = row.role_ar || meta.roleAr || undefined;
+        const locBn = row.location_bn || meta.locationBn || row.location || undefined;
+        const locEn = row.location_en || meta.locationEn || undefined;
+        const locAr = row.location_ar || meta.locationAr || undefined;
+        const addrBn = row.address_bn || meta.addressBn || row.address || undefined;
+        const addrEn = row.address_en || meta.addressEn || undefined;
+        const addrAr = row.address_ar || meta.addressAr || undefined;
+        const bioBn = row.bio_bn || meta.bioBn || row.bio || undefined;
+        const bioEn = row.bio_en || meta.bioEn || undefined;
+        const bioAr = row.bio_ar || meta.bioAr || undefined;
+        const respBn = row.responsibilities_bn || meta.responsibilitiesBn || row.responsibilities || undefined;
+        const respEn = row.responsibilities_en || meta.responsibilitiesEn || undefined;
+        const respAr = row.responsibilities_ar || meta.responsibilitiesAr || undefined;
+
         return {
           id: row.id,
           serial: Number(row.serial) || 0,
-          name: row.name,
+          name: nameBn,
+          nameBn,
+          nameEn,
+          nameAr,
+          nameMulti: {
+            bn: nameBn,
+            en: nameEn || '',
+            ar: nameAr || '',
+          },
           gender: row.gender,
           designationId: row.designation_id,
-          role: row.role,
+          role: roleBn,
+          roleBn,
+          roleEn,
+          roleAr,
+          roleMulti: {
+            bn: roleBn || '',
+            en: roleEn || '',
+            ar: roleAr || '',
+          },
           photoUrl: row.photo_url || row.image,
           phone: row.phone,
           email: row.email,
-          location: row.location,
-          address: row.address,
+          location: locBn,
+          locationBn: locBn,
+          locationEn: locEn,
+          locationAr: locAr,
+          locationMulti: {
+            bn: locBn || '',
+            en: locEn || '',
+            ar: locAr || '',
+          },
+          address: addrBn,
+          addressBn: addrBn,
+          addressEn: addrEn,
+          addressAr: addrAr,
           joiningDate: row.joining_date,
           showJoiningDate: meta.showJoiningDate !== false,
-          bio: row.bio,
-          responsibilities: row.responsibilities,
+          bio: bioBn,
+          bioBn,
+          bioEn,
+          bioAr,
+          bioMulti: {
+            bn: bioBn || '',
+            en: bioEn || '',
+            ar: bioAr || '',
+          },
+          responsibilities: respBn,
+          responsibilitiesBn: respBn,
+          responsibilitiesEn: respEn,
+          responsibilitiesAr: respAr,
+          responsibilitiesMulti: {
+            bn: respBn || '',
+            en: respEn || '',
+            ar: respAr || '',
+          },
           isActive: row.is_active !== false,
           isFamilyMember: Boolean(row.is_family_member),
           useGlobalImageShape: row.use_global_image_shape != null ? Boolean(row.use_global_image_shape) : (meta.useGlobalImageShape !== false),
@@ -607,6 +688,24 @@ export const supabaseService = {
       // Pack all advanced metadata safely into image_position JSON blob
       // so even if specific table columns are missing in live Postgres, no configuration is ever lost
       const metadataObj = {
+        nameBn: m.nameBn || m.name || '',
+        nameEn: m.nameEn || '',
+        nameAr: m.nameAr || '',
+        roleBn: m.roleBn || m.role || '',
+        roleEn: m.roleEn || '',
+        roleAr: m.roleAr || '',
+        locationBn: m.locationBn || m.addressBn || m.location || m.address || '',
+        locationEn: m.locationEn || m.addressEn || '',
+        locationAr: m.locationAr || m.addressAr || '',
+        addressBn: m.addressBn || m.address || '',
+        addressEn: m.addressEn || '',
+        addressAr: m.addressAr || '',
+        bioBn: m.bioBn || m.bio || '',
+        bioEn: m.bioEn || '',
+        bioAr: m.bioAr || '',
+        responsibilitiesBn: m.responsibilitiesBn || m.responsibilities || '',
+        responsibilitiesEn: m.responsibilitiesEn || '',
+        responsibilitiesAr: m.responsibilitiesAr || '',
         cropZoom: m.cropZoom != null ? Number(m.cropZoom) : 1,
         cropX: m.cropX != null ? Number(m.cropX) : 0,
         cropY: m.cropY != null ? Number(m.cropY) : 0,
@@ -631,19 +730,37 @@ export const supabaseService = {
       let payload: Record<string, any> = {
         id: m.id,
         serial: Number(m.serial) || 0,
-        name: m.name,
+        name: m.nameBn || m.name,
+        name_bn: m.nameBn || m.name,
+        name_en: m.nameEn || null,
+        name_ar: m.nameAr || null,
         gender: m.gender || null,
         designation_id: m.designationId || null,
-        role: m.role || null,
+        role: m.roleBn || m.role || null,
+        role_bn: m.roleBn || m.role || null,
+        role_en: m.roleEn || null,
+        role_ar: m.roleAr || null,
         photo_url: m.photoUrl || (m as any).image || null,
         image: (m as any).image || m.photoUrl || null,
         phone: m.phone || null,
         email: m.email || null,
-        location: m.location || null,
-        address: m.address || null,
+        location: m.locationBn || m.location || m.address || null,
+        location_bn: m.locationBn || m.location || null,
+        location_en: m.locationEn || null,
+        location_ar: m.locationAr || null,
+        address: m.addressBn || m.address || null,
+        address_bn: m.addressBn || m.address || null,
+        address_en: m.addressEn || null,
+        address_ar: m.addressAr || null,
         joining_date: m.joiningDate || null,
-        bio: m.bio || null,
-        responsibilities: m.responsibilities || null,
+        bio: m.bioBn || m.bio || null,
+        bio_bn: m.bioBn || m.bio || null,
+        bio_en: m.bioEn || null,
+        bio_ar: m.bioAr || null,
+        responsibilities: m.responsibilitiesBn || m.responsibilities || null,
+        responsibilities_bn: m.responsibilitiesBn || m.responsibilities || null,
+        responsibilities_en: m.responsibilitiesEn || null,
+        responsibilities_ar: m.responsibilitiesAr || null,
         is_active: m.isActive !== false,
         is_family_member: Boolean(m.isFamilyMember),
         image_shape: m.imageShape || 'rounded',
@@ -716,22 +833,84 @@ export const supabaseService = {
         } catch {}
       }
 
+      const vNameBn = verified.name_bn || verifiedMeta.nameBn || verified.name;
+      const vNameEn = verified.name_en || verifiedMeta.nameEn || m.nameEn || undefined;
+      const vNameAr = verified.name_ar || verifiedMeta.nameAr || m.nameAr || undefined;
+      const vRoleBn = verified.role_bn || verifiedMeta.roleBn || verified.role || undefined;
+      const vRoleEn = verified.role_en || verifiedMeta.roleEn || m.roleEn || undefined;
+      const vRoleAr = verified.role_ar || verifiedMeta.roleAr || m.roleAr || undefined;
+      const vLocBn = verified.location_bn || verifiedMeta.locationBn || verified.location || undefined;
+      const vLocEn = verified.location_en || verifiedMeta.locationEn || m.locationEn || undefined;
+      const vLocAr = verified.location_ar || verifiedMeta.locationAr || m.locationAr || undefined;
+      const vAddrBn = verified.address_bn || verifiedMeta.addressBn || verified.address || undefined;
+      const vAddrEn = verified.address_en || verifiedMeta.addressEn || m.addressEn || undefined;
+      const vAddrAr = verified.address_ar || verifiedMeta.addressAr || m.addressAr || undefined;
+      const vBioBn = verified.bio_bn || verifiedMeta.bioBn || verified.bio || undefined;
+      const vBioEn = verified.bio_en || verifiedMeta.bioEn || m.bioEn || undefined;
+      const vBioAr = verified.bio_ar || verifiedMeta.bioAr || m.bioAr || undefined;
+      const vRespBn = verified.responsibilities_bn || verifiedMeta.responsibilitiesBn || verified.responsibilities || undefined;
+      const vRespEn = verified.responsibilities_en || verifiedMeta.responsibilitiesEn || m.responsibilitiesEn || undefined;
+      const vRespAr = verified.responsibilities_ar || verifiedMeta.responsibilitiesAr || m.responsibilitiesAr || undefined;
+
       const verifiedMember: Member = {
         id: verified.id,
         serial: Number(verified.serial) || 0,
-        name: verified.name,
+        name: vNameBn,
+        nameBn: vNameBn,
+        nameEn: vNameEn,
+        nameAr: vNameAr,
+        nameMulti: {
+          bn: vNameBn,
+          en: vNameEn || '',
+          ar: vNameAr || '',
+        },
         gender: verified.gender || undefined,
         designationId: verified.designation_id || undefined,
-        role: verified.role || undefined,
+        role: vRoleBn,
+        roleBn: vRoleBn,
+        roleEn: vRoleEn,
+        roleAr: vRoleAr,
+        roleMulti: {
+          bn: vRoleBn || '',
+          en: vRoleEn || '',
+          ar: vRoleAr || '',
+        },
         photoUrl: verified.photo_url || verified.image || undefined,
         phone: verified.phone || undefined,
         email: verified.email || undefined,
-        location: verified.location || undefined,
-        address: verified.address || undefined,
+        location: vLocBn,
+        locationBn: vLocBn,
+        locationEn: vLocEn,
+        locationAr: vLocAr,
+        locationMulti: {
+          bn: vLocBn || '',
+          en: vLocEn || '',
+          ar: vLocAr || '',
+        },
+        address: vAddrBn,
+        addressBn: vAddrBn,
+        addressEn: vAddrEn,
+        addressAr: vAddrAr,
         joiningDate: verified.joining_date || undefined,
         showJoiningDate: verifiedMeta.showJoiningDate !== false,
-        bio: verified.bio || undefined,
-        responsibilities: verified.responsibilities || undefined,
+        bio: vBioBn,
+        bioBn: vBioBn,
+        bioEn: vBioEn,
+        bioAr: vBioAr,
+        bioMulti: {
+          bn: vBioBn || '',
+          en: vBioEn || '',
+          ar: vBioAr || '',
+        },
+        responsibilities: vRespBn,
+        responsibilitiesBn: vRespBn,
+        responsibilitiesEn: vRespEn,
+        responsibilitiesAr: vRespAr,
+        responsibilitiesMulti: {
+          bn: vRespBn || '',
+          en: vRespEn || '',
+          ar: vRespAr || '',
+        },
         isActive: verified.is_active !== false,
         isFamilyMember: Boolean(verified.is_family_member),
         useGlobalImageShape: verified.use_global_image_shape != null
@@ -1585,8 +1764,9 @@ export const supabaseService = {
 
       if (error) return null;
 
-      return (data || []).map((row) =>
-        normalizeExpense({
+      return (data || []).map((row) => {
+        const resolvedActId = (row.purpose && typeof row.purpose === 'object' && row.purpose._activity_id) || row.activity_id || undefined;
+        return normalizeExpense({
           id: row.id,
           date: row.date,
           amount: Number(row.amount) || 0,
@@ -1601,12 +1781,12 @@ export const supabaseService = {
           isVerified: Boolean(row.is_verified || row.verified_by),
           isPublic: row.is_public !== false,
           year: row.year || undefined,
-          activityId: row.activity_id || undefined,
-          linkedActivityId: row.activity_id || undefined,
+          activityId: resolvedActId,
+          linkedActivityId: resolvedActId,
           createdAt: row.created_at || new Date().toISOString(),
           updatedAt: row.updated_at,
-        })
-      );
+        });
+      });
     } catch {
       return null;
     }
@@ -1625,12 +1805,23 @@ export const supabaseService = {
     try {
       const now = new Date().toISOString();
       const yr = e.year || (e.date ? parseInt(e.date.slice(0, 4), 10) : new Date().getFullYear());
+      const expectedActivityId = e.activityId || e.linkedActivityId || null;
+
+      let purposeObj: any = typeof (e as any).purpose === 'object' && (e as any).purpose
+        ? { ...(e as any).purpose }
+        : { bn: e.title, en: e.title, ar: e.title };
+      if (expectedActivityId) {
+        purposeObj._activity_id = expectedActivityId;
+      } else {
+        delete purposeObj._activity_id;
+      }
+
       let payload: Record<string, any> = {
         id: e.id,
         date: e.date,
         amount: Number(e.amount) || 0,
         title: e.title,
-        purpose: (e as any).purpose || { bn: e.title, en: e.title, ar: e.title },
+        purpose: purposeObj,
         category: e.category || 'other',
         custom_category: e.customCategory || null,
         description: e.description || null,
@@ -1642,12 +1833,19 @@ export const supabaseService = {
         is_verified: Boolean(e.isVerified),
         is_public: e.isPublic !== false,
         year: yr,
-        activity_id: e.activityId || e.linkedActivityId || null,
+        activity_id: expectedActivityId,
         created_at: e.createdAt || now,
         updated_at: now,
       };
 
       let { error } = await supabase.from('expenses').upsert(payload, { onConflict: 'id' });
+
+      // If Postgres has activity_id as UUID type, handle non-UUID strings gracefully
+      if (error && error.message?.includes('invalid input syntax for type uuid') && expectedActivityId) {
+        payload.activity_id = stringToDeterministicUuid(expectedActivityId);
+        const retry = await supabase.from('expenses').upsert(payload, { onConflict: 'id' });
+        error = retry.error;
+      }
 
       // Immediate controlled schema mismatch error if activity_id column is missing
       if (
@@ -1757,14 +1955,23 @@ export const supabaseService = {
       }
 
       // Explicit verification: if an activity was linked, the returned DB row must match
-      const expectedActivityId = e.activityId || e.linkedActivityId || null;
-      if (expectedActivityId && verified.activity_id !== expectedActivityId) {
+      const matchesActivity = !expectedActivityId
+        ? !verified.activity_id
+        : (
+            verified.activity_id === expectedActivityId ||
+            verified.activity_id === stringToDeterministicUuid(expectedActivityId) ||
+            (verified.purpose && typeof verified.purpose === 'object' && verified.purpose._activity_id === expectedActivityId)
+          );
+
+      if (!matchesActivity) {
         return {
           success: false,
           error: `ব্যয় রেকর্ডে কার্যক্রম লিংক সংরক্ষণ যাচাই ব্যর্থ: প্রত্যাশিত ছিল "${expectedActivityId}", ডাটাবেজ থেকে পাওয়া গেছে "${verified.activity_id}"`,
           code: 'VERIFICATION_MISMATCH',
         };
       }
+
+      const verifiedActId = (verified.purpose && typeof verified.purpose === 'object' && verified.purpose._activity_id) || verified.activity_id || undefined;
 
       const verifiedExpense: ExpenseRecord = normalizeExpense({
         id: verified.id,
@@ -1781,8 +1988,8 @@ export const supabaseService = {
         isVerified: Boolean(verified.is_verified || verified.verified_by),
         isPublic: verified.is_public !== false,
         year: verified.year || undefined,
-        activityId: verified.activity_id || undefined,
-        linkedActivityId: verified.activity_id || undefined,
+        activityId: verifiedActId,
+        linkedActivityId: verifiedActId,
         createdAt: verified.created_at || now,
         updatedAt: verified.updated_at || now,
       });

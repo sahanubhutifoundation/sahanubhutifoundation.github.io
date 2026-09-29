@@ -7,7 +7,7 @@ import { ActivityFallbackCover } from '../components/ActivityFallbackCover';
 import { storageService } from '../services/storageService';
 import { Activity, ActivityCategoryItem } from '../types';
 import { Calendar, ArrowRight, Tag, Heart } from 'lucide-react';
-import { toBengaliDigits } from '../utils/foundationHelpers';
+import { toBengaliDigits, resolveCategoryLabel } from '../utils/foundationHelpers';
 
 export const ActivitiesPage: React.FC = () => {
   const { t, tMulti, isRTL, language } = useLanguage();

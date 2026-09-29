@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, FoundationConfig } from '../types';
 import { ActivityFallbackCover } from './ActivityFallbackCover';
 import { Calendar, Tag, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { toBengaliDigits } from '../utils/foundationHelpers';
+import { toBengaliDigits, resolveCategoryLabel } from '../utils/foundationHelpers';
+import { storageService } from '../services/storageService';
 
 interface ActivityRailCardProps {
   activity: Activity;
@@ -20,6 +21,8 @@ export const ActivityRailCard: React.FC<ActivityRailCardProps> = ({
   className = '',
 }) => {
   const { language, isRTL, tMulti } = useLanguage();
+  const categories = useMemo(() => storageService.getActivityCategories(), []);
+  const resolvedCategory = resolveCategoryLabel(activity.category, categories, language);
 
   const titleStr = tMulti(activity.title) || (typeof activity.title === 'string' ? activity.title : '');
 
@@ -92,16 +95,23 @@ export const ActivityRailCard: React.FC<ActivityRailCardProps> = ({
         {/* Content Body */}
         <div className="p-4 sm:p-5 space-y-2.5">
           {/* Metadata badges (Category / Date) */}
-          {(showCategory || showDate) && (
+          {(showCategory || showDate || activity.badge || activity.badgeEmoji) && (
             <div className="flex items-center justify-between text-xs text-[#7A877E] gap-2">
-              {showCategory && activity.category ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#E8EFEA] text-[#2D5A41] font-semibold text-[10px] sm:text-[11px] truncate max-w-[60%]">
-                  <Tag className="w-2.5 h-2.5 shrink-0" />
-                  <span className="truncate">{activity.category}</span>
-                </span>
-              ) : (
-                <span />
-              )}
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                {showCategory && resolvedCategory ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#E8EFEA] text-[#2D5A41] font-semibold text-[10px] sm:text-[11px] truncate">
+                    <Tag className="w-2.5 h-2.5 shrink-0" />
+                    <span className="truncate">{resolvedCategory}</span>
+                  </span>
+                ) : null}
+
+                {(activity.badge || activity.badgeEmoji) && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#F7F5F0] text-[#5C665F] font-medium text-[10px] sm:text-[11px] border border-[#EBE8E0] truncate">
+                    {activity.badgeEmoji && <span>{activity.badgeEmoji}</span>}
+                    {activity.badge && <span className="truncate">{tMulti(activity.badge)}</span>}
+                  </span>
+                )}
+              </div>
 
               {showDate && displayDate && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium shrink-0">

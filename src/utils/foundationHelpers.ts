@@ -267,18 +267,153 @@ export function resolveCategoryLabel(
   lang: string = 'bn'
 ): string {
   if (!catName) return '';
+  const l = (lang || 'bn') as 'bn' | 'en' | 'ar';
   if (typeof catName === 'object') {
-    return catName[lang as 'bn' | 'en' | 'ar'] || catName.bn || catName.en || '';
+    if (l === 'ar') return catName.ar || catName.en || catName.bn || '';
+    if (l === 'en') return catName.en || catName.bn || '';
+    return catName.bn || catName.en || '';
   }
   if (Array.isArray(categories)) {
     const found = categories.find(
       (c) => c.name?.bn === catName || c.id === catName || c.name?.en === catName || c.name?.ar === catName
     );
     if (found?.name) {
-      return found.name[lang as 'bn' | 'en' | 'ar'] || found.name.bn || found.name.en || catName;
+      if (l === 'ar') return found.name.ar || found.name.en || found.name.bn || catName;
+      if (l === 'en') return found.name.en || found.name.bn || catName;
+      return found.name.bn || found.name.en || catName;
     }
   }
+
+  // Built-in canonical category translations fallback
+  const standardCategories: Record<string, { bn: string; en: string; ar: string }> = {
+    'ওষুধ ও চিকিৎসা': { bn: 'ওষুধ ও চিকিৎসা', en: 'Medicine & Healthcare', ar: 'الأدوية والرعاية الصحية' },
+    'বাইতুল মাল': { bn: 'বাইতুল মাল', en: 'Baitul Mal', ar: 'بيت المال' },
+    'জরুরি মানবিক সহায়তা': { bn: 'জরুরি মানবিক সহায়তা', en: 'Emergency Relief', ar: 'الإغاثة الإنسانية العاجلة' },
+    'পারিবারিক সমাবেশ': { bn: 'পারিবারিক সমাবেশ', en: 'Family Gathering', ar: 'التجمع العائلي' },
+    'চিকিৎসা সহায়তা': { bn: 'চিকিৎসা সহায়তা', en: 'Medical Assistance', ar: 'المساعدات الطبية' },
+    'ত্রাণ ও পুনর্বাসন': { bn: 'ত্রাণ ও পুনর্বাসন', en: 'Relief & Rehabilitation', ar: 'الإغاثة وإعادة التأهيل' },
+    'শিক্ষা সহায়তা': { bn: 'শিক্ষা সহায়তা', en: 'Education Support', ar: 'دعم التعليم' },
+    'সাধারণ কার্যক্রম': { bn: 'সাধারণ কার্যক্রম', en: 'General Activities', ar: 'أنشطة عامة' },
+  };
+
+  if (standardCategories[catName]) {
+    const mapped = standardCategories[catName];
+    if (l === 'ar') return mapped.ar || mapped.en || mapped.bn;
+    if (l === 'en') return mapped.en || mapped.bn;
+    return mapped.bn;
+  }
+
   return catName;
 }
+
+/**
+ * Public multilingual resolver for Activity Badges (e.g. editorial badges):
+ * Supports 'খরচ সংক্রান্ত অবগতি' -> 'إشعار بالمصروفات والإفصاح المالي' (AR) / 'Expense Notice & Disclosure' (EN)
+ */
+export function resolveBadgeLabel(
+  badge?: string | MultilingualText,
+  lang: string = 'bn'
+): string {
+  if (!badge) return '';
+  const l = (lang || 'bn') as 'bn' | 'en' | 'ar';
+  if (typeof badge === 'object') {
+    if (l === 'ar') return badge.ar || badge.en || badge.bn || '';
+    if (l === 'en') return badge.en || badge.bn || '';
+    return badge.bn || badge.en || '';
+  }
+
+  const trimmed = badge.trim();
+  if (trimmed === 'খরচ সংক্রান্ত অবগতি') {
+    if (l === 'ar') return 'إشعار بالمصروفات والإفصاح المالي';
+    if (l === 'en') return 'Expense Notice & Disclosure';
+    return 'খরচ সংক্রান্ত অবগতি';
+  }
+
+  return trimmed;
+}
+
+/**
+ * Multilingual resolver for Member fields:
+ * Selected language -> English fallback -> Bangla fallback
+ */
+export function getMemberLocalizedField(
+  member: any,
+  field: 'name' | 'role' | 'location' | 'address' | 'bio' | 'responsibilities',
+  lang: string = 'bn'
+): string {
+  if (!member) return '';
+  const l = (lang || 'bn') as 'bn' | 'en' | 'ar';
+
+  if (field === 'name') {
+    if (l === 'ar' && member.nameAr?.trim()) return member.nameAr.trim();
+    if (l === 'en' && member.nameEn?.trim()) return member.nameEn.trim();
+    if (l === 'bn' && member.nameBn?.trim()) return member.nameBn.trim();
+    if (member.nameMulti && typeof member.nameMulti === 'object') {
+      const val = member.nameMulti[l] || (l === 'ar' ? member.nameMulti.en || member.nameMulti.bn : member.nameMulti.bn || member.nameMulti.en);
+      if (val?.trim()) return val.trim();
+    }
+    if (l === 'ar') return member.nameAr?.trim() || member.nameEn?.trim() || member.nameBn?.trim() || member.name || '';
+    if (l === 'en') return member.nameEn?.trim() || member.nameBn?.trim() || member.name || '';
+    return member.nameBn?.trim() || member.name || '';
+  }
+
+  if (field === 'role') {
+    if (l === 'ar' && member.roleAr?.trim()) return member.roleAr.trim();
+    if (l === 'en' && member.roleEn?.trim()) return member.roleEn.trim();
+    if (l === 'bn' && member.roleBn?.trim()) return member.roleBn.trim();
+    if (member.roleMulti && typeof member.roleMulti === 'object') {
+      const val = member.roleMulti[l] || (l === 'ar' ? member.roleMulti.en || member.roleMulti.bn : member.roleMulti.bn || member.roleMulti.en);
+      if (val?.trim()) return val.trim();
+    }
+    if (l === 'ar') return member.roleAr?.trim() || member.roleEn?.trim() || member.roleBn?.trim() || member.role || '';
+    if (l === 'en') return member.roleEn?.trim() || member.roleBn?.trim() || member.role || '';
+    return member.roleBn?.trim() || member.role || '';
+  }
+
+  if (field === 'location' || field === 'address') {
+    const arVal = member.addressAr || member.locationAr;
+    const enVal = member.addressEn || member.locationEn;
+    const bnVal = member.addressBn || member.locationBn;
+    if (l === 'ar' && arVal?.trim()) return arVal.trim();
+    if (l === 'en' && enVal?.trim()) return enVal.trim();
+    if (l === 'bn' && bnVal?.trim()) return bnVal.trim();
+    if (member.locationMulti && typeof member.locationMulti === 'object') {
+      const val = member.locationMulti[l] || (l === 'ar' ? member.locationMulti.en || member.locationMulti.bn : member.locationMulti.bn || member.locationMulti.en);
+      if (val?.trim()) return val.trim();
+    }
+    if (l === 'ar') return arVal?.trim() || enVal?.trim() || bnVal?.trim() || member.address || member.location || '';
+    if (l === 'en') return enVal?.trim() || bnVal?.trim() || member.address || member.location || '';
+    return bnVal?.trim() || member.address || member.location || '';
+  }
+
+  if (field === 'bio') {
+    if (l === 'ar' && member.bioAr?.trim()) return member.bioAr.trim();
+    if (l === 'en' && member.bioEn?.trim()) return member.bioEn.trim();
+    if (l === 'bn' && member.bioBn?.trim()) return member.bioBn.trim();
+    if (member.bioMulti && typeof member.bioMulti === 'object') {
+      const val = member.bioMulti[l] || (l === 'ar' ? member.bioMulti.en || member.bioMulti.bn : member.bioMulti.bn || member.bioMulti.en);
+      if (val?.trim()) return val.trim();
+    }
+    if (l === 'ar') return member.bioAr?.trim() || member.bioEn?.trim() || member.bioBn?.trim() || member.bio || '';
+    if (l === 'en') return member.bioEn?.trim() || member.bioBn?.trim() || member.bio || '';
+    return member.bioBn?.trim() || member.bio || '';
+  }
+
+  if (field === 'responsibilities') {
+    if (l === 'ar' && member.responsibilitiesAr?.trim()) return member.responsibilitiesAr.trim();
+    if (l === 'en' && member.responsibilitiesEn?.trim()) return member.responsibilitiesEn.trim();
+    if (l === 'bn' && member.responsibilitiesBn?.trim()) return member.responsibilitiesBn.trim();
+    if (member.responsibilitiesMulti && typeof member.responsibilitiesMulti === 'object') {
+      const val = member.responsibilitiesMulti[l] || (l === 'ar' ? member.responsibilitiesMulti.en || member.responsibilitiesMulti.bn : member.responsibilitiesMulti.bn || member.responsibilitiesMulti.en);
+      if (val?.trim()) return val.trim();
+    }
+    if (l === 'ar') return member.responsibilitiesAr?.trim() || member.responsibilitiesEn?.trim() || member.responsibilitiesBn?.trim() || member.responsibilities || '';
+    if (l === 'en') return member.responsibilitiesEn?.trim() || member.responsibilitiesBn?.trim() || member.responsibilities || '';
+    return member.responsibilitiesBn?.trim() || member.responsibilities || '';
+  }
+
+  return '';
+}
+
 
 

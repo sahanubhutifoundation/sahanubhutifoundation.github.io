@@ -10,7 +10,7 @@ import { MemberSocialIcons } from '../components/MemberSocialIcons';
 import { storageService } from '../services/storageService';
 import { Member, Designation } from '../types';
 import { Users, User, ArrowRight, MapPin, HeartHandshake, Calendar } from 'lucide-react';
-import { toBengaliDigits, formatFoundingDate } from '../utils/foundationHelpers';
+import { toBengaliDigits, formatFoundingDate, getMemberLocalizedField } from '../utils/foundationHelpers';
 
 export const MembersPage: React.FC = () => {
   const { t, language, isRTL } = useLanguage();
@@ -61,7 +61,7 @@ export const MembersPage: React.FC = () => {
         title={t('membersPageTitle')}
         subtitle={t('membersSubtitle')}
         breadcrumb={[{ label: t('navMembers') }]}
-        tag="পারিবারিক সদস্য তালিকা"
+        tag={t('familyMemberListTag')}
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
@@ -71,14 +71,10 @@ export const MembersPage: React.FC = () => {
             <HeartHandshake className="w-5 h-5 text-[#2D5A41] shrink-0 mt-0.5" />
             <div>
               <h3 className="text-sm sm:text-base font-bold text-[#2D3630]">
-                {language === 'bn'
-                  ? 'পরিবারের সকল সদস্যের প্রতি আন্তরিক আহ্বান'
-                  : 'A Heartfelt Call to All Family Members'}
+                {t('joinMemberNoticeTitle')}
               </h3>
               <p className="text-xs sm:text-sm text-[#5C665F] mt-0.5 leading-relaxed">
-                {language === 'bn'
-                  ? 'আমাদের এই উদ্যোগকে আরও শক্তিশালী ও গতিশীল করতে পরিবারের যেকেউ সদস্য হিসেবে যুক্ত হতে যোগাযোগ করতে পারেন।'
-                  : 'To strengthen and vitalize our cause, any family member is warmly encouraged to reach out and join.'}
+                {t('joinMemberNoticeDesc')}
               </p>
             </div>
           </div>
@@ -86,7 +82,7 @@ export const MembersPage: React.FC = () => {
             to="/contact"
             className="px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-[#2D5A41] hover:bg-[#234733] text-white transition-colors self-start sm:self-center shrink-0 shadow-2xs text-center"
           >
-            সদস্য হতে যোগাযোগ করুন
+            {t('joinMemberBtn')}
           </Link>
         </div>
 

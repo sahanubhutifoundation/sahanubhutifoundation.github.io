@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { PageHero } from '../components/PageHero';
 import { ActivityFallbackCover } from '../components/ActivityFallbackCover';
 import { storageService } from '../services/storageService';
-import { Activity, ExpenseRecord } from '../types';
+import { Activity, ExpenseRecord, ActivityCategoryItem } from '../types';
 import { 
   Calendar, 
   Tag, 
@@ -21,7 +21,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { toBengaliDigits } from '../utils/foundationHelpers';
+import { toBengaliDigits, resolveCategoryLabel } from '../utils/foundationHelpers';
 
 export const ActivityDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -31,6 +31,7 @@ export const ActivityDetailPage: React.FC = () => {
   const [activity, setActivity] = useState<Activity | null>(null);
   const [prevActivity, setPrevActivity] = useState<Activity | null>(null);
   const [nextActivity, setNextActivity] = useState<Activity | null>(null);
+  const [categories, setCategories] = useState<ActivityCategoryItem[]>([]);
   const [copied, setCopied] = useState(false);
 
   const linkedExpenses = useMemo(() => {
@@ -40,7 +41,12 @@ export const ActivityDetailPage: React.FC = () => {
     );
   }, [activity]);
 
+  const totalExpenseAmount = useMemo(() => {
+    return linkedExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  }, [linkedExpenses]);
+
   useEffect(() => {
+    setCategories(storageService.getActivityCategories());
     const list = storageService.getActivities().filter((a) => a.isPublished);
     const index = list.findIndex((a) => a.id === id || a.slug === id);
     
@@ -70,16 +76,16 @@ export const ActivityDetailPage: React.FC = () => {
   if (!activity) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
-        <h2 className="text-xl font-bold text-[#2D3630]">কার্যক্রমটি খুঁজে পাওয়া যায়নি</h2>
+        <h2 className="text-xl font-bold text-[#2D3630]">{t('activityNotFound')}</h2>
         <p className="text-[#7A877E] text-sm">
-          অনুরোধকৃত কার্যক্রমটি অপ্রকাশিত হতে পারে অথবা লিংকটি পরিবর্তিত হয়েছে।
+          {t('activityNotFoundHint')}
         </p>
         <Link
           to="/activities"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold shadow-2xs transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>সকল কার্যক্রমে ফিরে যান</span>
+          <ArrowLeft className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
+          <span>{t('backToActivities')}</span>
         </Link>
       </div>
     );
@@ -92,6 +98,7 @@ export const ActivityDetailPage: React.FC = () => {
   const locationText = activity.location ? tMulti(activity.location) : '';
   const beneficiariesText = activity.beneficiaries ? tMulti(activity.beneficiaries) : '';
   const outcomesText = activity.outcomes ? tMulti(activity.outcomes) : '';
+  const resolvedCategoryName = resolveCategoryLabel(activity.category, categories, language);
 
   const galleryList = Array.isArray(activity.galleryImages) && activity.galleryImages.length > 0
     ? activity.galleryImages
@@ -118,7 +125,7 @@ export const ActivityDetailPage: React.FC = () => {
               className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2D5A41] hover:text-[#234733] transition-colors group self-start px-3 py-1.5 rounded-lg bg-[#E8EFEA] hover:bg-[#D9E5DC] border border-[#2D5A41]/20 shadow-3xs"
             >
               <ArrowLeft className={`w-4 h-4 transition-transform group-hover:-translate-x-1 ${isRTL ? 'rotate-180 group-hover:translate-x-1' : ''}`} />
-              <span>তহবিল বিবরণীতে ফিরে যান ({location.state?.selectedYear || 'ফান্ড'})</span>
+              <span>{t('backToFundStatement')} ({location.state?.selectedYear ? (language === 'bn' ? toBengaliDigits(location.state.selectedYear) : location.state.selectedYear) : t('navFund')})</span>
             </Link>
           ) : (
             <Link
@@ -126,15 +133,35 @@ export const ActivityDetailPage: React.FC = () => {
               className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5C665F] hover:text-[#2D5A41] transition-colors group self-start"
             >
               <ArrowLeft className={`w-4 h-4 transition-transform group-hover:-translate-x-1 ${isRTL ? 'rotate-180 group-hover:translate-x-1' : ''}`} />
-              <span>সকল কার্যক্রমে ফিরে যান</span>
+              <span>{t('backToActivities')}</span>
             </Link>
           )}
 
           <div className="flex items-center gap-2.5 flex-wrap">
-            {activity.category && (
+            {resolvedCategoryName && (
               <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#E8EFEA] text-[#2D5A41] text-xs font-bold shadow-3xs">
                 <Tag className="w-3 h-3" />
-                <span>{activity.category}</span>
+                <span>{resolvedCategoryName}</span>
+              </span>
+            )}
+
+            {/* Optional Editorial Badge */}
+            {(activity.badgeEmoji || activity.badge) && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F7F5F0] text-[#5C665F] border border-[#EBE8E0] text-xs font-semibold shadow-3xs">
+                {activity.badgeEmoji && <span>{activity.badgeEmoji}</span>}
+                {activity.badge && <span>{tMulti(activity.badge)}</span>}
+              </span>
+            )}
+
+            {/* Price / Verified Amount Badge - ONLY shown when real canonical linked expense exists */}
+            {linkedExpenses.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/70 text-xs font-bold shadow-3xs">
+                <span>{t('expenseAmountLabel')}</span>
+                <span className="font-mono">
+                  {language === 'bn'
+                    ? `৳ ${toBengaliDigits(totalExpenseAmount)}`
+                    : `৳ ${totalExpenseAmount.toLocaleString()}`}
+                </span>
               </span>
             )}
 
@@ -145,18 +172,18 @@ export const ActivityDetailPage: React.FC = () => {
 
             <button
               onClick={handleShare}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#EBE8E0] bg-white text-[#5C665F] hover:bg-[#F7F5F0] text-xs font-semibold shadow-3xs transition-colors"
-              title="লিংক কপি করুন"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#EBE8E0] bg-white text-[#5C665F] hover:bg-[#F7F5F0] text-xs font-semibold shadow-3xs transition-colors cursor-pointer"
+              title={t('copyLink')}
             >
               {copied ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-[#2D5A41]" />
-                  <span className="text-[#2D5A41] font-bold">কপি হয়েছে!</span>
+                  <span className="text-[#2D5A41] font-bold">{t('copiedToast')}</span>
                 </>
               ) : (
                 <>
                   <Share2 className="w-3.5 h-3.5" />
-                  <span>শেয়ার</span>
+                  <span>{t('shareBtn')}</span>
                 </>
               )}
             </button>
@@ -191,7 +218,7 @@ export const ActivityDetailPage: React.FC = () => {
               <div className="p-3.5 rounded-xl bg-white border border-[#EBE8E0] shadow-3xs space-y-1">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-[#2D5A41]">
                   <Target className="w-3.5 h-3.5 text-[#2D5A41]" />
-                  <span>উদ্দেশ্য ও প্রেক্ষাপট</span>
+                  <span>{t('activityPurposeContext')}</span>
                 </div>
                 <p className="text-xs text-[#5C665F] leading-relaxed">{purposeText}</p>
               </div>
@@ -201,7 +228,7 @@ export const ActivityDetailPage: React.FC = () => {
               <div className="p-3.5 rounded-xl bg-white border border-[#EBE8E0] shadow-3xs space-y-1">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-[#2D5A41]">
                   <MapPin className="w-3.5 h-3.5 text-[#2D5A41]" />
-                  <span>কার্যক্রমের স্থান</span>
+                  <span>{t('activityLocationLabel')}</span>
                 </div>
                 <p className="text-xs text-[#5C665F] leading-relaxed">{locationText}</p>
               </div>
@@ -211,7 +238,7 @@ export const ActivityDetailPage: React.FC = () => {
               <div className="p-3.5 rounded-xl bg-white border border-[#EBE8E0] shadow-3xs space-y-1">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-[#2D5A41]">
                   <Users className="w-3.5 h-3.5 text-[#2D5A41]" />
-                  <span>সুবিধাভোগী</span>
+                  <span>{t('activityBeneficiariesLabel')}</span>
                 </div>
                 <p className="text-xs text-[#5C665F] leading-relaxed">{beneficiariesText}</p>
               </div>
@@ -237,7 +264,7 @@ export const ActivityDetailPage: React.FC = () => {
             <div className="p-4 sm:p-5 rounded-xl bg-[#E8EFEA]/60 border border-[#2D5A41]/20 space-y-2 mt-6">
               <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-[#2D5A41]">
                 <CheckCircle className="w-4 h-4 text-[#2D5A41]" />
-                <span>অর্জন ও ফলাফল (Key Outcomes)</span>
+                <span>{t('activityOutcomesLabel')}</span>
               </div>
               <p className="text-xs sm:text-sm text-[#2D3630] leading-relaxed">
                 {outcomesText}
@@ -256,10 +283,10 @@ export const ActivityDetailPage: React.FC = () => {
                 </div>
                 <div>
                   <h4 className="text-xs sm:text-sm font-bold text-[#2D3630]">
-                    তহবিল ও ব্যয় স্বচ্ছতা রেকর্ড (Financial Transparency)
+                    {t('financialTransparency')}
                   </h4>
                   <p className="text-[11px] text-[#7A877E] mt-0.5">
-                    এই কার্যক্রমের যাবতীয় ব্যয় ভাউচার ও নিরীক্ষিত অডিট রেকর্ড কেন্দ্রীয় তহবিলের ব্যয়ের লেজারে অন্তর্ভুক্ত।
+                    {t('financialTransparencyDesc')}
                   </p>
                 </div>
               </div>
@@ -268,20 +295,20 @@ export const ActivityDetailPage: React.FC = () => {
                 to={location.state?.selectedYear ? `/fund?year=${location.state.selectedYear}` : '/fund'}
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#2D5A41] text-[#2D5A41] hover:bg-[#E8EFEA] text-xs font-bold transition-colors shrink-0 self-start sm:self-auto"
               >
-                <span>তহবিল বিবরণী দেখুন</span>
+                <span>{t('viewFundStatement')}</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </Link>
             </div>
 
             {linkedExpenses.length > 0 && (
               <div className="space-y-2">
-                <span className="text-[11px] font-bold text-[#5C665F]">সংযুক্ত অনুমোদিত ব্যয় (Canonical Ledger Records):</span>
+                <span className="text-[11px] font-bold text-[#5C665F]">{t('canonicalLedgerRecords')}</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {linkedExpenses.map((exp) => (
                     <div key={exp.id} className="p-3 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] flex items-center justify-between text-xs">
                       <div>
-                        <span className="font-bold text-[#2D3630] block">{typeof exp.title === 'string' ? exp.title : (exp.title as any)?.bn || ''}</span>
-                        <span className="text-[10px] text-[#7A877E]">{exp.date}</span>
+                        <span className="font-bold text-[#2D3630] block">{typeof exp.title === 'string' ? exp.title : (exp.title as any)?.bn || (exp.title as any)?.en || ''}</span>
+                        <span className="text-[10px] text-[#7A877E]">{language === 'bn' ? toBengaliDigits(exp.date) : exp.date}</span>
                       </div>
                       <span className="font-mono font-bold text-rose-600 bg-white px-2 py-0.5 rounded-md border border-[#EBE8E0]">
                         -৳ {Number(exp.amount).toLocaleString()}
@@ -298,7 +325,7 @@ export const ActivityDetailPage: React.FC = () => {
         {galleryList.length > 0 && (
           <div className="space-y-4 pt-2">
             <h3 className="text-sm sm:text-base font-bold text-[#2D3630]">
-              কার্যক্রমের স্থিরচিত্র (Photo Gallery)
+              {t('activityGalleryTitle')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {galleryList.map((imgUrl, i) => (
@@ -321,14 +348,14 @@ export const ActivityDetailPage: React.FC = () => {
             {prevActivity ? (
               <Link
                 to={`/activities/${prevActivity.slug || prevActivity.id}`}
-                className="p-4 rounded-xl bg-white border border-[#EBE8E0] hover:border-[#2D5A41] shadow-3xs hover:shadow-2xs transition-all flex items-center gap-3 group text-left"
+                className="p-4 rounded-xl bg-white border border-[#EBE8E0] hover:border-[#2D5A41] shadow-3xs hover:shadow-2xs transition-all flex items-center gap-3 group text-start"
               >
                 <div className="p-2 rounded-lg bg-[#F7F5F0] group-hover:bg-[#E8EFEA] text-[#5C665F] group-hover:text-[#2D5A41] transition-colors shrink-0">
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <span className="text-[10px] font-semibold text-[#7A877E] block">
-                    পূর্ববর্তী কার্যক্রম
+                    {t('prevActivity')}
                   </span>
                   <strong className="text-xs text-[#2D3630] group-hover:text-[#2D5A41] transition-colors block truncate">
                     {tMulti(prevActivity.title)}
@@ -337,30 +364,30 @@ export const ActivityDetailPage: React.FC = () => {
               </Link>
             ) : (
               <div className="p-4 rounded-xl border border-dashed border-[#EBE8E0] text-center text-xs text-[#A4B3A8]">
-                কোনো পূর্ববর্তী কার্যক্রম নেই
+                {t('noPrevActivity')}
               </div>
             )}
 
             {nextActivity ? (
               <Link
                 to={`/activities/${nextActivity.slug || nextActivity.id}`}
-                className="p-4 rounded-xl bg-white border border-[#EBE8E0] hover:border-[#2D5A41] shadow-3xs hover:shadow-2xs transition-all flex items-center justify-between gap-3 group text-right"
+                className="p-4 rounded-xl bg-white border border-[#EBE8E0] hover:border-[#2D5A41] shadow-3xs hover:shadow-2xs transition-all flex items-center justify-between gap-3 group text-end"
               >
                 <div className="min-w-0 flex-1">
                   <span className="text-[10px] font-semibold text-[#7A877E] block">
-                    পরবর্তী কার্যক্রম
+                    {t('nextActivity')}
                   </span>
                   <strong className="text-xs text-[#2D3630] group-hover:text-[#2D5A41] transition-colors block truncate">
                     {tMulti(nextActivity.title)}
                   </strong>
                 </div>
                 <div className="p-2 rounded-lg bg-[#F7F5F0] group-hover:bg-[#E8EFEA] text-[#5C665F] group-hover:text-[#2D5A41] transition-colors shrink-0">
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
                 </div>
               </Link>
             ) : (
               <div className="p-4 rounded-xl border border-dashed border-[#EBE8E0] text-center text-xs text-[#A4B3A8]">
-                কোনো পরবর্তী কার্যক্রম নেই
+                {t('noNextActivity')}
               </div>
             )}
           </div>
