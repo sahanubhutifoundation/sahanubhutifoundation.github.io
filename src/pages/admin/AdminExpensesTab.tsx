@@ -25,7 +25,7 @@ import {
 import { ExpenseRecord, FundVisibilitySettings, FundData, Activity } from '../../types';
 import { storageService } from '../../services/storageService';
 import { MediaUploadField } from '../../components/MediaUploadField';
-import { getLocalizedValue, normalizeExpense } from '../../utils/foundationHelpers';
+import { getLocalizedValue, normalizeExpense, getActivityUuid } from '../../utils/foundationHelpers';
 
 interface AdminExpensesTabProps {
   expenses: ExpenseRecord[];
@@ -136,8 +136,8 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
       isVerified: editingExpense.isVerified !== false,
       deductionMode: editingExpense.deductionMode || 'deduct',
       fundingSource: editingExpense.fundingSource || 'foundation_fund',
-      activityId: editingExpense.activityId || editingExpense.linkedActivityId || undefined,
-      linkedActivityId: editingExpense.activityId || editingExpense.linkedActivityId || undefined,
+      activityId: (editingExpense.activityId || editingExpense.linkedActivityId) ? getActivityUuid(editingExpense.activityId || editingExpense.linkedActivityId) : undefined,
+      linkedActivityId: (editingExpense.activityId || editingExpense.linkedActivityId) ? getActivityUuid(editingExpense.activityId || editingExpense.linkedActivityId) : undefined,
       year: editingExpense.year || (editingExpense.date ? editingExpense.date.split('-')[0] : '2026'),
       createdAt: editingExpense.createdAt || new Date().toISOString(),
     };
@@ -614,22 +614,24 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
                 )}
               </div>
               <select
-                value={editingExpense.activityId || editingExpense.linkedActivityId || ''}
+                value={(editingExpense.activityId || editingExpense.linkedActivityId) ? getActivityUuid(editingExpense.activityId || editingExpense.linkedActivityId) : ''}
                 onChange={(e) => {
                   const val = e.target.value;
+                  const chosenUuid = val ? getActivityUuid(val) : undefined;
                   setEditingExpense({
                     ...editingExpense,
-                    activityId: val || undefined,
-                    linkedActivityId: val || undefined,
+                    activityId: chosenUuid,
+                    linkedActivityId: chosenUuid,
                   });
                 }}
                 className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
               >
                 <option value="">-- কোনো কার্যক্রমের সাথে যুক্ত নয় (None) --</option>
                 {activitiesList.map((act) => {
+                  const actUuid = getActivityUuid(act);
                   const actTitle = getLocalizedValue(act.title, 'bn') || 'শিরোনামহীন কার্যক্রম';
                   return (
-                    <option key={act.id} value={act.id}>
+                    <option key={act.id} value={actUuid}>
                       {actTitle} {act.date ? `(${act.date})` : ''}
                     </option>
                   );
@@ -738,8 +740,8 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
                       )}
                       {(exp.activityId || exp.linkedActivityId) && (() => {
                         const actId = exp.activityId || exp.linkedActivityId;
-                        const act = activitiesList.find((a) => a.id === actId);
-                        const actTitle = act ? getLocalizedValue(act.title, 'bn') : actId;
+                        const act = activitiesList.find((a) => getActivityUuid(a) === getActivityUuid(actId) || a.id === actId);
+                        const actTitle = act ? getLocalizedValue(act.title, 'bn') : (actId ? 'সংযুক্ত কার্যক্রম' : '');
                         return (
                           <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-[#E8EFEA] text-[#2D5A41] text-[10px] font-semibold">
                             <ExternalLink className="w-2.5 h-2.5" />

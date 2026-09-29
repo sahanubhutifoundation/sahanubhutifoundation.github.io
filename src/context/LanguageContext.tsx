@@ -92,7 +92,13 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const tMulti = (textObj?: MultilingualText | string): string => {
     if (!textObj) return '';
     if (typeof textObj === 'string') return textObj;
-    return textObj[language] || textObj.bn || textObj.en || '';
+    if (language === 'ar') {
+      return textObj.ar?.trim() || textObj.en?.trim() || textObj.bn?.trim() || '';
+    }
+    if (language === 'en') {
+      return textObj.en?.trim() || textObj.bn?.trim() || textObj.ar?.trim() || '';
+    }
+    return textObj.bn?.trim() || textObj.en?.trim() || textObj.ar?.trim() || '';
   };
 
   return (

@@ -1805,13 +1805,14 @@ export const supabaseService = {
     try {
       const now = new Date().toISOString();
       const yr = e.year || (e.date ? parseInt(e.date.slice(0, 4), 10) : new Date().getFullYear());
-      const expectedActivityId = e.activityId || e.linkedActivityId || null;
+      const rawActivityId = e.activityId || e.linkedActivityId || null;
+      const canonicalActivityUuid = rawActivityId ? stringToDeterministicUuid(rawActivityId) : null;
 
       let purposeObj: any = typeof (e as any).purpose === 'object' && (e as any).purpose
         ? { ...(e as any).purpose }
-        : { bn: e.title, en: e.title, ar: e.title };
-      if (expectedActivityId) {
-        purposeObj._activity_id = expectedActivityId;
+        : { bn: e.title || '', en: e.title || '', ar: e.title || '' };
+      if (canonicalActivityUuid) {
+        purposeObj._activity_id = canonicalActivityUuid;
       } else {
         delete purposeObj._activity_id;
       }
@@ -1820,7 +1821,6 @@ export const supabaseService = {
         id: e.id,
         date: e.date,
         amount: Number(e.amount) || 0,
-        title: e.title,
         purpose: purposeObj,
         category: e.category || 'other',
         custom_category: e.customCategory || null,
@@ -1830,19 +1830,18 @@ export const supabaseService = {
         location: e.location || null,
         receipt_url: e.receiptUrl || null,
         verified_by: (e as any).verifiedBy || (e.isVerified ? 'Verified' : null),
-        is_verified: Boolean(e.isVerified),
         is_public: e.isPublic !== false,
         year: yr,
-        activity_id: expectedActivityId,
+        activity_id: canonicalActivityUuid,
         created_at: e.createdAt || now,
         updated_at: now,
       };
 
       let { error } = await supabase.from('expenses').upsert(payload, { onConflict: 'id' });
 
-      // If Postgres has activity_id as UUID type, handle non-UUID strings gracefully
-      if (error && error.message?.includes('invalid input syntax for type uuid') && expectedActivityId) {
-        payload.activity_id = stringToDeterministicUuid(expectedActivityId);
+      // If Postgres has activity_id as UUID type, ensure canonical UUID formatting
+      if (error && error.message?.includes('invalid input syntax for type uuid') && rawActivityId) {
+        payload.activity_id = canonicalActivityUuid;
         const retry = await supabase.from('expenses').upsert(payload, { onConflict: 'id' });
         error = retry.error;
       }
@@ -1955,18 +1954,17 @@ export const supabaseService = {
       }
 
       // Explicit verification: if an activity was linked, the returned DB row must match
-      const matchesActivity = !expectedActivityId
+      const matchesActivity = !canonicalActivityUuid
         ? !verified.activity_id
         : (
-            verified.activity_id === expectedActivityId ||
-            verified.activity_id === stringToDeterministicUuid(expectedActivityId) ||
-            (verified.purpose && typeof verified.purpose === 'object' && verified.purpose._activity_id === expectedActivityId)
+            verified.activity_id === canonicalActivityUuid ||
+            (verified.purpose && typeof verified.purpose === 'object' && verified.purpose._activity_id === canonicalActivityUuid)
           );
 
       if (!matchesActivity) {
         return {
           success: false,
-          error: `ব্যয় রেকর্ডে কার্যক্রম লিংক সংরক্ষণ যাচাই ব্যর্থ: প্রত্যাশিত ছিল "${expectedActivityId}", ডাটাবেজ থেকে পাওয়া গেছে "${verified.activity_id}"`,
+          error: `ব্যয় রেকর্ডে কার্যক্রম লিংক সংরক্ষণ যাচাই ব্যর্থ: প্রত্যাশিত ছিল "${canonicalActivityUuid}", ডাটাবেজ থেকে পাওয়া গেছে "${verified.activity_id}"`,
           code: 'VERIFICATION_MISMATCH',
         };
       }

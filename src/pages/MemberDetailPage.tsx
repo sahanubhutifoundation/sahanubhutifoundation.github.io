@@ -9,7 +9,7 @@ import { MemberSocialIcons } from '../components/MemberSocialIcons';
 import { storageService } from '../services/storageService';
 import { Member, Designation, FoundationConfig } from '../types';
 import { User, ArrowLeft, Calendar, MapPin, Mail, Phone, ShieldCheck } from 'lucide-react';
-import { toBengaliDigits } from '../utils/foundationHelpers';
+import { toBengaliDigits, getMemberLocalizedField } from '../utils/foundationHelpers';
 
 export const MemberDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -75,14 +75,20 @@ export const MemberDetailPage: React.FC = () => {
     );
   }
 
+  const memberName = getMemberLocalizedField(member, 'name', language);
+  const memberRole = getMemberLocalizedField(member, 'role', language);
+  const memberBio = getMemberLocalizedField(member, 'bio', language);
+  const memberAddress = getMemberLocalizedField(member, 'address', language);
+  const memberResp = getMemberLocalizedField(member, 'responsibilities', language);
+
   return (
     <div className="space-y-8 sm:space-y-12 pb-16">
       <PageHero
-        title={member.name}
-        subtitle={member.role || (language === 'bn' ? 'সহানুভূতি ফাউন্ডেশনের সম্মানিত সদস্য' : language === 'ar' ? 'عضو كريم في مؤسسة ساهانوبوتي' : 'Honorable Member of Sahanubhuti Foundation')}
+        title={memberName}
+        subtitle={memberRole || (language === 'bn' ? 'সহানুভূতি ফাউন্ডেশনের সম্মানিত সদস্য' : language === 'ar' ? 'عضو كريم في مؤسسة ساهانوبوتي' : 'Honorable Member of Sahanubhuti Foundation')}
         breadcrumb={[
           { label: t('navMembers'), path: '/members' },
-          { label: member.name },
+          { label: memberName },
         ]}
       />
 
@@ -117,16 +123,16 @@ export const MemberDetailPage: React.FC = () => {
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>{t('activeMember')}</span>
               </div>
-              {(memberDesignation || member.role) && (
+              {(memberDesignation || memberRole) && (
                 <DesignationBadge
                   designation={memberDesignation}
-                  roleFallback={member.role}
+                  roleFallback={memberRole}
                   size="md"
                 />
               )}
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-bold text-[#2D3630] break-words">{member.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-[#2D3630] break-words">{memberName}</h1>
 
             <MemberSocialIcons
               member={member}
@@ -134,10 +140,19 @@ export const MemberDetailPage: React.FC = () => {
               className="justify-center sm:justify-start !pt-0"
             />
 
-            {member.bio && (
+            {memberBio && (
               <p className="text-xs sm:text-sm text-[#5C665F] leading-relaxed pt-1 break-words">
-                {member.bio}
+                {memberBio}
               </p>
+            )}
+
+            {memberResp && (
+              <div className="p-3 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] text-xs text-[#2D3630] space-y-1">
+                <span className="font-bold text-[#2D5A41] block">
+                  {language === 'ar' ? 'المسؤوليات والمهام:' : language === 'en' ? 'Responsibilities & Role:' : 'দায়িত্ব ও ভূমিকা:'}
+                </span>
+                <p className="leading-relaxed">{memberResp}</p>
+              </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-[#EBE8E0] text-xs text-[#5C665F]">
@@ -152,10 +167,10 @@ export const MemberDetailPage: React.FC = () => {
                   </span>
                 </div>
               )}
-              {member.address && (
+              {memberAddress && (
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-[#A4B3A8] shrink-0" />
-                  <span className="break-words">{member.address}</span>
+                  <span className="break-words">{memberAddress}</span>
                 </div>
               )}
               {member.email && member.showEmail !== false && (

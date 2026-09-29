@@ -41,7 +41,11 @@ export const ActivitiesPage: React.FC = () => {
       ) {
         activeCategoriesWithItems.push({
           id: `adhoc-${act.category}`,
-          name: { bn: act.category, en: act.category, ar: act.category },
+          name: {
+            bn: resolveCategoryLabel(act.category, undefined, 'bn'),
+            en: resolveCategoryLabel(act.category, undefined, 'en'),
+            ar: resolveCategoryLabel(act.category, undefined, 'ar'),
+          },
           slug: act.category.toLowerCase().replace(/\s+/g, '-'),
           order: 99,
           isEnabled: true,
@@ -165,7 +169,7 @@ export const ActivitiesPage: React.FC = () => {
                         {act.category && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#E8EFEA] text-[#2D5A41] font-medium text-[11px]">
                             <Tag className="w-3 h-3" />
-                            <span>{act.category}</span>
+                            <span>{resolveCategoryLabel(act.category, categories, language)}</span>
                           </span>
                         )}
                         <span className="flex items-center gap-1 text-[11px]">

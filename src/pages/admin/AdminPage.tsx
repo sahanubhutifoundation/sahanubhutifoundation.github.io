@@ -202,6 +202,7 @@ export const AdminPage: React.FC = () => {
   const [activitySubTab, setActivitySubTab] = useState<'list' | 'categories'>('list');
   const [editingNotice, setEditingNotice] = useState<Partial<Notice> | null>(null);
   const [editingGallery, setEditingGallery] = useState<Partial<GalleryItem> | null>(null);
+  const [galleryLang, setGalleryLang] = useState<'bn' | 'en' | 'ar'>('bn');
   const [activeMessage, setActiveMessage] = useState<ContactMessage | null>(null);
   const [inboxFilter, setInboxFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [inboxSearch, setInboxSearch] = useState('');
@@ -295,6 +296,28 @@ export const AdminPage: React.FC = () => {
       const current = prev[field];
       const obj = (current && typeof current === 'object')
         ? { ...(current as any) }
+        : { bn: typeof current === 'string' ? current : '', en: '', ar: '' };
+      obj[lang] = text;
+      return { ...prev, [field]: obj };
+    });
+  };
+
+  // Multilingual field helpers for Gallery
+  const getGalleryText = (field: 'title' | 'caption', lang: 'bn' | 'en' | 'ar'): string => {
+    if (!editingGallery) return '';
+    const val = (editingGallery as any)[field];
+    if (val && typeof val === 'object') {
+      return (val as any)[lang] || '';
+    }
+    return lang === 'bn' && typeof val === 'string' ? val : '';
+  };
+
+  const setGalleryText = (field: 'title' | 'caption', lang: 'bn' | 'en' | 'ar', text: string) => {
+    setEditingGallery((prev) => {
+      if (!prev) return null;
+      const current = (prev as any)[field];
+      const obj = (current && typeof current === 'object')
+        ? { ...current }
         : { bn: typeof current === 'string' ? current : '', en: '', ar: '' };
       obj[lang] = text;
       return { ...prev, [field]: obj };
@@ -633,6 +656,13 @@ export const AdminPage: React.FC = () => {
       isPublished: editingActivity.isPublished !== false,
       linkedExpenseId: editingActivity.linkedExpenseId || undefined,
       financialRecord: editingActivity.financialRecord || undefined,
+      badge: (() => {
+        if (!editingActivity.badge) return undefined;
+        const b = getMulti(editingActivity.badge);
+        if (!b.bn && !b.en && !b.ar) return undefined;
+        return b;
+      })(),
+      badgeEmoji: editingActivity.badgeEmoji?.trim() || undefined,
       createdAt: editingActivity.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -779,11 +809,39 @@ export const AdminPage: React.FC = () => {
     if (!editingGallery || (!editingGallery.url && !editingGallery.mediaUrl)) return;
 
     triggerSyncStatus('saving', 'মিডিয়া আইটেম সংরক্ষণ হচ্ছে...');
-    const titleStr = typeof editingGallery.title === 'string' ? editingGallery.title : editingGallery.title?.bn || '';
+    const titleObj: MultilingualText = typeof editingGallery.title === 'object' && editingGallery.title !== null
+      ? {
+          bn: editingGallery.title.bn?.trim() || '',
+          en: editingGallery.title.en?.trim() || '',
+          ar: editingGallery.title.ar?.trim() || '',
+        }
+      : {
+          bn: typeof editingGallery.title === 'string' ? editingGallery.title.trim() : '',
+          en: '',
+          ar: '',
+        };
+
+    const captionVal = (editingGallery as any).caption || editingGallery.description;
+    const captionObj: MultilingualText | undefined = (() => {
+      if (captionVal && typeof captionVal === 'object') {
+        const c = {
+          bn: captionVal.bn?.trim() || '',
+          en: captionVal.en?.trim() || '',
+          ar: captionVal.ar?.trim() || '',
+        };
+        if (c.bn || c.en || c.ar) return c;
+      } else if (typeof captionVal === 'string' && captionVal.trim()) {
+        return { bn: captionVal.trim(), en: '', ar: '' };
+      }
+      return undefined;
+    })();
+
     const imgUrl = editingGallery.url || editingGallery.mediaUrl || '';
     const newG: GalleryItem = {
       id: editingGallery.id || `gal-${Date.now()}`,
-      title: typeof editingGallery.title === 'object' ? editingGallery.title : { bn: titleStr, en: titleStr, ar: titleStr },
+      title: titleObj,
+      caption: captionObj,
+      description: captionObj,
       mediaUrl: imgUrl,
       url: imgUrl,
       type: 'photo',
@@ -2788,6 +2846,67 @@ export const AdminPage: React.FC = () => {
                         </div>
                       </div>
 
+                      {/* Optional Editorial Badge / Tag / Emoji */}
+                      <div className="p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] space-y-2.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <label className="block font-bold text-[#2D3630]">
+                            ঐচ্ছিক সম্পাদকীয় ব্যাজ / ট্যাগ (Optional Editorial Badge)
+                          </label>
+                          <span className="text-[11px] text-[#7A877E]">
+                            যেমন: 🏥 চিকিৎসা সহায়তা, 🍚 খাদ্য সহায়তা, 📚 শিক্ষা সহায়তা, 🚑 জরুরি সহায়তা
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="sm:col-span-1">
+                            <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">
+                              আইকন / ইমোজি (ঐচ্ছিক)
+                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                value={editingActivity.badgeEmoji || ''}
+                                onChange={(e) => setEditingActivity({ ...editingActivity, badgeEmoji: e.target.value })}
+                                placeholder="যেমন: 🏥"
+                                className="w-16 px-2 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] text-center text-sm focus:outline-hidden focus:border-[#2D5A41]"
+                              />
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {['🏥', '🍚', '📚', '🚑', '📢'].map((em) => (
+                                  <button
+                                    key={em}
+                                    type="button"
+                                    onClick={() => setEditingActivity({ ...editingActivity, badgeEmoji: em })}
+                                    className={`px-1.5 py-1 text-xs rounded border transition-colors cursor-pointer ${
+                                      editingActivity.badgeEmoji === em ? 'bg-[#E8EFEA] border-[#2D5A41]' : 'bg-white border-[#EBE8E0] hover:bg-[#F7F5F0]'
+                                    }`}
+                                  >
+                                    {em}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="block text-[11px] font-semibold text-[#5C665F] mb-1">
+                              ব্যাজ টেক্সট ({activityLang.toUpperCase()} - ঐচ্ছিক)
+                            </label>
+                            <input
+                              type="text"
+                              dir={activityLang === 'ar' ? 'rtl' : 'ltr'}
+                              value={getActivityText('badge', activityLang)}
+                              onChange={(e) => setActivityText('badge', activityLang, e.target.value)}
+                              placeholder={
+                                activityLang === 'bn'
+                                  ? 'যেমন: চিকিৎসা সহায়তা'
+                                  : activityLang === 'en'
+                                  ? 'e.g., Medical Assistance'
+                                  : 'مثال: المساعدات الطبية'
+                              }
+                              className="w-full px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
                         <MediaUploadField
                           label="কার্যক্রমের প্রধান কভার ছবি (Cover Image)"
@@ -3375,6 +3494,34 @@ export const AdminPage: React.FC = () => {
                 </div>
 
                 <form onSubmit={handleSaveGallery} className="space-y-4">
+                  {/* Multilingual Tab Switcher for Gallery */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-[#2D3630] mr-1">তথ্য সম্পাদনার ভাষা:</span>
+                      {(['bn', 'en', 'ar'] as const).map((langKey) => (
+                        <button
+                          key={langKey}
+                          type="button"
+                          onClick={() => setGalleryLang(langKey)}
+                          className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                            galleryLang === langKey
+                              ? 'bg-[#2D5A41] text-white shadow-2xs'
+                              : 'bg-white text-[#5C665F] hover:text-[#2D3630] border border-[#EBE8E0]'
+                          }`}
+                        >
+                          {langKey === 'bn' ? 'বাংলা (BN)' : langKey === 'en' ? 'English (EN)' : 'العربية (AR)'}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-[11px] text-[#7A877E] font-medium">
+                      {galleryLang === 'bn'
+                        ? 'বাংলা কনটেন্ট এডিট হচ্ছে (ডিফল্ট)'
+                        : galleryLang === 'en'
+                        ? 'Editing English translation'
+                        : 'تحرير النص باللغة العربية'}
+                    </span>
+                  </div>
+
                   <MediaUploadField
                     label="ছবি ফাইল আপলোড করুন *"
                     value={editingGallery.url || editingGallery.mediaUrl || ''}
@@ -3385,13 +3532,42 @@ export const AdminPage: React.FC = () => {
                   />
 
                   <div>
-                    <label className="block font-bold text-[#2D3630] mb-1">ছবির শিরোনাম / ক্যাপশন *</label>
+                    <label className="block font-bold text-[#2D3630] mb-1">
+                      ছবির শিরোনাম ({galleryLang.toUpperCase()}) {galleryLang === 'bn' ? '*' : '(ঐচ্ছিক)'}
+                    </label>
                     <input
                       type="text"
-                      required
-                      value={typeof editingGallery.title === 'object' ? editingGallery.title.bn : editingGallery.title || ''}
-                      onChange={(e) => setEditingGallery({ ...editingGallery, title: e.target.value as any })}
-                      placeholder="যেমন: মৌলভী বাড়ি প্রাঙ্গণে সভা বা চিকিৎসা সহায়তা"
+                      required={galleryLang === 'bn'}
+                      dir={galleryLang === 'ar' ? 'rtl' : 'ltr'}
+                      value={getGalleryText('title', galleryLang)}
+                      onChange={(e) => setGalleryText('title', galleryLang, e.target.value)}
+                      placeholder={
+                        galleryLang === 'bn'
+                          ? 'যেমন: মৌলভী বাড়ি প্রাঙ্গণে সভা বা চিকিৎসা সহায়তা'
+                          : galleryLang === 'en'
+                          ? 'e.g., Gathering or Medical Aid at Moulvi Bari'
+                          : 'مثال: لقاء أو مساعدة طبية في باحة مولفي باري'
+                      }
+                      className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[#2D3630] mb-1">
+                      ছবির ক্যাপশন / বিবরণ ({galleryLang.toUpperCase()} - ঐচ্ছিক)
+                    </label>
+                    <textarea
+                      rows={2}
+                      dir={galleryLang === 'ar' ? 'rtl' : 'ltr'}
+                      value={getGalleryText('caption', galleryLang)}
+                      onChange={(e) => setGalleryText('caption', galleryLang, e.target.value)}
+                      placeholder={
+                        galleryLang === 'bn'
+                          ? 'ছবির সংক্ষিপ্ত প্রেক্ষাপট বা বিবরণ...'
+                          : galleryLang === 'en'
+                          ? 'Brief description or caption...'
+                          : 'وصف أو تعليق مختصر על الصورة...'
+                      }
                       className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                     />
                   </div>

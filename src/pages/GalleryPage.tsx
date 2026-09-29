@@ -6,7 +6,7 @@ import { EmptyState } from '../components/EmptyState';
 import { storageService } from '../services/storageService';
 import { GalleryItem } from '../types';
 import { ImageIcon, X, Calendar, ArrowRight, ExternalLink } from 'lucide-react';
-import { toBengaliDigits } from '../utils/foundationHelpers';
+import { toBengaliDigits, resolveCategoryLabel, getActivityUuid } from '../utils/foundationHelpers';
 
 export const GalleryPage: React.FC = () => {
   const { t, tMulti, language, isRTL } = useLanguage();
@@ -205,7 +205,7 @@ export const GalleryPage: React.FC = () => {
                         {titleText}
                       </h3>
                       {item.category && item.category !== 'অন্যান্য' && item.category !== 'সাধারণ' && (
-                        <span className="text-[10px] text-[#7A877E] block mt-0.5">{item.category}</span>
+                        <span className="text-[10px] text-[#7A877E] block mt-0.5">{resolveCategoryLabel(item.category, undefined, language)}</span>
                       )}
                     </div>
 
@@ -221,11 +221,11 @@ export const GalleryPage: React.FC = () => {
 
                       {isLinkedToActivity ? (
                         <span className="text-[#2D5A41] font-semibold flex items-center gap-0.5 text-[10px] group-hover:underline">
-                          <span>বিস্তারিত</span>
+                          <span>{t('viewDetails') || (language === 'ar' ? 'التفاصيل' : language === 'en' ? 'Details' : 'বিস্তারিত')}</span>
                           <ArrowRight className={`w-2.5 h-2.5 ${isRTL ? 'rotate-180' : ''}`} />
                         </span>
                       ) : (
-                        <span className="text-[#A4B3A8] text-[10px]">স্থিরচিত্র</span>
+                        <span className="text-[#A4B3A8] text-[10px]">{language === 'ar' ? 'صورة' : language === 'en' ? 'Photo' : 'স্থিরচিত্র'}</span>
                       )}
                     </div>
                   </div>
@@ -271,15 +271,20 @@ export const GalleryPage: React.FC = () => {
               <h3 className="text-base font-bold">
                 {tMulti(activeItem.title) || (typeof activeItem.title === 'string' ? activeItem.title : '')}
               </h3>
-              {activeItem.caption && (
+              {(activeItem.caption || activeItem.description) && (
                 <p className="text-xs text-stone-300 mt-1 leading-relaxed">
-                  {tMulti(activeItem.caption)}
+                  {tMulti(activeItem.caption || activeItem.description)}
                 </p>
               )}
               <div className="flex items-center justify-center gap-3 text-[11px] text-stone-400 mt-2">
-                {activeItem.category && <span>বিভাগ: {activeItem.category}</span>}
+                {activeItem.category && (
+                  <span>
+                    {t('category') || (language === 'ar' ? 'القسم:' : language === 'en' ? 'Category:' : 'বিভাগ:')}{' '}
+                    {resolveCategoryLabel(activeItem.category, undefined, language)}
+                  </span>
+                )}
                 {formatDisplayDate(activeItem) && (
-                  <span>• তারিখ: {formatDisplayDate(activeItem)}</span>
+                  <span>• {t('date') || (language === 'ar' ? 'التاريخ:' : language === 'en' ? 'Date:' : 'তারিখ:')} {formatDisplayDate(activeItem)}</span>
                 )}
               </div>
             </div>

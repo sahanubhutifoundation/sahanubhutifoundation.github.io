@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ActivityCategoryItem, Activity } from '../../types';
 import { storageService } from '../../services/storageService';
+import { resolveCategoryLabel } from '../../utils/foundationHelpers';
 import { 
   Plus, 
   Edit2, 
@@ -104,16 +105,25 @@ export const ActivityCategoryManager: React.FC<ActivityCategoryManagerProps> = (
     }
 
     const catId = editingCat?.id || `act-cat-${Date.now()}`;
-    const slug = nameEn.trim()
-      ? nameEn.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
-      : nameBn.trim().toLowerCase().replace(/\s+/g, '-');
+    const cleanBn = nameBn.trim();
+    const cleanEn = nameEn.trim();
+    const cleanAr = nameAr.trim();
+
+    const resolvedEn = cleanEn || resolveCategoryLabel(cleanBn, undefined, 'en');
+    const safeEn = (resolvedEn && !/[\u0980-\u09FF]/.test(resolvedEn)) ? resolvedEn : cleanEn;
+    const resolvedAr = cleanAr || resolveCategoryLabel(cleanBn, undefined, 'ar');
+    const safeAr = (resolvedAr && !/[\u0980-\u09FF]/.test(resolvedAr)) ? resolvedAr : cleanAr;
+
+    const slug = safeEn
+      ? safeEn.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      : cleanBn.toLowerCase().replace(/\s+/g, '-');
 
     const newCategory: ActivityCategoryItem = {
       id: catId,
       name: {
-        bn: nameBn.trim(),
-        en: nameEn.trim() || nameBn.trim(),
-        ar: nameAr.trim() || nameBn.trim(),
+        bn: cleanBn,
+        en: safeEn,
+        ar: safeAr,
       },
       slug,
       order: editingCat?.order || categories.length + 1,
@@ -245,10 +255,18 @@ export const ActivityCategoryManager: React.FC<ActivityCategoryManagerProps> = (
           </div>
 
           <form onSubmit={handleSaveCategory} className="space-y-3.5 text-xs">
+            <div className="flex items-center gap-1.5 p-2 rounded-lg bg-white border border-[#EBE8E0]">
+              <span className="text-[11px] font-bold text-[#2D3630]">বহুভাষিক নাম (Multilingual Names):</span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E8EFEA] text-[#2D5A41]">বাংলা</span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E8EFEA] text-[#2D5A41]">English</span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E8EFEA] text-[#2D5A41]">العربية</span>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block font-bold text-[#2D3630] mb-1">
-                  বিভাগের নাম (বাংলা) *
+                <label className="block font-bold text-[#2D3630] mb-1 flex items-center justify-between">
+                  <span>বিভাগের নাম (বাংলা)</span>
+                  <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -261,8 +279,9 @@ export const ActivityCategoryManager: React.FC<ActivityCategoryManagerProps> = (
               </div>
 
               <div>
-                <label className="block font-bold text-[#2D3630] mb-1">
-                  নাম (English - ঐচ্ছিক)
+                <label className="block font-bold text-[#2D3630] mb-1 flex items-center justify-between">
+                  <span>Category Name (English)</span>
+                  <span className="text-[#7A877E] font-normal text-[10px]">ঐচ্ছিক</span>
                 </label>
                 <input
                   type="text"
@@ -274,8 +293,9 @@ export const ActivityCategoryManager: React.FC<ActivityCategoryManagerProps> = (
               </div>
 
               <div>
-                <label className="block font-bold text-[#2D3630] mb-1">
-                  নাম (العربية - ঐচ্ছিক)
+                <label className="block font-bold text-[#2D3630] mb-1 flex items-center justify-between">
+                  <span>اسم القسم (العربية)</span>
+                  <span className="text-[#7A877E] font-normal text-[10px]">ঐচ্ছিক</span>
                 </label>
                 <input
                   type="text"

@@ -21,7 +21,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { toBengaliDigits, resolveCategoryLabel } from '../utils/foundationHelpers';
+import { toBengaliDigits, resolveCategoryLabel, getActivityUuid, resolveBadgeLabel, getLocalizedValue } from '../utils/foundationHelpers';
 
 export const ActivityDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -36,8 +36,15 @@ export const ActivityDetailPage: React.FC = () => {
 
   const linkedExpenses = useMemo(() => {
     if (!activity) return [];
+    const actUuid = getActivityUuid(activity);
     return storageService.getExpenses().filter(
-      (e) => (e.activityId === activity.id || e.linkedActivityId === activity.id || (activity.linkedExpenseId && e.id === activity.linkedExpenseId))
+      (e) => (
+        e.activityId === actUuid ||
+        e.linkedActivityId === actUuid ||
+        e.activityId === activity.id ||
+        e.linkedActivityId === activity.id ||
+        (activity.linkedExpenseId && e.id === activity.linkedExpenseId)
+      )
     );
   }, [activity]);
 
@@ -48,7 +55,7 @@ export const ActivityDetailPage: React.FC = () => {
   useEffect(() => {
     setCategories(storageService.getActivityCategories());
     const list = storageService.getActivities().filter((a) => a.isPublished);
-    const index = list.findIndex((a) => a.id === id || a.slug === id);
+    const index = list.findIndex((a) => a.id === id || a.slug === id || getActivityUuid(a) === id);
     
     if (index !== -1) {
       const current = list[index];
@@ -58,7 +65,7 @@ export const ActivityDetailPage: React.FC = () => {
     } else {
       // Fallback search including drafts for direct preview
       const fallbackList = storageService.getActivities();
-      const item = fallbackList.find((a) => a.id === id || a.slug === id);
+      const item = fallbackList.find((a) => a.id === id || a.slug === id || getActivityUuid(a) === id);
       setActivity(item || null);
       setPrevActivity(null);
       setNextActivity(null);
@@ -149,14 +156,14 @@ export const ActivityDetailPage: React.FC = () => {
             {(activity.badgeEmoji || activity.badge) && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#F7F5F0] text-[#5C665F] border border-[#EBE8E0] text-xs font-semibold shadow-3xs">
                 {activity.badgeEmoji && <span>{activity.badgeEmoji}</span>}
-                {activity.badge && <span>{tMulti(activity.badge)}</span>}
+                {activity.badge && <span>{resolveBadgeLabel(activity.badge, language)}</span>}
               </span>
             )}
 
             {/* Price / Verified Amount Badge - ONLY shown when real canonical linked expense exists */}
-            {linkedExpenses.length > 0 && (
+            {linkedExpenses.length > 0 && totalExpenseAmount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/70 text-xs font-bold shadow-3xs">
-                <span>{t('expenseAmountLabel')}</span>
+                <span>{t('expenseAmountLabel') || (language === 'ar' ? 'المبلغ المنفق:' : language === 'en' ? 'Amount Spent:' : 'ব্যয়িত অর্থ:')}</span>
                 <span className="font-mono">
                   {language === 'bn'
                     ? `৳ ${toBengaliDigits(totalExpenseAmount)}`
@@ -307,11 +314,11 @@ export const ActivityDetailPage: React.FC = () => {
                   {linkedExpenses.map((exp) => (
                     <div key={exp.id} className="p-3 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] flex items-center justify-between text-xs">
                       <div>
-                        <span className="font-bold text-[#2D3630] block">{typeof exp.title === 'string' ? exp.title : (exp.title as any)?.bn || (exp.title as any)?.en || ''}</span>
+                        <span className="font-bold text-[#2D3630] block">{getLocalizedValue(exp.title, language)}</span>
                         <span className="text-[10px] text-[#7A877E]">{language === 'bn' ? toBengaliDigits(exp.date) : exp.date}</span>
                       </div>
                       <span className="font-mono font-bold text-rose-600 bg-white px-2 py-0.5 rounded-md border border-[#EBE8E0]">
-                        -৳ {Number(exp.amount).toLocaleString()}
+                        -৳ {language === 'bn' ? toBengaliDigits(Number(exp.amount)) : Number(exp.amount).toLocaleString()}
                       </span>
                     </div>
                   ))}

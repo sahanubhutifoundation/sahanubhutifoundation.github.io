@@ -4,7 +4,7 @@ import { Activity, FoundationConfig } from '../types';
 import { ActivityFallbackCover } from './ActivityFallbackCover';
 import { Calendar, Tag, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import { toBengaliDigits, resolveCategoryLabel } from '../utils/foundationHelpers';
+import { toBengaliDigits, resolveCategoryLabel, resolveBadgeLabel } from '../utils/foundationHelpers';
 import { storageService } from '../services/storageService';
 
 interface ActivityRailCardProps {
@@ -108,7 +108,7 @@ export const ActivityRailCard: React.FC<ActivityRailCardProps> = ({
                 {(activity.badge || activity.badgeEmoji) && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#F7F5F0] text-[#5C665F] font-medium text-[10px] sm:text-[11px] border border-[#EBE8E0] truncate">
                     {activity.badgeEmoji && <span>{activity.badgeEmoji}</span>}
-                    {activity.badge && <span className="truncate">{tMulti(activity.badge)}</span>}
+                    {activity.badge && <span className="truncate">{resolveBadgeLabel(activity.badge, language)}</span>}
                   </span>
                 )}
               </div>

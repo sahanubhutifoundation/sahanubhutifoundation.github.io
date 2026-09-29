@@ -135,7 +135,7 @@ export const MembersPage: React.FC = () => {
 
                         {/* Member Name */}
                         <h2 className="text-sm sm:text-base font-bold text-[#2D3630] group-hover:text-[#2D5A41] transition-colors leading-snug break-words max-w-full">
-                          {member.name}
+                          {getMemberLocalizedField(member, 'name', language)}
                         </h2>
 
                         {/* Styled Designation Badge */}
@@ -143,7 +143,7 @@ export const MembersPage: React.FC = () => {
                           <div className="mt-1.5 mb-1 flex items-center justify-center max-w-full">
                             <DesignationBadge
                               designation={designation}
-                              roleFallback={member.role}
+                              roleFallback={getMemberLocalizedField(member, 'role', language)}
                               size="md"
                             />
                           </div>
@@ -167,25 +167,27 @@ export const MembersPage: React.FC = () => {
                           <div className="flex items-center justify-center gap-1 text-[11px] text-[#7A877E] mt-1 max-w-full">
                             <Calendar className="w-3 h-3 text-[#A4B3A8] shrink-0" />
                             <span>
-                              {language === 'bn'
-                                ? `সদস্য: ${toBengaliDigits(member.joiningDate)}`
-                                : `Member since: ${member.joiningDate}`}
+                              {language === 'ar'
+                                ? `عضو منذ: ${member.joiningDate}`
+                                : language === 'en'
+                                ? `Member since: ${member.joiningDate}`
+                                : `সদস্য: ${toBengaliDigits(member.joiningDate)}`}
                             </span>
                           </div>
                         )}
 
                         {/* Location / Address */}
-                        {member.address && (
+                        {(member.address || member.location) && (
                           <div className="flex items-center justify-center gap-1 text-[11px] sm:text-xs text-[#7A877E] mt-1 max-w-full">
                             <MapPin className="w-3 h-3 text-[#A4B3A8] shrink-0" />
-                            <span className="line-clamp-1">{member.address}</span>
+                            <span className="line-clamp-1">{getMemberLocalizedField(member, 'address', language)}</span>
                           </div>
                         )}
 
                         {/* Bio summary */}
                         {member.bio && (
                           <p className="text-xs text-[#5C665F] line-clamp-2 mt-1.5 leading-relaxed break-words">
-                            {member.bio}
+                            {getMemberLocalizedField(member, 'bio', language)}
                           </p>
                         )}
 

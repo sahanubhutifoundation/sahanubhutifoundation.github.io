@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { PageHero } from '../components/PageHero';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { getLocalizedValue, normalizeExpense } from '../utils/foundationHelpers';
+import { getLocalizedValue, normalizeExpense, getActivityUuid, getExpenseCategoryLabel } from '../utils/foundationHelpers';
 import { storageService } from '../services/storageService';
 import { fetchFundData, MONTH_KEYS, MONTH_NAMES_BN } from '../services/fundService';
 import {
@@ -931,18 +931,18 @@ export const FundPage: React.FC = () => {
                         )}
                         {exp.recipient && exp.isRecipientPublic && (
                           <span className="text-[10px] text-[#2D5A41] font-medium block mt-0.5">
-                            গ্রহীতা: {getLocalizedValue(exp.recipient, language)}
+                            {t('recipientLabel') || (language === 'ar' ? 'المستلم:' : language === 'en' ? 'Recipient:' : 'গ্রহীতা:')}: {getLocalizedValue(exp.recipient, language)}
                           </span>
                         )}
                         {(exp.activityId || exp.linkedActivityId) && (
                           <div className="mt-1.5">
                             <Link
-                              to={`/activities/${exp.activityId || exp.linkedActivityId}`}
+                              to={`/activities/${getActivityUuid(exp.activityId || exp.linkedActivityId)}`}
                               state={{ fromFund: true, selectedYear }}
                               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#E8EFEA] hover:bg-[#D9E5DC] text-[#2D5A41] hover:text-[#234733] text-[11px] font-semibold border border-[#2D5A41]/20 transition-colors group shadow-3xs"
                             >
                               <ExternalLink className="w-3 h-3 group-hover:scale-110 transition-transform" />
-                              <span>সম্পর্কিত কার্যক্রম দেখুন</span>
+                              <span>{t('viewLinkedActivity')}</span>
                             </Link>
                           </div>
                         )}
@@ -950,15 +950,7 @@ export const FundPage: React.FC = () => {
 
                       <td className="py-3 px-4 whitespace-nowrap">
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#E8EFEA] text-[#2D5A41]">
-                          {exp.category === 'emergency_aid'
-                            ? 'জরুরি ত্রাণ'
-                            : exp.category === 'medical_aid'
-                            ? 'চিকিৎসা সহায়তা'
-                            : exp.category === 'education_aid'
-                            ? 'শিক্ষা সহায়তা'
-                            : exp.category === 'orphan_widow'
-                            ? 'এতিম/বিধবা সহায়তা'
-                            : (exp.customCategory ? getLocalizedValue(exp.customCategory, language) : 'অন্যান্য ব্যয়')}
+                          {getExpenseCategoryLabel(exp.category, exp.customCategory, language)}
                         </span>
                       </td>
 
@@ -969,7 +961,7 @@ export const FundPage: React.FC = () => {
                             <span>{getLocalizedValue(exp.location, language)}</span>
                           </span>
                         ) : (
-                          <span className="text-[#A4B3A8]">ফেনী সদর</span>
+                          <span className="text-[#A4B3A8]">{language === 'ar' ? 'فيني سادار' : language === 'en' ? 'Feni Sadar' : 'ফেনী সদর'}</span>
                         )}
                       </td>
 

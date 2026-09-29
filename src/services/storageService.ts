@@ -177,6 +177,22 @@ export const storageService = {
         isEnabled: true,
         color: '#4B5563',
       },
+      {
+        id: 'act-cat-family-meet',
+        name: { bn: 'পারিবারিক সমাবেশ', en: 'Family Gathering', ar: 'اللقاء العائلي' },
+        slug: 'family-gathering',
+        order: 5,
+        isEnabled: true,
+        color: '#4B5563',
+      },
+      {
+        id: 'act-cat-social',
+        name: { bn: 'সামাজিক সেবা / অর্থ ও ব্যয় বিবরণী', en: 'Social Services & Financial Statements', ar: 'الخدمات الاجتماعية والبيانات المالية' },
+        slug: 'social-services-financial-statements',
+        order: 6,
+        isEnabled: true,
+        color: '#2D5A41',
+      },
     ];
 
     const config = this.getConfig();
@@ -193,7 +209,11 @@ export const storageService = {
         if (found) return { ...found, order: idx + 1 };
         return {
           id: `act-cat-${idx + 1}-${name.toLowerCase().replace(/[^a-z0-9]/gi, '')}`,
-          name: { bn: name, en: name, ar: name },
+          name: {
+            bn: name,
+            en: resolveCategoryLabel(name, undefined, 'en'),
+            ar: resolveCategoryLabel(name, undefined, 'ar'),
+          },
           slug: name.toLowerCase().replace(/\s+/g, '-'),
           order: idx + 1,
           isEnabled: true,
@@ -710,7 +730,7 @@ export const storageService = {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   },
 
-  saveExpense(expense: ExpenseRecord): ExpenseRecord[] {
+  saveExpense(expense: ExpenseRecord, skipRemoteSync = false): ExpenseRecord[] {
     const normalized = normalizeExpense(expense);
     const list = this.getExpenses();
     const existingIndex = list.findIndex((e) => String(e.id).trim() === String(normalized.id).trim());
@@ -730,7 +750,7 @@ export const storageService = {
       updated = [itemToSave, ...list];
     }
     setLocalItem(KEYS.EXPENSES, updated);
-    if (supabaseService.isAvailable()) {
+    if (supabaseService.isAvailable() && !skipRemoteSync) {
       supabaseService.saveExpense(itemToSave).catch(console.warn);
     }
     return updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -1055,7 +1075,7 @@ export const storageService = {
           details: res.details,
         };
       }
-      const updated = this.saveExpense(res.data || expense);
+      const updated = this.saveExpense(res.data || expense, true);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('sf_data_updated'));
       }

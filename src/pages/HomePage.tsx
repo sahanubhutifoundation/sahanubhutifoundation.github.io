@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { storageService } from '../services/storageService';
 import { Logo } from '../components/Logo';
 import { FoundationLocationDisplay } from '../components/FoundationLocationDisplay';
-import { formatFoundingDate, toBengaliDigits } from '../utils/foundationHelpers';
+import { formatFoundingDate, toBengaliDigits, getMemberLocalizedField } from '../utils/foundationHelpers';
 import {
   FoundationConfig,
   Activity,
@@ -701,14 +701,14 @@ export const HomePage: React.FC = () => {
                             />
 
                             <h3 className="text-xs sm:text-sm font-bold text-[#2D3630] group-hover:text-[#2D5A41] transition-colors line-clamp-1 w-full px-1">
-                              {member.name}
+                              {getMemberLocalizedField(member, 'name', language)}
                             </h3>
 
                             {(des || member.role) && (
                               <div className="mt-1 max-w-full">
                                 <DesignationBadge
                                   designation={des}
-                                  roleFallback={member.role}
+                                  roleFallback={getMemberLocalizedField(member, 'role', language)}
                                   size="sm"
                                 />
                               </div>

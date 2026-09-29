@@ -220,8 +220,14 @@ export function normalizeExpense(exp: any, lang: Language = 'bn'): ExpenseRecord
     isVerified: Boolean(exp.isVerified ?? exp.is_verified ?? exp.verified_by),
     year: exp.year != null ? String(exp.year) : undefined,
     isPublic: exp.isPublic !== false && exp.is_public !== false,
-    activityId: exp.activityId || exp.activity_id || exp.linkedActivityId || exp.linked_activity_id || undefined,
-    linkedActivityId: exp.activityId || exp.activity_id || exp.linkedActivityId || exp.linked_activity_id || undefined,
+    activityId: (() => {
+      const raw = exp.activityId || exp.activity_id || exp.linkedActivityId || exp.linked_activity_id;
+      return raw ? getActivityUuid(raw) : undefined;
+    })(),
+    linkedActivityId: (() => {
+      const raw = exp.activityId || exp.activity_id || exp.linkedActivityId || exp.linked_activity_id;
+      return raw ? getActivityUuid(raw) : undefined;
+    })(),
     fundingSource: exp.fundingSource || exp.funding_source || 'foundation_fund',
     deductionMode: exp.deductionMode || exp.deduction_mode || 'deduct',
     createdAt: exp.createdAt || exp.created_at || new Date().toISOString(),
@@ -258,6 +264,33 @@ export function resolveMemberField(
 }
 
 /**
+ * Canonical deterministic UUID converter for activities
+ * Ensures stable 1-to-1 UUID mapping for activities
+ */
+export function getActivityUuid(actOrId?: any): string {
+  if (!actOrId) return '';
+  const str = typeof actOrId === 'object' && actOrId !== null ? (actOrId.id || '') : String(actOrId);
+  if (!str) return '';
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)) {
+    return str.toLowerCase();
+  }
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const part1 = (h1 >>> 0).toString(16).padStart(8, '0');
+  const part2 = (h2 >>> 0).toString(16).padStart(8, '0');
+  const part3 = ((h1 ^ h2) >>> 0).toString(16).padStart(8, '0');
+  const part4 = ((h1 + h2) >>> 0).toString(16).padStart(8, '0');
+  const full = (part1 + part2 + part3 + part4).slice(0, 32);
+  return `${full.slice(0, 8)}-${full.slice(8, 12)}-4${full.slice(13, 16)}-a${full.slice(17, 20)}-${full.slice(20, 32)}`;
+}
+
+/**
  * Public multilingual resolver for Activity Categories:
  * Selected language -> English fallback if available -> Bangla fallback if available
  */
@@ -269,32 +302,57 @@ export function resolveCategoryLabel(
   if (!catName) return '';
   const l = (lang || 'bn') as 'bn' | 'en' | 'ar';
   if (typeof catName === 'object') {
-    if (l === 'ar') return catName.ar || catName.en || catName.bn || '';
-    if (l === 'en') return catName.en || catName.bn || '';
-    return catName.bn || catName.en || '';
-  }
-  if (Array.isArray(categories)) {
-    const found = categories.find(
-      (c) => c.name?.bn === catName || c.id === catName || c.name?.en === catName || c.name?.ar === catName
-    );
-    if (found?.name) {
-      if (l === 'ar') return found.name.ar || found.name.en || found.name.bn || catName;
-      if (l === 'en') return found.name.en || found.name.bn || catName;
-      return found.name.bn || found.name.en || catName;
-    }
+    if (l === 'ar') return catName.ar?.trim() || catName.en?.trim() || catName.bn?.trim() || '';
+    if (l === 'en') return catName.en?.trim() || catName.bn?.trim() || '';
+    return catName.bn?.trim() || catName.en?.trim() || '';
   }
 
-  // Built-in canonical category translations fallback
+  // Built-in canonical category translations dictionary
   const standardCategories: Record<string, { bn: string; en: string; ar: string }> = {
     'ওষুধ ও চিকিৎসা': { bn: 'ওষুধ ও চিকিৎসা', en: 'Medicine & Healthcare', ar: 'الأدوية والرعاية الصحية' },
-    'বাইতুল মাল': { bn: 'বাইতুল মাল', en: 'Baitul Mal', ar: 'بيت المال' },
+    'বাইতুল মাল': { bn: 'বাইতুল মাল', en: 'Baytul Mal', ar: 'بيت المال' },
     'জরুরি মানবিক সহায়তা': { bn: 'জরুরি মানবিক সহায়তা', en: 'Emergency Relief', ar: 'الإغاثة الإنسانية العاجلة' },
     'পারিবারিক সমাবেশ': { bn: 'পারিবারিক সমাবেশ', en: 'Family Gathering', ar: 'التجمع العائلي' },
+    'পারিবারিক সমাবেশ ও উদ্যোগ': { bn: 'পারিবারিক সমাবেশ ও উদ্যোগ', en: 'Family Welfare & Gathering', ar: 'اللقاءات والمبادرات العائلية' },
     'চিকিৎসা সহায়তা': { bn: 'চিকিৎসা সহায়তা', en: 'Medical Assistance', ar: 'المساعدات الطبية' },
     'ত্রাণ ও পুনর্বাসন': { bn: 'ত্রাণ ও পুনর্বাসন', en: 'Relief & Rehabilitation', ar: 'الإغاثة وإعادة التأهيل' },
     'শিক্ষা সহায়তা': { bn: 'শিক্ষা সহায়তা', en: 'Education Support', ar: 'دعم التعليم' },
+    'শিক্ষা সহায়তা': { bn: 'শিক্ষা সহায়তা', en: 'Education Support', ar: 'دعم التعليم' },
     'সাধারণ কার্যক্রম': { bn: 'সাধারণ কার্যক্রম', en: 'General Activities', ar: 'أنشطة عامة' },
+    'সামাজিক সেবা / অর্থ ও ব্যয় বিবরণী': { bn: 'সামাজিক সেবা / অর্থ ও ব্যয় বিবরণী', en: 'Social Services & Financial Statements', ar: 'الخدمات الاجتماعية والبيانات المالية' },
+    'সামাজিক সেবা': { bn: 'সামাজিক সেবা', en: 'Social Services', ar: 'الخدمات الاجتماعية' },
+    'humanitarian': { bn: 'জরুরি মানবিক সহায়তা', en: 'Emergency Relief', ar: 'الإغاثة الإنسانية العاجلة' },
+    'general': { bn: 'সাধারণ কার্যক্রম', en: 'General Activities', ar: 'أنشطة عامة' },
   };
+
+  if (Array.isArray(categories) && categories.length > 0) {
+    const found = categories.find(
+      (c) => c.name?.bn === catName || c.id === catName || c.name?.en === catName || c.name?.ar === catName || c.slug === catName
+    );
+    if (found?.name) {
+      const bn = found.name.bn?.trim() || '';
+      const rawEn = found.name.en?.trim() || '';
+      const hasBengaliInEn = /[\u0980-\u09FF]/.test(rawEn);
+      let en = (rawEn && !hasBengaliInEn && rawEn !== bn) ? rawEn : '';
+
+      const rawAr = found.name.ar?.trim() || '';
+      const hasBengaliInAr = /[\u0980-\u09FF]/.test(rawAr);
+      let ar = (rawAr && !hasBengaliInAr && rawAr !== bn) ? rawAr : '';
+
+      // If en or ar is missing, check standardCategories dictionary by bn, catName, or found.id
+      const dictMatch = standardCategories[bn] || standardCategories[catName] || (found.id ? standardCategories[found.id] : undefined);
+      if (!en && dictMatch?.en) {
+        en = dictMatch.en;
+      }
+      if (!ar && dictMatch?.ar) {
+        ar = dictMatch.ar;
+      }
+
+      if (l === 'ar') return ar || en || bn || catName;
+      if (l === 'en') return en || bn || catName;
+      return bn || en || catName;
+    }
+  }
 
   if (standardCategories[catName]) {
     const mapped = standardCategories[catName];
@@ -317,19 +375,40 @@ export function resolveBadgeLabel(
   if (!badge) return '';
   const l = (lang || 'bn') as 'bn' | 'en' | 'ar';
   if (typeof badge === 'object') {
-    if (l === 'ar') return badge.ar || badge.en || badge.bn || '';
-    if (l === 'en') return badge.en || badge.bn || '';
-    return badge.bn || badge.en || '';
+    if (l === 'ar') return badge.ar?.trim() || badge.en?.trim() || badge.bn?.trim() || '';
+    if (l === 'en') return badge.en?.trim() || badge.bn?.trim() || '';
+    return badge.bn?.trim() || badge.en?.trim() || '';
   }
 
   const trimmed = badge.trim();
-  if (trimmed === 'খরচ সংক্রান্ত অবগতি') {
+  if (trimmed === 'খরচ সংক্রান্ত অবগতি' || trimmed.includes('খরচ সংক্রান্ত অবগতি')) {
     if (l === 'ar') return 'إشعار بالمصروفات والإفصاح المالي';
     if (l === 'en') return 'Expense Notice & Disclosure';
     return 'খরচ সংক্রান্ত অবগতি';
   }
 
   return trimmed;
+}
+
+/**
+ * Localized label resolver for expense categories
+ */
+export function getExpenseCategoryLabel(category: string, customCategory?: string, lang: string = 'bn'): string {
+  const l = (lang || 'bn') as 'bn' | 'en' | 'ar';
+  if (customCategory?.trim()) {
+    return getLocalizedValue(customCategory, l);
+  }
+  const map: Record<string, { bn: string; en: string; ar: string }> = {
+    emergency_aid: { bn: 'জরুরি ত্রাণ', en: 'Emergency Relief', ar: 'الإغاثة العاجلة' },
+    medical_aid: { bn: 'চিকিৎসা সহায়তা', en: 'Medical Assistance', ar: 'المساعدات الطبية' },
+    education_aid: { bn: 'শিক্ষা সহায়তা', en: 'Education Support', ar: 'دعم التعليم' },
+    orphan_widow: { bn: 'এতিম ও বিধবা সহায়তা', en: 'Orphan & Widow Support', ar: 'كفالة الأيتام والأرامل' },
+    other: { bn: 'অন্যান্য ব্যয়', en: 'Other Expense', ar: 'مصروفات أخرى' },
+  };
+  if (map[category]) {
+    return map[category][l] || map[category].en || map[category].bn;
+  }
+  return resolveCategoryLabel(category, undefined, l);
 }
 
 /**
