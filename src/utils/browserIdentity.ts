@@ -35,7 +35,15 @@ function updateMetaTag(attributeName: 'name' | 'property', attributeValue: strin
   meta.content = content;
 }
 
-export function syncBrowserIdentity(pageTitle?: string) {
+export interface PageShareMeta {
+  title?: string;
+  description?: string;
+  image?: string;
+  url?: string;
+  type?: string;
+}
+
+export function syncBrowserIdentity(pageTitleOrMeta?: string | PageShareMeta) {
   if (typeof document === 'undefined') return;
 
   try {
@@ -46,6 +54,22 @@ export function syncBrowserIdentity(pageTitle?: string) {
       ? config.logoUrl
       : '/assets/logo.svg';
 
+    let pageTitle = '';
+    let customDesc = '';
+    let customImage = '';
+    let customUrl = typeof window !== 'undefined' ? window.location.href : 'https://sahanubhutifoundation.github.io';
+    let ogType = 'website';
+
+    if (typeof pageTitleOrMeta === 'string') {
+      pageTitle = pageTitleOrMeta;
+    } else if (pageTitleOrMeta && typeof pageTitleOrMeta === 'object') {
+      pageTitle = pageTitleOrMeta.title || '';
+      customDesc = pageTitleOrMeta.description || '';
+      customImage = pageTitleOrMeta.image || '';
+      if (pageTitleOrMeta.url) customUrl = pageTitleOrMeta.url;
+      if (pageTitleOrMeta.type) ogType = pageTitleOrMeta.type;
+    }
+
     // 1. Browser Title
     const baseTitle = `${nameEn} | ${nameBn}`;
     if (pageTitle && pageTitle.trim()) {
@@ -54,7 +78,7 @@ export function syncBrowserIdentity(pageTitle?: string) {
       document.title = baseTitle;
     }
 
-    // 2. Favicon & Shortcut Icon
+    // 2. Favicon & Shortcut Icon (Distinct from social share image)
     updateLinkTag('icon', logoUrl, logoUrl.endsWith('.svg') ? 'image/svg+xml' : undefined);
     updateLinkTag('shortcut icon', logoUrl, logoUrl.endsWith('.svg') ? 'image/svg+xml' : undefined);
 
@@ -64,10 +88,39 @@ export function syncBrowserIdentity(pageTitle?: string) {
     // 4. Theme Color
     updateMetaTag('name', 'theme-color', '#2D5A41');
 
-    // 5. Open Graph / Web App Metadata
+    // 5. Open Graph / Twitter Card Metadata
+    const defaultShareTitle = config.socialSharePreview?.title?.bn || nameBn;
+    const shareTitle = pageTitle ? `${pageTitle} | ${nameBn}` : defaultShareTitle;
+
+    const defaultShareDesc = config.socialSharePreview?.description?.bn ||
+      'সহানুভূতি ও মানবিকতার মাধ্যমে নিজেদের মানুষদের পাশে দাঁড়ানোর একটি পারিবারিক উদ্যোগ।';
+    const shareDesc = customDesc || defaultShareDesc;
+
+    // Resolve absolute image URL for crawlers / preview
+    const configuredShareImg = config.socialSharePreview?.imageUrl?.trim();
+    let shareImg = customImage || (configuredShareImg || logoUrl);
+    if (shareImg.startsWith('/')) {
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://sahanubhutifoundation.github.io';
+      shareImg = `${origin}${shareImg}`;
+    }
+
+    // Meta Description
+    updateMetaTag('name', 'description', shareDesc);
+
+    // Open Graph Tags
     updateMetaTag('property', 'og:site_name', nameBn);
-    updateMetaTag('property', 'og:title', pageTitle ? `${pageTitle} | ${nameBn}` : baseTitle);
-    updateMetaTag('property', 'og:image', logoUrl);
+    updateMetaTag('property', 'og:title', shareTitle);
+    updateMetaTag('property', 'og:description', shareDesc);
+    updateMetaTag('property', 'og:image', shareImg);
+    updateMetaTag('property', 'og:url', customUrl);
+    updateMetaTag('property', 'og:type', ogType);
+    updateMetaTag('property', 'og:locale', 'bn_BD');
+
+    // Twitter / X Card
+    updateMetaTag('name', 'twitter:card', 'summary_large_image');
+    updateMetaTag('name', 'twitter:title', shareTitle);
+    updateMetaTag('name', 'twitter:description', shareDesc);
+    updateMetaTag('name', 'twitter:image', shareImg);
   } catch (err) {
     console.warn('Browser identity sync warning:', err);
   }

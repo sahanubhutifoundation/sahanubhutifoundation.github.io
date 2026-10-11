@@ -62,6 +62,15 @@ export const ActivityDetailPage: React.FC = () => {
       setActivity(current);
       setPrevActivity(index > 0 ? list[index - 1] : null);
       setNextActivity(index < list.length - 1 ? list[index + 1] : null);
+      
+      const actTitle = getLocalizedValue(current.title, language) || current.title.bn || current.title.en;
+      const actDesc = getLocalizedValue(current.shortSummary || current.summary, language) || current.summary?.bn || current.summary?.en || '';
+      syncBrowserIdentity({
+        title: actTitle,
+        description: actDesc,
+        image: current.coverImage || undefined,
+        type: 'article',
+      });
     } else {
       // Fallback search including drafts for direct preview
       const fallbackList = storageService.getActivities();
@@ -69,8 +78,18 @@ export const ActivityDetailPage: React.FC = () => {
       setActivity(item || null);
       setPrevActivity(null);
       setNextActivity(null);
+      if (item) {
+        const actTitle = getLocalizedValue(item.title, language) || item.title.bn || item.title.en;
+        const actDesc = getLocalizedValue(item.shortSummary || item.summary, language) || item.summary?.bn || item.summary?.en || '';
+        syncBrowserIdentity({
+          title: actTitle,
+          description: actDesc,
+          image: item.coverImage || undefined,
+          type: 'article',
+        });
+      }
     }
-  }, [id]);
+  }, [id, language]);
 
   const handleShare = () => {
     if (navigator.clipboard) {

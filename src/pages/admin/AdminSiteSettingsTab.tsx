@@ -63,6 +63,7 @@ export interface AdminSiteSettingsTabProps {
     | 'about'
     | 'contact'
     | 'social'
+    | 'social-share'
     | 'members';
   hideSubNav?: boolean;
 }
@@ -84,6 +85,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
     | 'about'
     | 'contact'
     | 'social'
+    | 'social-share'
     | 'members'
   >(currentSection || 'general');
 
@@ -279,6 +281,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
             { id: 'about', label: 'আমাদের সম্পর্কে CMS', icon: FileText },
             { id: 'contact', label: 'যোগাযোগ পেজ CMS', icon: Mail },
             { id: 'social', label: 'যোগাযোগ ও সোশ্যাল', icon: Share2 },
+            { id: 'social-share', label: 'সোশ্যাল প্রিভিউ (Social Share)', icon: Share2 },
             { id: 'members', label: 'সদস্য প্রদর্শন শৈলী', icon: User },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -3527,6 +3530,296 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 placeholder="যেমন: +8801859046961"
                 className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. SOCIAL SHARE PREVIEW / WEBSITE PREVIEW SETTINGS */}
+      {activeSection === 'social-share' && (
+        <div className="p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
+          <div className="pb-3 border-b border-[#EBE8E0]">
+            <h3 className="text-sm font-bold text-[#2D3630] flex items-center gap-2">
+              <Share2 className="w-4 h-4 text-[#2D5A41]" />
+              <span>সোশ্যাল মিডিয়া শেয়ার ও প্রিভিউ সেটিংস (Social Share / Website Preview)</span>
+            </h3>
+            <p className="text-[11px] text-[#5C665F] mt-0.5">
+              Facebook, WhatsApp, Messenger, Twitter/X বা লিঙ্ক শেয়ারিংয়ে প্রদর্শিত প্রিভিউ কার্ড (og:title, og:description, og:image) কাস্টমাইজ করুন।
+            </p>
+          </div>
+
+          {/* Limitation & Platform Cache Notice */}
+          <div className="p-4 rounded-xl bg-[#F4F7F5] border border-[#2D5A41]/20 space-y-2 text-xs">
+            <div className="flex items-center gap-2 font-bold text-[#2D5A41]">
+              <Sparkles className="w-4 h-4 text-[#2D5A41]" />
+              <span>GitHub Pages ও সোশ্যাল ক্রলার সংক্রান্ত তথ্য:</span>
+            </div>
+            <p className="text-[#5C665F] leading-relaxed">
+              ১. <strong>স্ট্যাটিক হোস্টিং মেটাডাটা:</strong> এই ওয়েবসাইটটি GitHub Pages স্ট্যাটিক হোস্টিংয়ে হোস্ট করা। এখানে পরিবর্তনগুলো ক্লাউড ডাটাবেজে ও ব্রাউজারে সঙ্গে সঙ্গে আপডেট হয়। তবে ফেসবুক বা হোয়াটসঅ্যাপের মতো এক্সটার্নাল ক্রলারগুলো রিয়্যাল-টাইম জাভাস্ক্রিপ্ট না চালিয়ে সরাসরি সার্ভার এইচটিএমএল রিড করে। ফলে গিটহাব অ্যাকশন্সের পরবর্তী বিল্ড/ডিপ্লয়মেন্ট সম্পন্ন হলে ক্রলারগুলো সর্বশেষ স্ট্যাটিক মেটাডাটা সরাসরি পাবে।<br />
+              ২. <strong>ক্রলার ক্যাশ রিফ্রেশ:</strong> সামাজিক যোগাযোগ মাধ্যমগুলো (যেমন ফেসবুক বা হোয়াটসঅ্যাপ) পূর্বের মেটাডাটা সাময়িকভাবে ক্যাশ করে রাখে। নতুন পরিবর্তনের তাৎক্ষণিক রিফ্রেশ পেতে ফেসবুকের <span className="font-mono text-[#2D5A41]">Sharing Debugger</span> এ গিয়ে &quot;Scrape Again&quot; করতে হতে পারে।
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Form Inputs Column */}
+            <div className="space-y-4">
+              <h4 className="font-bold text-xs text-[#2D3630] pb-1 border-b border-[#EBE8E0]">
+                শেয়ার শিরোনাম (Share Title)
+              </h4>
+              <div>
+                <label className="block text-[11px] font-bold text-[#2D3630] mb-1">
+                  বাংলা শিরোনাম
+                </label>
+                <input
+                  type="text"
+                  value={formData.socialSharePreview?.title?.bn || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      socialSharePreview: {
+                        ...formData.socialSharePreview,
+                        title: {
+                          bn: e.target.value,
+                          en: formData.socialSharePreview?.title?.en || '',
+                          ar: formData.socialSharePreview?.title?.ar || '',
+                        },
+                      },
+                    })
+                  }
+                  placeholder={formData.nameBn || 'সহানুভূতি ফাউন্ডেশন'}
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#2D3630] mb-1">
+                  English Title
+                </label>
+                <input
+                  type="text"
+                  value={formData.socialSharePreview?.title?.en || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      socialSharePreview: {
+                        ...formData.socialSharePreview,
+                        title: {
+                          bn: formData.socialSharePreview?.title?.bn || '',
+                          en: e.target.value,
+                          ar: formData.socialSharePreview?.title?.ar || '',
+                        },
+                      },
+                    })
+                  }
+                  placeholder={formData.nameEn || 'Sahanubhuti Foundation'}
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#2D3630] mb-1">
+                  العنوان بالعربية (Arabic Title)
+                </label>
+                <input
+                  type="text"
+                  dir="rtl"
+                  value={formData.socialSharePreview?.title?.ar || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      socialSharePreview: {
+                        ...formData.socialSharePreview,
+                        title: {
+                          bn: formData.socialSharePreview?.title?.bn || '',
+                          en: formData.socialSharePreview?.title?.en || '',
+                          ar: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                  placeholder={formData.nameAr || 'مؤسسة ساهানوبوتي'}
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
+
+              <h4 className="font-bold text-xs text-[#2D3630] pt-2 pb-1 border-b border-[#EBE8E0]">
+                শেয়ার সংক্ষিপ্ত বিবরণ (Share Description)
+              </h4>
+              <div>
+                <label className="block text-[11px] font-bold text-[#2D3630] mb-1">
+                  বাংলা বিবরণ
+                </label>
+                <textarea
+                  rows={2}
+                  value={formData.socialSharePreview?.description?.bn || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      socialSharePreview: {
+                        ...formData.socialSharePreview,
+                        description: {
+                          bn: e.target.value,
+                          en: formData.socialSharePreview?.description?.en || '',
+                          ar: formData.socialSharePreview?.description?.ar || '',
+                        },
+                      },
+                    })
+                  }
+                  placeholder="সহানুভূতি ও মানবিকতার মাধ্যমে নিজেদের মানুষদের পাশে দাঁড়ানোর একটি পারিবারিক উদ্যোগ।"
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#2D3630] mb-1">
+                  English Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={formData.socialSharePreview?.description?.en || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      socialSharePreview: {
+                        ...formData.socialSharePreview,
+                        description: {
+                          bn: formData.socialSharePreview?.description?.bn || '',
+                          en: e.target.value,
+                          ar: formData.socialSharePreview?.description?.ar || '',
+                        },
+                      },
+                    })
+                  }
+                  placeholder="A sincere humanitarian family foundation based in Moulovi Bari, Sharshadi, Feni, Bangladesh."
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#2D3630] mb-1">
+                  الوصف بالعربية (Arabic Description)
+                </label>
+                <textarea
+                  rows={2}
+                  dir="rtl"
+                  value={formData.socialSharePreview?.description?.ar || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      socialSharePreview: {
+                        ...formData.socialSharePreview,
+                        description: {
+                          bn: formData.socialSharePreview?.description?.bn || '',
+                          en: formData.socialSharePreview?.description?.en || '',
+                          ar: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                  placeholder="مبادرة عائلية إنسانية مخلصة لدعم المحتاجين في شارشادي، فيني، بنغلاديش."
+                  className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                />
+              </div>
+
+              {/* Share Image Upload */}
+              <div className="pt-2">
+                <MediaUploadField
+                  label="শেয়ার প্রিভিউ ছবি (Social Share Image - 1200x630)"
+                  value={formData.socialSharePreview?.imageUrl || ''}
+                  onChange={(url) =>
+                    setFormData({
+                      ...formData,
+                      socialSharePreview: {
+                        ...formData.socialSharePreview,
+                        imageUrl: url,
+                      },
+                    })
+                  }
+                  helperText="ফেসবুক/হোয়াটসঅ্যাপে শেয়ারের জন্য ১২০০x৬৩০ অনুপাতের ছবি আদর্শ। খালি থাকলে অফিসিয়াল লোগো স্বয়ংক্রিয়ভাবে ব্যবহৃত হবে।"
+                  bucket="branding"
+                  previewAspect="wide"
+                  maxSizeBytes={5 * 1024 * 1024}
+                />
+              </div>
+            </div>
+
+            {/* Live Preview Column */}
+            <div className="space-y-4">
+              <h4 className="font-bold text-xs text-[#2D3630] pb-1 border-b border-[#EBE8E0] flex items-center justify-between">
+                <span>লাইভ প্রিভিউ প্রদর্শন (Live Social Card Preview)</span>
+                <span className="text-[10px] text-[#2D5A41] font-semibold bg-[#E8EFEA] px-2 py-0.5 rounded-md">
+                  Facebook / WhatsApp Style
+                </span>
+              </h4>
+
+              {/* Mock Social Card */}
+              <div className="rounded-2xl border border-[#D9D6CC] bg-[#F9F8F5] overflow-hidden shadow-sm">
+                {/* Image Area */}
+                <div className="w-full aspect-[1.91/1] bg-[#E8EFEA] relative overflow-hidden flex items-center justify-center border-b border-[#EBE8E0]">
+                  {formData.socialSharePreview?.imageUrl ? (
+                    <img
+                      src={formData.socialSharePreview.imageUrl}
+                      alt="Social Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-6 text-center space-y-2">
+                      <img
+                        src={formData.logoUrl || '/assets/logo.svg'}
+                        alt="Default Logo"
+                        className="w-20 h-20 object-contain drop-shadow-sm"
+                      />
+                      <span className="text-[11px] font-bold text-[#2D5A41]">
+                        {formData.nameBn || 'সহানুভূতি ফাউন্ডেশন'}
+                      </span>
+                      <span className="text-[9px] text-[#7A877E] uppercase tracking-wider font-semibold">
+                        অফিসিয়াল লোগো ফলব্যাক সক্রিয়
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Content Area */}
+                <div className="p-4 bg-white space-y-1.5">
+                  <span className="text-[10px] font-mono uppercase text-[#7A877E] tracking-wider block">
+                    sahanubhutifoundation.github.io
+                  </span>
+                  <h5 className="text-sm font-bold text-[#1E293B] line-clamp-1 leading-snug">
+                    {formData.socialSharePreview?.title?.bn || formData.nameBn || 'সহানুভূতি ফাউন্ডেশন'}
+                  </h5>
+                  <p className="text-xs text-[#64748B] line-clamp-2 leading-relaxed">
+                    {formData.socialSharePreview?.description?.bn ||
+                      'সহানুভূতি ও মানবিকতার মাধ্যমে নিজেদের মানুষদের পাশে দাঁড়ানোর একটি পারিবারিক উদ্যোগ।'}
+                  </p>
+                </div>
+              </div>
+
+              {/* English & Arabic Card Accordions / Mini View */}
+              <div className="p-3.5 rounded-xl border border-[#EBE8E0] bg-[#FAF9F6] space-y-2 text-xs">
+                <span className="block font-bold text-[#2D3630]">অন্যান্য ভাষার প্রিভিউ টেক্সট:</span>
+                <div className="space-y-1.5 text-[11px]">
+                  <div>
+                    <span className="font-bold text-[#2D5A41]">EN: </span>
+                    <span className="font-semibold text-[#2D3630]">
+                      {formData.socialSharePreview?.title?.en || formData.nameEn || 'Sahanubhuti Foundation'}
+                    </span>
+                    <p className="text-[#5C665F] truncate">
+                      {formData.socialSharePreview?.description?.en ||
+                        'A sincere humanitarian family foundation based in Moulovi Bari, Sharshadi, Feni, Bangladesh.'}
+                    </p>
+                  </div>
+                  <div className="pt-1 border-t border-[#EBE8E0]">
+                    <span className="font-bold text-[#2D5A41]">AR: </span>
+                    <span className="font-semibold text-[#2D3630]">
+                      {formData.socialSharePreview?.title?.ar || formData.nameAr || 'مؤسسة ساهানوبوتي'}
+                    </span>
+                    <p className="text-[#5C665F] truncate" dir="rtl">
+                      {formData.socialSharePreview?.description?.ar ||
+                        'مبادرة عائلية إنسانية مخلصة لدعم المحتاجين في شارشادي، فيني، بنغلاديش.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -183,7 +183,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       labelBn: 'সাইট সেটিংস ও ব্যাকআপ',
       labelEn: 'Site Settings & Security',
       icon: Settings,
-      keywords: ['settings', 'password', 'security', 'backup', 'restore', 'seo', 'নিরাপত্তা', 'পাসওয়ার্ড', 'ব্যাকআপ', 'রিস্টোর', 'সেটিংস'],
+      keywords: ['settings', 'password', 'security', 'backup', 'restore', 'seo', 'share', 'preview', 'social share', 'সোশ্যাল প্রিভিউ', 'শেয়ার', 'নিরাপত্তা', 'পাসওয়ার্ড', 'ব্যাকআপ', 'রিস্টোর', 'সেটিংস'],
     },
     {
       id: 'inbox',

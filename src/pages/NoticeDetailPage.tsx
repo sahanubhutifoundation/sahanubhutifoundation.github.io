@@ -5,10 +5,12 @@ import { PageHero } from '../components/PageHero';
 import { storageService } from '../services/storageService';
 import { Notice } from '../types';
 import { Calendar, ArrowLeft, AlertCircle, FileText, ExternalLink } from 'lucide-react';
+import { syncBrowserIdentity } from '../utils/browserIdentity';
+import { getLocalizedValue } from '../utils/foundationHelpers';
 
 export const NoticeDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { t, tMulti, isRTL } = useLanguage();
+  const { t, tMulti, isRTL, language } = useLanguage();
   const [notice, setNotice] = useState<Notice | null>(null);
 
   useEffect(() => {
@@ -16,8 +18,15 @@ export const NoticeDetailPage: React.FC = () => {
     const found = list.find((n) => n.id === id);
     if (found) {
       setNotice(found);
+      const noticeTitle = getLocalizedValue(found.title, language) || found.title.bn || found.title.en;
+      const noticeBody = getLocalizedValue(found.body, language) || found.body?.bn || found.body?.en || '';
+      syncBrowserIdentity({
+        title: noticeTitle,
+        description: noticeBody.slice(0, 180),
+        type: 'article',
+      });
     }
-  }, [id]);
+  }, [id, language]);
 
   if (!notice) {
     return (

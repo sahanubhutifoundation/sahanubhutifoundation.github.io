@@ -222,6 +222,19 @@ export const initialConfig: FoundationConfig = {
     footer: '',
     admin: '',
   },
+  socialSharePreview: {
+    title: {
+      bn: 'সহানুভূতি ফাউন্ডেশন',
+      en: 'Sahanubhuti Foundation',
+      ar: 'مؤسسة ساهানوبوتي',
+    },
+    description: {
+      bn: 'সহানুভূতি ও মানবিকতার মাধ্যমে নিজেদের মানুষদের পাশে দাঁড়ানোর একটি পারিবারিক উদ্যোগ।',
+      en: 'A sincere humanitarian family foundation based in Moulovi Bari, Sharshadi, Feni, Bangladesh.',
+      ar: 'مبادرة عائلية إنسانية مخلصة لدعم المحتاجين في شارشادي، فيني، بنغلاديش.',
+    },
+    imageUrl: '',
+  },
   headerTagline: {
     bn: 'মৌলভী বাড়ি, শর্শদী, ফেনী সদর | প্রতিষ্ঠা: ২৮/১১/২০২৪',
     en: 'Moulovi Bari, Sharshadi, Feni | Founded: 28/11/2024',

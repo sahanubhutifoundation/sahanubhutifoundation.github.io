@@ -408,12 +408,19 @@ export interface FooterVisibilitySettings {
   showCopyright?: boolean;
 }
 
+export interface SocialSharePreviewConfig {
+  title?: MultilingualText;
+  description?: MultilingualText;
+  imageUrl?: string;
+}
+
 export interface FoundationConfig {
   nameEn: string;
   nameBn: string;
   nameAr: string;
   logoUrl: string;
   logoOverrides?: LogoOverrides;
+  socialSharePreview?: SocialSharePreviewConfig;
   headerTagline?: MultilingualText;
   headerCtaText?: MultilingualText;
   headerCtaLink?: string;
