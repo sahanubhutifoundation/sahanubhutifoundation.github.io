@@ -1,4 +1,4 @@
-import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord } from '../types';
+import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord, Language } from '../types';
 import { storageService } from './storageService';
 
 const CACHE_PREFIX = 'sf_fund_cache_data_v4_';
@@ -20,6 +20,42 @@ export const MONTH_NAMES_BN: Record<string, string> = {
   Nov: 'নভেম্বর',
   Dec: 'ডিসেম্বর',
 };
+
+export const MONTH_NAMES_EN: Record<string, string> = {
+  Jan: 'January',
+  Feb: 'February',
+  Mar: 'March',
+  Apr: 'April',
+  May: 'May',
+  Jun: 'June',
+  Jul: 'July',
+  Aug: 'August',
+  Sep: 'September',
+  Oct: 'October',
+  Nov: 'November',
+  Dec: 'December',
+};
+
+export const MONTH_NAMES_AR: Record<string, string> = {
+  Jan: 'يناير',
+  Feb: 'فبراير',
+  Mar: 'مارس',
+  Apr: 'أبريل',
+  May: 'مايو',
+  Jun: 'يونيو',
+  Jul: 'يوليو',
+  Aug: 'أغسطس',
+  Sep: 'سبتمبر',
+  Oct: 'أكتوبر',
+  Nov: 'نوفمبر',
+  Dec: 'ديسمبر',
+};
+
+export function getLocalizedMonthName(monthKey: string, lang: Language): string {
+  if (lang === 'en') return MONTH_NAMES_EN[monthKey] || monthKey;
+  if (lang === 'ar') return MONTH_NAMES_AR[monthKey] || monthKey;
+  return MONTH_NAMES_BN[monthKey] || monthKey;
+}
 
 /**
  * Normalizes any Google Sheet or external data URL into export and fallback URLs

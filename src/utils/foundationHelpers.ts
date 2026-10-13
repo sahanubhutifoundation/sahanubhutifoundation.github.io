@@ -11,6 +11,29 @@ export function toArabicDigits(val: string | number): string {
   return String(val).replace(/[0-9]/g, (d) => arDigits[Number(d)]);
 }
 
+export function formatLocalizedNumber(val: string | number, lang: Language): string {
+  if (lang === 'bn') return toBengaliDigits(val);
+  if (lang === 'ar') return toArabicDigits(val);
+  return String(val);
+}
+
+export function formatLocalizedAmount(val: number, lang: Language): string {
+  const formatted = Math.round(Number(val) || 0).toLocaleString('en-US');
+  return formatLocalizedNumber(formatted, lang);
+}
+
+export function formatMonthProgress(paidCount: number, totalMonths: number = 12, lang: Language): string {
+  const p = formatLocalizedNumber(paidCount, lang);
+  const t = formatLocalizedNumber(totalMonths, lang);
+  if (lang === 'bn') {
+    return `${p}/${t} মাস`;
+  }
+  if (lang === 'ar') {
+    return `${p} من ${t} شهرًا`;
+  }
+  return `${p}/${t} months`;
+}
+
 /**
  * Parses date string supporting both YYYY-MM-DD and DD/MM/YYYY
  */

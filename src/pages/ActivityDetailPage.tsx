@@ -22,6 +22,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { toBengaliDigits, resolveCategoryLabel, getActivityUuid, resolveBadgeLabel, getLocalizedValue } from '../utils/foundationHelpers';
+import { syncBrowserIdentity } from '../utils/browserIdentity';
 
 export const ActivityDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();

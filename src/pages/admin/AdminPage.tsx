@@ -816,7 +816,7 @@ export const AdminPage: React.FC = () => {
           ar: editingGallery.title.ar?.trim() || '',
         }
       : {
-          bn: typeof editingGallery.title === 'string' ? editingGallery.title.trim() : '',
+          bn: typeof (editingGallery.title as any) === 'string' ? String((editingGallery.title as any)).trim() : '',
           en: '',
           ar: '',
         };

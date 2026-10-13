@@ -118,6 +118,32 @@ function stringToDeterministicUuid(str: string | null | undefined): string | nul
   return `${full.slice(0, 8)}-${full.slice(8, 12)}-4${full.slice(13, 16)}-a${full.slice(17, 20)}-${full.slice(20, 32)}`;
 }
 
+let cachedMemberColumns: Set<string> | null = null;
+
+async function getKnownMemberColumns(supabase: any): Promise<Set<string>> {
+  if (cachedMemberColumns && cachedMemberColumns.size > 0) {
+    return cachedMemberColumns;
+  }
+  try {
+    const { data } = await supabase.from('members').select('*').limit(1);
+    if (data && data[0]) {
+      cachedMemberColumns = new Set(Object.keys(data[0]));
+      return cachedMemberColumns;
+    }
+  } catch (err) {
+    console.warn('Could not query members schema columns:', err);
+  }
+  // Safe default base columns in the standard Postgres members table
+  cachedMemberColumns = new Set([
+    'id', 'serial', 'name', 'gender', 'designation_id', 'role',
+    'photo_url', 'image', 'phone', 'email', 'location', 'address',
+    'joining_date', 'bio', 'responsibilities', 'is_active', 'is_family_member',
+    'image_shape', 'image_fit', 'image_position', 'created_at', 'updated_at',
+    'location_en', 'name_ar'
+  ]);
+  return cachedMemberColumns;
+}
+
 export const supabaseService = {
   isAvailable(): boolean {
     return isSupabaseConfigured() && getSupabase() !== null;
@@ -779,12 +805,30 @@ export const supabaseService = {
         updated_at: now,
       };
 
-      // Resilient upsert loop: handles any missing columns in the live schema dynamically
-      let maxAttempts = 15;
+      // Safely discover or retrieve confirmed live members table columns
+      const knownCols = await getKnownMemberColumns(supabase);
+
+      // Only include fields in the payload that match confirmed database table columns
+      const safePayload: Record<string, any> = {};
+      for (const [key, value] of Object.entries(payload)) {
+        if (knownCols.has(key)) {
+          safePayload[key] = value;
+        }
+      }
+
+      // Ensure primary core values are preserved
+      safePayload.id = m.id;
+      safePayload.serial = Number(m.serial) || 0;
+      safePayload.name = m.nameBn || m.name;
+      safePayload.image_position = jsonMetadata;
+      safePayload.updated_at = now;
+
+      // Resilient upsert loop: handles any schema cache or missing column nuances dynamically
+      let maxAttempts = 30;
       let lastError: any = null;
 
       while (maxAttempts > 0) {
-        const { error } = await supabase.from('members').upsert(payload, { onConflict: 'id' });
+        const { error } = await supabase.from('members').upsert(safePayload, { onConflict: 'id' });
         if (!error) {
           lastError = null;
           break;
@@ -795,7 +839,10 @@ export const supabaseService = {
         const colMatch = error.message?.match(/Could not find the '([^']+)' column/i);
         if (colMatch && colMatch[1]) {
           const missingColumn = colMatch[1];
-          delete payload[missingColumn];
+          delete safePayload[missingColumn];
+          if (cachedMemberColumns) {
+            cachedMemberColumns.delete(missingColumn);
+          }
           maxAttempts--;
         } else {
           // Non-column error encountered

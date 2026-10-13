@@ -11,7 +11,7 @@ import path from 'path';
 
 const DIST_DIR = path.resolve(process.cwd(), 'dist');
 const BASE_URL = 'https://sahanubhutifoundation.github.io';
-const DEFAULT_LOGO = `${BASE_URL}/assets/logo.svg`;
+const DEFAULT_SHARE_IMAGE = `${BASE_URL}/assets/og-preview.png`;
 
 async function generateStaticRoutes() {
   if (!fs.existsSync(DIST_DIR)) {
@@ -53,7 +53,7 @@ async function generateStaticRoutes() {
   }): string {
     const title = opts.title.trim();
     const desc = opts.description.trim();
-    const img = opts.image && opts.image.trim() ? opts.image.trim() : DEFAULT_LOGO;
+    const img = opts.image && opts.image.trim() ? opts.image.trim() : DEFAULT_SHARE_IMAGE;
     const absImg = img.startsWith('http') ? img : `${BASE_URL}${img.startsWith('/') ? '' : '/'}${img}`;
     const url = opts.url;
     const type = opts.type || 'website';
@@ -69,6 +69,9 @@ async function generateStaticRoutes() {
       { property: 'og:title', content: `${title} | সহানুভূতি ফাউন্ডেশন` },
       { property: 'og:description', content: desc },
       { property: 'og:image', content: absImg },
+      { property: 'og:image:width', content: '1200' },
+      { property: 'og:image:height', content: '630' },
+      { property: 'og:image:alt', content: `${title} | Sahanubhuti Foundation` },
       { property: 'og:url', content: url },
       { property: 'og:type', content: type },
       { name: 'twitter:title', content: `${title} | সহানুভূতি ফাউন্ডেশন` },

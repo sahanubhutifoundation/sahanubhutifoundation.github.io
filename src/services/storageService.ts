@@ -22,7 +22,7 @@ import {
   initialExpenses,
 } from '../data/initialData';
 import { supabaseService, OperationResult } from './supabaseService';
-import { normalizeExpense } from '../utils/foundationHelpers';
+import { normalizeExpense, resolveCategoryLabel } from '../utils/foundationHelpers';
 
 const KEYS = {
   CONFIG: 'sf_foundation_config',

@@ -226,6 +226,181 @@ export const translations: TranslationDictionary = {
     en: 'Active Contributors',
     ar: 'عدد المساهمين النشطين',
   },
+  totalFundSubtitle: {
+    bn: 'সর্বমোট সংগৃহীত বাইতুল মাল আদায়',
+    en: 'Total Baytul Mal collection received',
+    ar: 'إجمالي أموال بيت المال المحصلة',
+  },
+  totalSpentSubtitle: {
+    bn: 'অনুমোদিত ওষুধ ও মানবিক সহায়তা ব্যয়',
+    en: 'Approved medical and humanitarian aid expenditure',
+    ar: 'مصروفات المساعدات الطبية والإنسانية المعتمدة',
+  },
+  balanceCardSubtitle: {
+    bn: 'বাইতুল মালে বর্তমান কার্যকর নগদ স্থিতি',
+    en: 'Current available cash balance in Baytul Mal',
+    ar: 'الرصيد النقدي الفعلي المتاح في بيت المال',
+  },
+  contributorCountSubtitle: {
+    bn: 'মাসিক অঙ্গীকারাবদ্ধ অংশীদার সদস্য',
+    en: 'Committed monthly contributing members',
+    ar: 'أعضاء مساهمون بالالتزام الشهري',
+  },
+  yearlyOverviewSubtitle: {
+    bn: 'প্রতি বছরের সংগৃহীত মোট তহবিলের তুলনামূলক চিত্র',
+    en: 'Comparative overview of total funds collected per year',
+    ar: 'مقارنة إجمالي الصندوق المحصل لكل عام',
+  },
+  totalCollection: {
+    bn: 'সর্বমোট আদায়',
+    en: 'Total Collected',
+    ar: 'إجمالي التحصيل',
+  },
+  currentYear: {
+    bn: 'চলতি বছর',
+    en: 'Current Year',
+    ar: 'العام الحالي',
+  },
+  yearSuffix: {
+    bn: 'সাল',
+    en: '',
+    ar: 'عام',
+  },
+  monthlyBreakdownSubtitle: {
+    bn: 'প্রতি মাসের আদায়কৃত নিয়মিত মাসিক কিস্তির পরিসংখ্যান',
+    en: 'Statistics of regular monthly installments collected each month',
+    ar: 'إحصائيات الأقساط الشهرية المنتظمة المحصلة كل شهر',
+  },
+  totalForYear: {
+    bn: 'সর্বমোট',
+    en: 'Total',
+    ar: 'الإجمالي',
+  },
+  memberContributionSubtitle: {
+    bn: 'সদস্যদের নিয়মিত মাসিক অঙ্গীকার ও জমাকৃত কিস্তির স্বচ্ছ বিবরণী',
+    en: 'Transparent statement of monthly commitments and installments',
+    ar: 'بيان شفاف للالتزامات الشهرية والأقساط المسددة للأعضاء',
+  },
+  searchMemberPlaceholder: {
+    bn: 'সদস্যের নাম খুঁজুন...',
+    en: 'Search member by name...',
+    ar: 'ابحث عن اسم العضو...',
+  },
+  filterAll: {
+    bn: 'সকল',
+    en: 'All',
+    ar: 'الكل',
+  },
+  filterComplete: {
+    bn: 'পরিপূর্ণ',
+    en: 'Completed',
+    ar: 'مكتمل',
+  },
+  filterOngoing: {
+    bn: 'চলমান',
+    en: 'Ongoing',
+    ar: 'قيد المتابعة',
+  },
+  colMemberName: {
+    bn: 'সদস্যের নাম',
+    en: 'Member Name',
+    ar: 'اسم العضو',
+  },
+  colMonthlyRate: {
+    bn: 'মাসিক হার',
+    en: 'Monthly Rate',
+    ar: 'المعدل الشهري',
+  },
+  colTotalDeposit: {
+    bn: 'মোট জমা',
+    en: 'Total Deposit',
+    ar: 'إجمالي السداد',
+  },
+  colProgress: {
+    bn: 'অগ্রগতি',
+    en: 'Progress',
+    ar: 'التقدم',
+  },
+  statusPaid: {
+    bn: 'পরিশোধিত',
+    en: 'Paid',
+    ar: 'مسدد',
+  },
+  statusDue: {
+    bn: 'বাকি',
+    en: 'Due',
+    ar: 'مستحق',
+  },
+  noMemberFound: {
+    bn: 'কোনো সদস্যের তথ্য পাওয়া যায়নি।',
+    en: 'No member records found.',
+    ar: 'لم يتم العثور على سجلات للأعضاء.',
+  },
+  separateFundBadge: {
+    bn: 'পৃথক তহবিল',
+    en: 'Separate Fund',
+    ar: 'صندوق منفصل',
+  },
+  displayOnlyBadge: {
+    bn: 'প্রদর্শনী',
+    en: 'Display Only',
+    ar: 'للعرض فقط',
+  },
+  voucherBtn: {
+    bn: 'ভাউচার',
+    en: 'Voucher',
+    ar: 'إيصال',
+  },
+  sourceSheetGoogle: {
+    bn: 'মূল উৎস শিট',
+    en: 'Source Google Sheet',
+    ar: 'جدول البيانات المصدر',
+  },
+  contributorUnit: {
+    bn: 'জন',
+    en: 'members',
+    ar: 'عضو',
+  },
+  viewMemberProfileTitle: {
+    bn: 'সদস্যের বিস্তারিত প্রোফাইল দেখুন',
+    en: 'View member profile',
+    ar: 'عرض الملف التعريفي للعضو',
+  },
+  fundUtilizationBadge: {
+    bn: 'তহবিল ব্যবহার ও নিরাপত্তা অনুপাত',
+    en: 'Fund Utilization & Reserve Ratio',
+    ar: 'نسبة استخدام الصندوق والاحتياطي',
+  },
+  fundUtilizationTitle: {
+    bn: 'মানবিক সহায়তা ও চিকিৎসায় ব্যয়িত হার',
+    en: 'Expenditure Ratio on Aid & Medical Support',
+    ar: 'نسبة الإنفاق على المساعدات الطبية والإنسانية',
+  },
+  fundUtilizationSubtitle: {
+    bn: 'সর্বমোট সংগৃহীত তহবিলের বিপরীতে মানবিক কাজে ব্যয় এবং বাইতুল মালের অবশিষ্ট মওজুদ',
+    en: 'Humanitarian spending versus remaining balance in Baytul Mal',
+    ar: 'الإنفاق الإنساني مقابل الرصيد المتبقي في بيت المال',
+  },
+  expenseRatioLabel: {
+    bn: 'ব্যয় অনুপাত',
+    en: 'Expense Ratio',
+    ar: 'نسبة المصروفات',
+  },
+  totalHumanitarianExpenseLabel: {
+    bn: 'মোট মানবিক সহায়তা ব্যয়',
+    en: 'Total Humanitarian Expense',
+    ar: 'إجمالي المصروفات الإنسانية',
+  },
+  netCashReserveLabel: {
+    bn: 'বাইতুল মালে কার্যকর নগদ স্থিতি',
+    en: 'Available Cash in Baytul Mal',
+    ar: 'الرصيد النقدي الفعلي في بيت المال',
+  },
+  voucherModalTitle: {
+    bn: 'ব্যয়ের প্রমাণপত্র / ভাউচার কপি',
+    en: 'Expense Voucher / Receipt Copy',
+    ar: 'نسخة الإيصال / سند الصرف',
+  },
   lastUpdatedLabel: {
     bn: 'সর্বশেষ হালনাগাদ',
     en: 'Last Updated',
@@ -869,7 +1044,7 @@ export const translations: TranslationDictionary = {
     en: 'Member Contribution & Collection Breakdown',
     ar: 'بيان اشتراكات وتبرعات الأعضاء',
   },
-  searchMemberPlaceholder: {
+  searchMemberSerialPlaceholder: {
     bn: 'সদস্যের নাম বা নম্বর দিয়ে খুঁজুন...',
     en: 'Search by member name or serial...',
     ar: 'ابحث باسم العضو أو رقمه...',
@@ -1009,41 +1184,6 @@ export const translations: TranslationDictionary = {
     en: 'Search member by name...',
     ar: 'ابحث عن اسم العضو...',
   },
-  filterAll: {
-    bn: 'সকল',
-    en: 'All',
-    ar: 'الكل',
-  },
-  filterCompleted: {
-    bn: 'পরিপূর্ণ',
-    en: 'Completed',
-    ar: 'مكتمل',
-  },
-  filterOngoing: {
-    bn: 'চলমান',
-    en: 'Ongoing',
-    ar: 'قيد المتابعة',
-  },
-  colMemberName: {
-    bn: 'সদস্যের নাম',
-    en: 'Member Name',
-    ar: 'اسم العضو',
-  },
-  colMonthlyRate: {
-    bn: 'মাসিক হার',
-    en: 'Monthly Rate',
-    ar: 'المعدل الشهري',
-  },
-  colTotalDeposited: {
-    bn: 'মোট জমা',
-    en: 'Total Deposited',
-    ar: 'إجمالي المودع',
-  },
-  colProgress: {
-    bn: 'অগ্রগতি',
-    en: 'Progress',
-    ar: 'التقدم',
-  },
   noMemberRecordsFound: {
     bn: 'কোনো সদস্যের তথ্য পাওয়া যায়নি।',
     en: 'No member records found.',
@@ -1093,11 +1233,6 @@ export const translations: TranslationDictionary = {
     bn: 'চলতি বছর',
     en: 'Current Year',
     ar: 'العام الحالي',
-  },
-  yearSuffix: {
-    bn: 'সাল',
-    en: '',
-    ar: 'عام',
   },
   monthsSuffix: {
     bn: 'মাস',

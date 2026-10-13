@@ -3735,7 +3735,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                       },
                     })
                   }
-                  helperText="ফেসবুক/হোয়াটসঅ্যাপে শেয়ারের জন্য ১২০০x৬৩০ অনুপাতের ছবি আদর্শ। খালি থাকলে অফিসিয়াল লোগো স্বয়ংক্রিয়ভাবে ব্যবহৃত হবে।"
+                  helperText="ফেসবুক/হোয়াটসঅ্যাপে শেয়ারের জন্য ১২০০x৬৩০ অনুপাতের ছবি আদর্শ। খালি থাকলে নিবেদিত ১২০০x৬৩০ শেয়ার কার্ড (/assets/og-preview.png) স্বয়ংক্রিয়ভাবে ব্যবহৃত হবে।"
                   bucket="branding"
                   previewAspect="wide"
                   maxSizeBytes={5 * 1024 * 1024}
@@ -3763,19 +3763,16 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="flex flex-col items-center justify-center p-6 text-center space-y-2">
+                    <>
                       <img
-                        src={formData.logoUrl || '/assets/logo.svg'}
-                        alt="Default Logo"
-                        className="w-20 h-20 object-contain drop-shadow-sm"
+                        src="/assets/og-preview.png"
+                        alt="Default Foundation Social Card"
+                        className="w-full h-full object-cover"
                       />
-                      <span className="text-[11px] font-bold text-[#2D5A41]">
-                        {formData.nameBn || 'সহানুভূতি ফাউন্ডেশন'}
-                      </span>
-                      <span className="text-[9px] text-[#7A877E] uppercase tracking-wider font-semibold">
-                        অফিসিয়াল লোগো ফলব্যাক সক্রিয়
-                      </span>
-                    </div>
+                      <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-xs text-white text-[9px] px-2 py-0.5 rounded font-medium">
+                        ডিফল্ট ১২০০x৬৩০ কার্ড
+                      </div>
+                    </>
                   )}
                 </div>
 
@@ -3819,6 +3816,16 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* GitHub Pages static preview publishing note */}
+              <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/80 text-[11px] text-amber-900 leading-relaxed space-y-1">
+                <span className="font-bold flex items-center gap-1.5 text-amber-950">
+                  <span>ℹ️</span> গিটহাব পেজেস (GitHub Pages) প্রিভিউ মেটাডাটা তথ্য
+                </span>
+                <p>
+                  এখানে মেটাডাটা সংরক্ষণ করলে ব্রাউজার ভিজিটরদের জন্য সাইটে তাৎক্ষণিক কার্যকর হবে। তবে ফেসবুক, হোয়াটসঅ্যাপ বা টেলিগ্রাম লিঙ্ক প্রিভিউ ক্রলারদের জন্য স্ট্যাটিক HTML মেটাডাটা আপডেট হতে সাইটের পরবর্তী বিল্ড ও ডিপ্লয়মেন্ট প্রক্রিয়া সম্পন্ন হতে হবে।
+                </p>
               </div>
             </div>
           </div>

@@ -3,9 +3,17 @@ import { Link, useLocation } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { PageHero } from '../components/PageHero';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { getLocalizedValue, normalizeExpense, getActivityUuid, getExpenseCategoryLabel } from '../utils/foundationHelpers';
+import { 
+  getLocalizedValue, 
+  normalizeExpense, 
+  getActivityUuid, 
+  getExpenseCategoryLabel,
+  formatLocalizedNumber,
+  formatLocalizedAmount,
+  formatMonthProgress 
+} from '../utils/foundationHelpers';
 import { storageService } from '../services/storageService';
-import { fetchFundData, MONTH_KEYS, MONTH_NAMES_BN } from '../services/fundService';
+import { fetchFundData, MONTH_KEYS, MONTH_NAMES_BN, getLocalizedMonthName } from '../services/fundService';
 import {
   FundData,
   FundMemberRecord,
@@ -261,16 +269,39 @@ export const FundPage: React.FC = () => {
     showContributionDetail: true,
   };
 
-  // Map member names to IDs for fast profile linking
-  const memberNameToIdMap = useMemo(() => {
-    const map = new Map<string, string>();
+  // Map member names (Bangla, English, Arabic) to the full Member object for reliable localized display and linking
+  const memberNameMap = useMemo(() => {
+    const map = new Map<string, Member>();
     membersList.forEach((m) => {
       if (m.isActive !== false) {
-        map.set(m.name.trim().toLowerCase(), m.id);
+        if (m.name) map.set(m.name.trim().toLowerCase(), m);
+        if (m.nameBn) map.set(m.nameBn.trim().toLowerCase(), m);
+        if (m.nameEn) map.set(m.nameEn.trim().toLowerCase(), m);
+        if (m.nameAr) map.set(m.nameAr.trim().toLowerCase(), m);
       }
     });
     return map;
   }, [membersList]);
+
+  // Helper to resolve localized member name without guessing
+  const resolveContributionMemberName = useCallback((sheetName: string): { displayName: string; memberId?: string } => {
+    if (!sheetName || !sheetName.trim()) return { displayName: '' };
+    const trimmed = sheetName.trim();
+    const matched = memberNameMap.get(trimmed.toLowerCase());
+    if (!matched) {
+      // No verified relationship/localized name found -> preserve source Sheet value as instructed
+      return { displayName: trimmed };
+    }
+    let localized = trimmed;
+    if (language === 'bn') {
+      localized = matched.nameBn || matched.name || trimmed;
+    } else if (language === 'en') {
+      localized = matched.nameEn || matched.name || trimmed;
+    } else if (language === 'ar') {
+      localized = matched.nameAr || matched.nameEn || matched.name || trimmed;
+    }
+    return { displayName: localized, memberId: matched.id };
+  }, [memberNameMap, language]);
 
   // Filtered expense ledger for the public display (normalized to guarantee safe strings)
   const displayExpenses: ExpenseRecord[] = useMemo(() => {
@@ -513,10 +544,10 @@ export const FundPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-[#2D3630] font-mono tracking-tight">
-                  {loading ? '...' : `৳ ${totalIn.toLocaleString()}`}
+                  {loading ? '...' : `৳ ${formatLocalizedAmount(totalIn, language)}`}
                 </div>
                 <p className="text-xs text-[#7A877E] mt-2">
-                  {selectedYear} সর্বমোট সংগৃহীত বাইতুল মাল আদায়
+                  {formatLocalizedNumber(selectedYear, language)} {t('totalFundSubtitle')}
                 </p>
               </div>
             )}
@@ -533,10 +564,10 @@ export const FundPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-[#C25442] font-mono tracking-tight">
-                  {loading ? '...' : `৳ ${totalOut.toLocaleString()}`}
+                  {loading ? '...' : `৳ ${formatLocalizedAmount(totalOut, language)}`}
                 </div>
                 <p className="text-xs text-[#7A877E] mt-2">
-                  অনুমোদিত ওষুধ ও মানবিক সহায়তা ব্যয়
+                  {t('totalSpentSubtitle')}
                 </p>
               </div>
             )}
@@ -553,10 +584,10 @@ export const FundPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-2xl sm:text-3xl font-bold text-[#2D5A41] font-mono tracking-tight">
-                  {loading ? '...' : `৳ ${currentBalance.toLocaleString()}`}
+                  {loading ? '...' : `৳ ${formatLocalizedAmount(currentBalance, language)}`}
                 </div>
                 <p className="text-xs text-[#2D5A41] font-medium mt-2">
-                  বাইতুল মালে বর্তমান কার্যকর নগদ স্থিতি
+                  {t('balanceCardSubtitle')}
                 </p>
               </div>
             )}
@@ -572,10 +603,10 @@ export const FundPage: React.FC = () => {
                 </div>
               </div>
               <div className="text-2xl sm:text-3xl font-bold text-[#2D3630] font-mono tracking-tight">
-                {loading ? '...' : `${contributorCount} জন`}
+                {loading ? '...' : `${formatLocalizedNumber(contributorCount, language)} ${t('contributorUnit')}`.trim()}
               </div>
               <p className="text-xs text-[#7A877E] mt-2">
-                মাসিক অঙ্গীকারাবদ্ধ অংশীদার সদস্য
+                {t('contributorCountSubtitle')}
               </p>
             </div>
           </div>
@@ -595,12 +626,12 @@ export const FundPage: React.FC = () => {
                     <span>{t('yearlyReceivedTitle')}</span>
                   </h3>
                   <p className="text-xs text-[#7A877E] mt-0.5">
-                    প্রতি বছরের সংগৃহীত মোট তহবিলের তুলনামূলক চিত্র
+                    {t('yearlyOverviewSubtitle')}
                   </p>
                 </div>
                 <div className="text-xs font-semibold text-[#2D5A41] bg-[#E8EFEA] px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 self-start sm:self-center">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>সর্বমোট আদায়: ৳ {totalIn.toLocaleString()}</span>
+                  <span>{t('totalCollection')}: ৳ {formatLocalizedAmount(totalIn, language)}</span>
                 </div>
               </div>
 
@@ -610,6 +641,9 @@ export const FundPage: React.FC = () => {
                   .map((year) => {
                     const amount = fundData.yearlyReceived?.[year] || 0;
                     const pct = totalIn > 0 ? Math.round((amount / totalIn) * 100) : 0;
+                    const yearLabel = year === '2026'
+                      ? `${formatLocalizedNumber(year, language)} (${t('currentYear')})`
+                      : `${formatLocalizedNumber(year, language)} ${t('yearSuffix')}`.trim();
                     return (
                       <div
                         key={year}
@@ -622,17 +656,13 @@ export const FundPage: React.FC = () => {
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-[#5C665F]">
-                            {year === '2026'
-                              ? '২০২৬ (চলতি বছর)'
-                              : year === '2025'
-                              ? '২০২৫ সাল'
-                              : `${year} সাল`}
+                            {yearLabel}
                           </span>
-                          <span className="text-xs font-mono font-bold text-[#2D5A41]">{pct}%</span>
+                          <span className="text-xs font-mono font-bold text-[#2D5A41]">{formatLocalizedNumber(pct, language)}%</span>
                         </div>
 
                         <div className="text-xl font-bold font-mono text-[#2D3630]">
-                          ৳ {amount.toLocaleString()}
+                          ৳ {formatLocalizedAmount(amount, language)}
                         </div>
 
                         <div className="w-full h-2 bg-[#EBE8E0] rounded-full overflow-hidden">
@@ -659,14 +689,14 @@ export const FundPage: React.FC = () => {
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-[#2D3630] flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-[#2D5A41]" />
-                    <span>{t('monthlyBreakdownTitle')} ({selectedYear})</span>
+                    <span>{t('monthlyBreakdownTitle')} ({formatLocalizedNumber(selectedYear, language)})</span>
                   </h3>
                   <p className="text-xs text-[#7A877E] mt-0.5">
-                    প্রতি মাসের আদায়কৃত নিয়মিত মাসিক কিস্তির পরিসংখ্যান
+                    {t('monthlyBreakdownSubtitle')}
                   </p>
                 </div>
                 <div className="text-xs font-mono font-bold text-[#2D3630] bg-[#F7F5F0] px-3 py-1.5 rounded-lg self-start sm:self-center">
-                  {selectedYear} সর্বমোট: ৳ {(fundData.yearlyReceived?.[selectedYear] || totalIn).toLocaleString()}
+                  {formatLocalizedNumber(selectedYear, language)} {t('totalForYear')}: ৳ {formatLocalizedAmount(fundData.yearlyReceived?.[selectedYear] || totalIn, language)}
                 </div>
               </div>
 
@@ -681,13 +711,13 @@ export const FundPage: React.FC = () => {
                       className="p-3.5 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] flex flex-col justify-between hover:border-[#2D5A41]/40 transition-colors"
                     >
                       <div className="flex items-center justify-between text-xs text-[#5C665F]">
-                        <span className="font-semibold">{MONTH_NAMES_BN[m]}</span>
+                        <span className="font-semibold">{getLocalizedMonthName(m, language)}</span>
                         <span className="text-[10px] text-[#A4B3A8] uppercase">{m}</span>
                       </div>
 
                       <div className="my-2.5">
                         <div className="text-sm sm:text-base font-bold font-mono text-[#2D3630]">
-                          ৳ {amount.toLocaleString()}
+                          ৳ {formatLocalizedAmount(amount, language)}
                         </div>
                       </div>
 
@@ -718,7 +748,7 @@ export const FundPage: React.FC = () => {
                     <span>{t('memberContributionsTitle')}</span>
                   </h3>
                   <p className="text-xs text-[#7A877E] mt-0.5">
-                    সদস্যদের নিয়মিত মাসিক অঙ্গীকার ও জমাকৃত কিস্তির স্বচ্ছ বিবরণী
+                    {t('memberContributionSubtitle') || (language === 'ar' ? 'بيان شفاف بالتزام واشتراكات الأعضاء الشهرية المنتظمة' : language === 'en' ? 'Transparent statement of members monthly commitments and installments' : 'সদস্যদের নিয়মিত মাসিক অঙ্গীকার ও জমাকৃত কিস্তির স্বচ্ছ বিবরণী')}
                   </p>
                 </div>
 
@@ -730,7 +760,7 @@ export const FundPage: React.FC = () => {
                       type="text"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="সদস্যের নাম খুঁজুন..."
+                      placeholder={language === 'ar' ? 'البحث عن اسم العضو...' : language === 'en' ? 'Search member name...' : 'সদস্যের নাম খুঁজুন...'}
                       className="pl-8 pr-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630] placeholder-[#A4B3A8] focus:outline-hidden focus:border-[#2D5A41] transition-colors"
                     />
                   </div>
@@ -745,7 +775,7 @@ export const FundPage: React.FC = () => {
                           : 'text-[#5C665F] hover:text-[#2D3630]'
                       }`}
                     >
-                      সকল ({fundData.memberRecords.length})
+                      {language === 'ar' ? 'الكل' : language === 'en' ? 'All' : 'সকল'} ({formatLocalizedNumber(fundData.memberRecords.length, language)})
                     </button>
                     <button
                       type="button"
@@ -756,7 +786,7 @@ export const FundPage: React.FC = () => {
                           : 'text-[#5C665F] hover:text-[#2D3630]'
                       }`}
                     >
-                      পরিপূর্ণ
+                      {language === 'ar' ? 'مكتمل' : language === 'en' ? 'Completed' : 'পরিপূর্ণ'}
                     </button>
                     <button
                       type="button"
@@ -767,7 +797,7 @@ export const FundPage: React.FC = () => {
                           : 'text-[#5C665F] hover:text-[#2D3630]'
                       }`}
                     >
-                      চলমান
+                      {language === 'ar' ? 'قيد التنفيذ' : language === 'en' ? 'In Progress' : 'চলমান'}
                     </button>
                   </div>
                 </div>
@@ -779,77 +809,80 @@ export const FundPage: React.FC = () => {
                   <thead className="bg-[#F7F5F0] text-[#5C665F] font-semibold border-b border-[#EBE8E0]">
                     <tr>
                       <th className="py-3 px-3 w-10 text-center">#</th>
-                      <th className="py-3 px-4">সদস্যের নাম</th>
-                      <th className="py-3 px-3 text-right">মাসিক হার</th>
+                      <th className="py-3 px-4">{language === 'ar' ? 'اسم العضو' : language === 'en' ? 'Member Name' : 'সদস্যের নাম'}</th>
+                      <th className="py-3 px-3 text-right">{language === 'ar' ? 'المبلغ الشهري' : language === 'en' ? 'Monthly Commitment' : 'মাসিক হার'}</th>
                       {MONTH_KEYS.map((m) => (
                         <th key={m} className="py-3 px-2 text-center text-[11px]">
-                          {MONTH_NAMES_BN[m]}
+                          {getLocalizedMonthName(m, language)}
                         </th>
                       ))}
-                      <th className="py-3 px-3 text-right">মোট জমা</th>
-                      <th className="py-3 px-3 text-center">অগ্রগতি</th>
+                      <th className="py-3 px-3 text-right">{language === 'ar' ? 'إجمالي الإيداع' : language === 'en' ? 'Total Deposited' : 'মোট জমা'}</th>
+                      <th className="py-3 px-3 text-center">{language === 'ar' ? 'التقدم' : language === 'en' ? 'Progress' : 'অগ্রগতি'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#EBE8E0]">
                     {filteredMembers.map((member) => {
                       const isFullyPaid = member.paidCount >= 12;
-                      const matchedMemberId = memberNameToIdMap.get(member.name.trim().toLowerCase());
+                      const resolved = resolveContributionMemberName(member.name);
+                      const matchedMemberId = resolved.memberId || memberNameMap.get(member.name.trim().toLowerCase())?.id;
+                      const displayName = resolved.displayName || member.name;
 
                       return (
                         <tr key={member.serial} className="hover:bg-[#FDFCF9] transition-colors">
                           <td className="py-3 px-3 text-center font-mono text-[#7A877E]">
-                            {member.serial}
+                            {formatLocalizedNumber(member.serial, language)}
                           </td>
                           <td className="py-3 px-4 font-semibold text-[#2D3630] whitespace-nowrap">
                             {memberLinkSettings.makeProfileLink && matchedMemberId ? (
                               <Link
                                 to={`/members/${matchedMemberId}`}
                                 className="text-[#2D5A41] hover:underline inline-flex items-center gap-1 group"
-                                title="সদস্যের বিস্তারিত প্রোফাইল দেখুন"
+                                title={language === 'ar' ? 'عرض الملف الشخصي للمفصل للعضو' : language === 'en' ? 'View member profile details' : 'সদস্যের বিস্তারিত প্রোফাইল দেখুন'}
                               >
-                                <span>{member.name}</span>
+                                <span>{displayName}</span>
                                 <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                               </Link>
                             ) : (
-                              <span>{member.name}</span>
+                              <span>{displayName}</span>
                             )}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-[#5C665F] whitespace-nowrap">
-                            ৳ {member.commitment.toLocaleString()}
+                            ৳ {formatLocalizedAmount(member.commitment, language)}
                           </td>
                           {MONTH_KEYS.map((m) => {
                             const isPaid = member.months[m] === 'paid';
+                            const mName = getLocalizedMonthName(m, language);
                             return (
                               <td key={m} className="py-3 px-2 text-center">
                                 {isPaid ? (
                                   <span
                                     className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#E8EFEA] text-[#2D5A41] text-[10px] font-bold"
-                                    title={`${MONTH_NAMES_BN[m]} পরিশোধিত`}
+                                    title={`${mName} ${language === 'ar' ? 'مدفوع' : language === 'en' ? 'Paid' : 'পরিশোধিত'}`}
                                   >
                                     ✓
                                   </span>
                                 ) : (
                                   <span
                                     className="inline-block w-2 h-2 rounded-full bg-[#EBE8E0]"
-                                    title={`${MONTH_NAMES_BN[m]} বাকি`}
+                                    title={`${mName} ${language === 'ar' ? 'متبقٍ' : language === 'en' ? 'Pending' : 'বাকি'}`}
                                   />
                                 )}
                               </td>
                             );
                           })}
                           <td className="py-3 px-3 text-right font-mono font-bold text-[#2D5A41] whitespace-nowrap">
-                            ৳ {member.totalContributed.toLocaleString()}
+                            ৳ {formatLocalizedAmount(member.totalContributed, language)}
                           </td>
                           <td className="py-3 px-3 text-center whitespace-nowrap">
                             <span
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
                                 isFullyPaid
-                                  ? 'bg-[#E8EFEA] text-[#2D5A41]'
+                                    ? 'bg-[#E8EFEA] text-[#2D5A41]'
                                   : 'bg-[#F7F5F0] text-[#5C665F]'
                               }`}
                             >
                               {isFullyPaid && <CheckCircle2 className="w-3 h-3 text-[#2D5A41]" />}
-                              <span>{member.paidCount}/১২ মাস</span>
+                              <span>{formatMonthProgress(member.paidCount, 12, language)}</span>
                             </span>
                           </td>
                         </tr>
@@ -860,7 +893,7 @@ export const FundPage: React.FC = () => {
 
                 {filteredMembers.length === 0 && (
                   <div className="text-center py-8 text-xs text-[#7A877E]">
-                    কোনো সদস্যের তথ্য পাওয়া যায়নি।
+                    {language === 'ar' ? 'لم يتم العথور على أي معلومات للأعضاء.' : language === 'en' ? 'No member records found.' : 'কোনো সদস্যের তথ্য পাওয়া যায়নি।'}
                   </div>
                 )}
               </div>
@@ -886,7 +919,7 @@ export const FundPage: React.FC = () => {
 
               <div className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 self-start sm:self-center font-mono">
                 <span>
-                  {headings.totalSpentLabel || 'সর্বমোট ব্যয়'}: -৳ {totalOut.toLocaleString()}
+                  {headings.totalSpentLabel || 'সর্বমোট ব্যয়'}: -৳ {formatLocalizedAmount(totalOut, language)}
                 </span>
               </div>
             </div>
@@ -907,7 +940,7 @@ export const FundPage: React.FC = () => {
                   {displayExpenses.map((exp) => (
                     <tr key={exp.id} className="hover:bg-[#FDFCF9] transition-colors">
                       <td className="py-3 px-4 font-mono text-[#5C665F] whitespace-nowrap">
-                        {exp.date}
+                        {formatLocalizedNumber(exp.date, language)}
                       </td>
 
                       <td className="py-3 px-4">
@@ -915,12 +948,12 @@ export const FundPage: React.FC = () => {
                           <span>{getLocalizedValue(exp.title, language)}</span>
                           {exp.deductionMode === 'separate' && (
                             <span className="text-[10px] font-normal px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md">
-                              পৃথক তহবিল
+                              {language === 'ar' ? 'صندوق منفصل' : language === 'en' ? 'Separate Fund' : 'পৃথক তহবিল'}
                             </span>
                           )}
                           {exp.deductionMode === 'display_only' && (
                             <span className="text-[10px] font-normal px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md">
-                              প্রদর্শনী
+                              {language === 'ar' ? 'للعرض فقط' : language === 'en' ? 'Display Only' : 'প্রদর্শনী'}
                             </span>
                           )}
                         </div>
@@ -973,7 +1006,7 @@ export const FundPage: React.FC = () => {
                             className="px-2.5 py-1 rounded-lg border border-[#2D5A41]/20 bg-[#E8EFEA] text-[#2D5A41] hover:bg-[#2D5A41] hover:text-white transition-all text-[11px] font-semibold inline-flex items-center gap-1"
                           >
                             <Receipt className="w-3 h-3" />
-                            <span>ভাউচার</span>
+                            <span>{headings.columnReceipt || (language === 'ar' ? 'إيصال' : language === 'en' ? 'Receipt' : 'ভাউচার')}</span>
                           </button>
                         ) : (
                           <span className="text-[#C5BFB0]">—</span>
@@ -981,7 +1014,7 @@ export const FundPage: React.FC = () => {
                       </td>
 
                       <td className="py-3 px-4 text-right font-mono font-bold text-rose-600 whitespace-nowrap">
-                        -৳ {exp.amount.toLocaleString()}
+                        -৳ {formatLocalizedAmount(exp.amount, language)}
                       </td>
                     </tr>
                   ))}
