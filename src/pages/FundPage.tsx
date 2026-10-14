@@ -70,7 +70,7 @@ export const FundPage: React.FC = () => {
             {
               year: '2026',
               url: config.fundSourceUrl,
-              label: '২০২৬ আর্থিক বছর (চলতি)',
+              label: language === 'ar' ? 'السنة المالية ٢٠٢٦ (الحالية)' : language === 'en' ? '2026 Financial Year (Current)' : '২০২৬ আর্থিক বছর (চলতি)',
               enabled: true,
               isPublic: true,
               isDefault: true,
@@ -78,20 +78,20 @@ export const FundPage: React.FC = () => {
             {
               year: '2025',
               url: '',
-              label: '২০২৫ আর্থিক বছর',
+              label: language === 'ar' ? 'السنة المالية ٢٠٢٥' : language === 'en' ? '2025 Financial Year' : '২০২৫ আর্থিক বছর',
               enabled: true,
               isPublic: true,
             },
             {
               year: '2024',
               url: '',
-              label: '২০২৪ আর্থিক বছর',
+              label: language === 'ar' ? 'السنة المالية ٢٠٢٤' : language === 'en' ? '2024 Financial Year' : '২০২৪ আর্থিক বছর',
               enabled: true,
               isPublic: true,
             },
           ];
     return list.filter((s) => s.enabled !== false && s.isPublic !== false);
-  }, [config.yearlyFundSources, config.fundSourceUrl]);
+  }, [config.yearlyFundSources, config.fundSourceUrl, language]);
 
   // Default year determination
   const defaultYear = useMemo(() => {
@@ -191,14 +191,19 @@ export const FundPage: React.FC = () => {
           sourceType: 'google_sheet',
           status: 'error',
           year: selectedYear,
-          errorMessage: `${selectedYear} আর্থিক বছরের তথ্য লোড করতে সমস্যা হয়েছে।`,
+          errorMessage:
+            language === 'ar'
+              ? `تعذر تحميل بيانات عام ${formatLocalizedNumber(selectedYear, language)}.`
+              : language === 'en'
+              ? `Failed to load records for financial year ${formatLocalizedNumber(selectedYear, language)}.`
+              : `${formatLocalizedNumber(selectedYear, language)} আর্থিক বছরের তথ্য লোড করতে সমস্যা হয়েছে।`,
         });
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [selectedYear]
+    [selectedYear, language]
   );
 
   useEffect(() => {
@@ -247,21 +252,19 @@ export const FundPage: React.FC = () => {
   // Headings config with safe localization string extraction
   const rawHeadings = config.fundExpenseHeadings || {};
   const headings = useMemo(() => ({
-    title: getLocalizedValue(rawHeadings.title, language) || 'মানবিক সহায়তা ও ব্যয় বিবরণী',
-    subtitle:
-      getLocalizedValue(rawHeadings.subtitle, language) ||
-      'তহবিল হতে অনুমোদিত মানবিক সাহায্য, চিকিৎসা অনুদান ও ত্রাণ ব্যয়ের হিসাব',
-    totalSpentLabel: getLocalizedValue(rawHeadings.totalSpentLabel, language) || 'সর্বমোট ব্যয়',
-    columnDate: getLocalizedValue(rawHeadings.columnDate, language) || 'তারিখ',
-    columnTitle: getLocalizedValue(rawHeadings.columnTitle, language) || 'ব্যয়ের খাত ও বিবরণ',
-    columnCategory: getLocalizedValue(rawHeadings.columnCategory, language) || 'বিভাগ',
-    columnLocation: getLocalizedValue(rawHeadings.columnLocation, language) || 'এলাকা',
-    columnReceipt: getLocalizedValue(rawHeadings.columnReceipt, language) || 'ভাউচার',
-    columnAmount: getLocalizedValue(rawHeadings.columnAmount, language) || 'পরিমাণ',
-    emptyState: getLocalizedValue(rawHeadings.emptyState, language) || 'কোনো ব্যয়ের হিসাব পাওয়া যায়নি',
-    sourceLabel: getLocalizedValue(rawHeadings.sourceLabel, language) || 'তহবিল সূত্র',
-    verifiedLabel: getLocalizedValue(rawHeadings.verifiedLabel, language) || 'অনুমোদিত ও ভেরিফাইড',
-  }), [rawHeadings, language]);
+    title: getLocalizedValue(rawHeadings.title, language) || t('expenseLedgerDefaultTitle'),
+    subtitle: getLocalizedValue(rawHeadings.subtitle, language) || t('expenseLedgerDefaultSubtitle'),
+    totalSpentLabel: getLocalizedValue(rawHeadings.totalSpentLabel, language) || t('expenseLedgerDefaultTotalSpent'),
+    columnDate: getLocalizedValue(rawHeadings.columnDate, language) || t('expenseColDate'),
+    columnTitle: getLocalizedValue(rawHeadings.columnTitle, language) || t('expenseColTitle'),
+    columnCategory: getLocalizedValue(rawHeadings.columnCategory, language) || t('expenseColCategory'),
+    columnLocation: getLocalizedValue(rawHeadings.columnLocation, language) || t('expenseColLocation'),
+    columnReceipt: getLocalizedValue(rawHeadings.columnReceipt, language) || t('expenseColReceipt'),
+    columnAmount: getLocalizedValue(rawHeadings.columnAmount, language) || t('expenseColAmount'),
+    emptyState: getLocalizedValue(rawHeadings.emptyState, language) || t('expenseEmptyState'),
+    sourceLabel: getLocalizedValue(rawHeadings.sourceLabel, language) || (language === 'ar' ? 'مصدر التمويل' : language === 'en' ? 'Fund Source' : 'তহবিল সূত্র'),
+    verifiedLabel: getLocalizedValue(rawHeadings.verifiedLabel, language) || (language === 'ar' ? 'معتمد وموثق' : language === 'en' ? 'Approved & Verified' : 'অনুমোদিত ও ভেরিফাইড'),
+  }), [rawHeadings, language, t]);
 
   const memberLinkSettings = config.fundMemberLinkSettings || {
     showMemberName: true,
@@ -364,8 +367,20 @@ export const FundPage: React.FC = () => {
 
   return (
     <ErrorBoundary
-      fallbackTitle="তহবিল তথ্য প্রদর্শনে সাময়িক সমস্যা হয়েছে"
-      fallbackMessage="তহবিল বিবরণী রেন্ডার করতে সাময়িক সমস্যা হয়েছে। নিচের বাটনে ক্লিক করে পুনরায় লোড করুন।"
+      fallbackTitle={
+        language === 'ar'
+          ? 'حدث خطأ مؤقت في عرض بيانات الصندوق'
+          : language === 'en'
+          ? 'Temporary issue loading fund records'
+          : 'তহবিল তথ্য প্রদর্শনে সাময়িক সমস্যা হয়েছে'
+      }
+      fallbackMessage={
+        language === 'ar'
+          ? 'حدث خطأ أثناء عرض بيان الصندوق. يرجى النقر على الزر أدناه لإعادة التحميل.'
+          : language === 'en'
+          ? 'An issue occurred while rendering the fund statement. Click the button below to reload.'
+          : 'তহবিল বিবরণী রেন্ডার করতে সাময়িক সমস্যা হয়েছে। নিচের বাটনে ক্লিক করে পুনরায় লোড করুন।'
+      }
       onReset={loadData}
     >
       <div className="space-y-10 sm:space-y-12 pb-16">
@@ -373,7 +388,7 @@ export const FundPage: React.FC = () => {
           title={t('fundDashboardTitle')}
           subtitle={t('fundSubtitle')}
           breadcrumb={[{ label: t('navFund') }]}
-          tag="স্বচ্ছ বাইতুল মাল তহবিল"
+          tag={t('fundTag')}
         />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
@@ -381,20 +396,20 @@ export const FundPage: React.FC = () => {
         <div className="p-4 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-[#5C665F]">
             {/* Year Selector Tabs */}
-            <div className="flex items-center gap-1.5 p-1 bg-[#F7F5F0] rounded-xl border border-[#EBE8E0]">
-              <CalendarDays className="w-3.5 h-3.5 text-[#2D5A41] ml-2 shrink-0" />
+            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-[#F7F5F0] rounded-xl border border-[#EBE8E0]">
+              <CalendarDays className="w-3.5 h-3.5 text-[#2D5A41] mx-1.5 shrink-0" />
               {yearlySources.map((source) => (
                 <button
                   key={source.year}
                   type="button"
                   onClick={() => handleSelectYear(source.year)}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                  className={`inline-flex items-center justify-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                     selectedYear === source.year
                       ? 'bg-white text-[#2D5A41] shadow-2xs font-bold'
                       : 'text-[#5C665F] hover:text-[#2D3630]'
                   }`}
                 >
-                  {source.year}
+                  {formatLocalizedNumber(source.year, language)}
                 </button>
               ))}
             </div>
@@ -414,12 +429,12 @@ export const FundPage: React.FC = () => {
               />
               <span>
                 {fundData?.status === 'live'
-                  ? 'লাইভ গুগল শিট সংযুক্ত'
+                  ? t('statusLiveSheet')
                   : fundData?.status === 'fallback'
-                  ? 'সংরক্ষিত ক্যাশ তথ্য'
+                  ? t('statusCachedData')
                   : fundData?.status === 'not_found'
-                  ? 'তথ্য অনুপলব্ধ'
-                  : 'সংযোগ যাচাই করা হচ্ছে'}
+                  ? t('statusDataUnavailable')
+                  : t('statusCheckingConnection')}
               </span>
             </span>
 
@@ -452,9 +467,9 @@ export const FundPage: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#2D5A41] bg-[#E8EFEA] hover:bg-[#D9E5DC] border border-[#2D5A41]/20 transition-colors"
-                title="গুগল শিট দেখুন"
+                title={t('sourceSheetGoogle')}
               >
-                <span>মূল উৎস শিট</span>
+                <span>{t('sourceSheetBtn')}</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
             )}
@@ -468,11 +483,14 @@ export const FundPage: React.FC = () => {
               <CalendarDays className="w-6 h-6" />
             </div>
             <h3 className="text-base sm:text-lg font-bold text-[#2D3630]">
-              {selectedYear} আর্থিক বছরের তথ্য এখনো সংযুক্ত করা হয়নি
+              {language === 'ar'
+                ? `لم يتم ربط بيانات عام ${formatLocalizedNumber(selectedYear, language)} بعد`
+                : language === 'en'
+                ? `Financial records for ${formatLocalizedNumber(selectedYear, language)} are not connected yet`
+                : `${formatLocalizedNumber(selectedYear, language)} ${t('yearNotConfiguredTitle')}`}
             </h3>
             <p className="text-xs sm:text-sm text-[#7A877E] max-w-md mx-auto">
-              এই আর্থিক বছরের জন্য কোনো গুগল স্প্রেডশিট বা ডাটাবেজ লিংক যুক্ত করা হয়নি। প্রশাসনিক
-              প্যানেল থেকে লিংক কনফিগার করার পর তথ্য স্বয়ংক্রিয়ভাবে প্রদর্শিত হবে।
+              {t('yearNotConfiguredDesc')}
             </p>
             {defaultYear && defaultYear !== selectedYear && (
               <div className="pt-2">
@@ -481,7 +499,13 @@ export const FundPage: React.FC = () => {
                   onClick={() => setSelectedYear(defaultYear)}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2D5A41] text-white text-xs font-semibold hover:bg-[#234733] transition-colors shadow-2xs"
                 >
-                  <span>সক্রিয় {defaultYear} সালের হিসাব দেখুন</span>
+                  <span>
+                    {language === 'ar'
+                      ? `عرض سجلات صندوق عام ${formatLocalizedNumber(defaultYear, language)}`
+                      : language === 'en'
+                      ? `View active ${formatLocalizedNumber(defaultYear, language)} records`
+                      : `সক্রিয় ${formatLocalizedNumber(defaultYear, language)} সালের হিসাব দেখুন`}
+                  </span>
                 </button>
               </div>
             )}
@@ -496,15 +520,19 @@ export const FundPage: React.FC = () => {
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-bold text-[#2D3630]">
-                {selectedYear} আর্থিক বছরের ডাটা সোর্স বর্তমানে অনুপলব্ধ
+                {language === 'ar'
+                  ? `مصدر بيانات عام ${formatLocalizedNumber(selectedYear, language)} غير متاح حاليًا`
+                  : language === 'en'
+                  ? `Data source for ${formatLocalizedNumber(selectedYear, language)} is currently unavailable`
+                  : `${formatLocalizedNumber(selectedYear, language)} ${t('sourceUnavailableTitle')}`}
               </h3>
               <p className="text-xs sm:text-sm text-[#7A877E] max-w-lg mx-auto mt-1 leading-relaxed">
-                {fundData.errorMessage || 'গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি। স্প্রেডশিটের শেয়ারিং পারমিশন বা নেটওয়ার্ক সংযোগ যাচাই করুন।'}
+                {fundData.errorMessage || t('sourceUnavailableDefaultErr')}
               </p>
             </div>
             {currentSource?.url && (
               <div className="text-[11px] text-[#5C665F] font-mono bg-[#F7F5F0] p-2.5 rounded-xl max-w-md mx-auto truncate border border-[#EBE8E0]">
-                কনফিগার করা সোর্স: {currentSource.url}
+                {t('configuredSourceLabel')} {currentSource.url}
               </div>
             )}
             <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
@@ -514,7 +542,7 @@ export const FundPage: React.FC = () => {
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2D5A41] text-white text-xs font-semibold hover:bg-[#234733] transition-colors shadow-2xs"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-                <span>পুনরায় লোড করুন</span>
+                <span>{t('reloadButton')}</span>
               </button>
               {defaultYear && defaultYear !== selectedYear && (
                 <button
@@ -522,7 +550,13 @@ export const FundPage: React.FC = () => {
                   onClick={() => setSelectedYear(defaultYear)}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-[#EBE8E0] text-[#2D3630] text-xs font-semibold hover:bg-[#F7F5F0] transition-colors"
                 >
-                  <span>সক্রিয় {defaultYear} সালের তহবিলে ফিরে যান</span>
+                  <span>
+                    {language === 'ar'
+                      ? `العودة إلى صندوق عام ${formatLocalizedNumber(defaultYear, language)}`
+                      : language === 'en'
+                      ? `Return to active ${formatLocalizedNumber(defaultYear, language)} fund`
+                      : `সক্রিয় ${formatLocalizedNumber(defaultYear, language)} সালের তহবিলে ফিরে যান`}
+                  </span>
                 </button>
               )}
             </div>
@@ -643,7 +677,7 @@ export const FundPage: React.FC = () => {
                     const pct = totalIn > 0 ? Math.round((amount / totalIn) * 100) : 0;
                     const yearLabel = year === '2026'
                       ? `${formatLocalizedNumber(year, language)} (${t('currentYear')})`
-                      : `${formatLocalizedNumber(year, language)} ${t('yearSuffix')}`.trim();
+                      : (language === 'bn' ? `${formatLocalizedNumber(year, language)} ${t('yearSuffix')}`.trim() : formatLocalizedNumber(year, language));
                     return (
                       <div
                         key={year}
@@ -654,11 +688,13 @@ export const FundPage: React.FC = () => {
                         }`}
                         onClick={() => setSelectedYear(year)}
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-bold text-[#5C665F]">
                             {yearLabel}
                           </span>
-                          <span className="text-xs font-mono font-bold text-[#2D5A41]">{formatLocalizedNumber(pct, language)}%</span>
+                          <span className="text-xs font-mono font-bold text-[#2D5A41] shrink-0">
+                            {formatLocalizedNumber(pct, language)}%
+                          </span>
                         </div>
 
                         <div className="text-xl font-bold font-mono text-[#2D3630]">
@@ -712,7 +748,7 @@ export const FundPage: React.FC = () => {
                     >
                       <div className="flex items-center justify-between text-xs text-[#5C665F]">
                         <span className="font-semibold">{getLocalizedMonthName(m, language)}</span>
-                        <span className="text-[10px] text-[#A4B3A8] uppercase">{m}</span>
+                        {language === 'en' && <span className="text-[10px] text-[#A4B3A8] uppercase">{m}</span>}
                       </div>
 
                       <div className="my-2.5">
@@ -760,7 +796,7 @@ export const FundPage: React.FC = () => {
                       type="text"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder={language === 'ar' ? 'البحث عن اسم العضو...' : language === 'en' ? 'Search member name...' : 'সদস্যের নাম খুঁজুন...'}
+                      placeholder={t('searchMemberPlaceholder')}
                       className="pl-8 pr-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630] placeholder-[#A4B3A8] focus:outline-hidden focus:border-[#2D5A41] transition-colors"
                     />
                   </div>
@@ -775,7 +811,7 @@ export const FundPage: React.FC = () => {
                           : 'text-[#5C665F] hover:text-[#2D3630]'
                       }`}
                     >
-                      {language === 'ar' ? 'الكل' : language === 'en' ? 'All' : 'সকল'} ({formatLocalizedNumber(fundData.memberRecords.length, language)})
+                      {t('filterAll')} ({formatLocalizedNumber(fundData.memberRecords.length, language)})
                     </button>
                     <button
                       type="button"
@@ -786,7 +822,7 @@ export const FundPage: React.FC = () => {
                           : 'text-[#5C665F] hover:text-[#2D3630]'
                       }`}
                     >
-                      {language === 'ar' ? 'مكتمل' : language === 'en' ? 'Completed' : 'পরিপূর্ণ'}
+                      {t('filterComplete')}
                     </button>
                     <button
                       type="button"
@@ -797,7 +833,7 @@ export const FundPage: React.FC = () => {
                           : 'text-[#5C665F] hover:text-[#2D3630]'
                       }`}
                     >
-                      {language === 'ar' ? 'قيد التنفيذ' : language === 'en' ? 'In Progress' : 'চলমান'}
+                      {t('filterOngoing')}
                     </button>
                   </div>
                 </div>
@@ -809,15 +845,15 @@ export const FundPage: React.FC = () => {
                   <thead className="bg-[#F7F5F0] text-[#5C665F] font-semibold border-b border-[#EBE8E0]">
                     <tr>
                       <th className="py-3 px-3 w-10 text-center">#</th>
-                      <th className="py-3 px-4">{language === 'ar' ? 'اسم العضو' : language === 'en' ? 'Member Name' : 'সদস্যের নাম'}</th>
-                      <th className="py-3 px-3 text-right">{language === 'ar' ? 'المبلغ الشهري' : language === 'en' ? 'Monthly Commitment' : 'মাসিক হার'}</th>
+                      <th className="py-3 px-4">{t('colMemberName')}</th>
+                      <th className="py-3 px-3 text-right">{t('colMonthlyRate')}</th>
                       {MONTH_KEYS.map((m) => (
                         <th key={m} className="py-3 px-2 text-center text-[11px]">
                           {getLocalizedMonthName(m, language)}
                         </th>
                       ))}
-                      <th className="py-3 px-3 text-right">{language === 'ar' ? 'إجمالي الإيداع' : language === 'en' ? 'Total Deposited' : 'মোট জমা'}</th>
-                      <th className="py-3 px-3 text-center">{language === 'ar' ? 'التقدم' : language === 'en' ? 'Progress' : 'অগ্রগতি'}</th>
+                      <th className="py-3 px-3 text-right">{t('colTotalDeposit')}</th>
+                      <th className="py-3 px-3 text-center">{t('colProgress')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#EBE8E0]">
@@ -837,7 +873,7 @@ export const FundPage: React.FC = () => {
                               <Link
                                 to={`/members/${matchedMemberId}`}
                                 className="text-[#2D5A41] hover:underline inline-flex items-center gap-1 group"
-                                title={language === 'ar' ? 'عرض الملف الشخصي للمفصل للعضو' : language === 'en' ? 'View member profile details' : 'সদস্যের বিস্তারিত প্রোফাইল দেখুন'}
+                                title={t('viewMemberProfileTitle')}
                               >
                                 <span>{displayName}</span>
                                 <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -857,14 +893,14 @@ export const FundPage: React.FC = () => {
                                 {isPaid ? (
                                   <span
                                     className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#E8EFEA] text-[#2D5A41] text-[10px] font-bold"
-                                    title={`${mName} ${language === 'ar' ? 'مدفوع' : language === 'en' ? 'Paid' : 'পরিশোধিত'}`}
+                                    title={`${mName} ${t('statusPaid')}`}
                                   >
                                     ✓
                                   </span>
                                 ) : (
                                   <span
                                     className="inline-block w-2 h-2 rounded-full bg-[#EBE8E0]"
-                                    title={`${mName} ${language === 'ar' ? 'متبقٍ' : language === 'en' ? 'Pending' : 'বাকি'}`}
+                                    title={`${mName} ${t('statusDue')}`}
                                   />
                                 )}
                               </td>
@@ -893,7 +929,7 @@ export const FundPage: React.FC = () => {
 
                 {filteredMembers.length === 0 && (
                   <div className="text-center py-8 text-xs text-[#7A877E]">
-                    {language === 'ar' ? 'لم يتم العথور على أي معلومات للأعضاء.' : language === 'en' ? 'No member records found.' : 'কোনো সদস্যের তথ্য পাওয়া যায়নি।'}
+                    {t('noMemberFound')}
                   </div>
                 )}
               </div>
@@ -908,18 +944,17 @@ export const FundPage: React.FC = () => {
                 <h3 className="text-base sm:text-lg font-bold text-[#2D3630] flex items-center gap-2">
                   <Receipt className="w-5 h-5 text-[#2D5A41]" />
                   <span>
-                    {headings.title || 'মানবিক সহায়তা ও ব্যয় বিবরণী'} ({displayExpenses.length})
+                    {headings.title} ({formatLocalizedNumber(displayExpenses.length, language)})
                   </span>
                 </h3>
                 <p className="text-xs text-[#7A877E] mt-0.5">
-                  {headings.subtitle ||
-                    'তহবিল হতে অনুমোদিত মানবিক সাহায্য, চিকিৎসা অনুদান ও ত্রাণ ব্যয়ের হিসাব'}
+                  {headings.subtitle}
                 </p>
               </div>
 
               <div className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 self-start sm:self-center font-mono">
                 <span>
-                  {headings.totalSpentLabel || 'সর্বমোট ব্যয়'}: -৳ {formatLocalizedAmount(totalOut, language)}
+                  {headings.totalSpentLabel}: -৳ {formatLocalizedAmount(totalOut, language)}
                 </span>
               </div>
             </div>
@@ -928,12 +963,12 @@ export const FundPage: React.FC = () => {
               <table className="w-full text-left text-xs">
                 <thead className="bg-[#F7F5F0] text-[#5C665F] font-semibold border-b border-[#EBE8E0]">
                   <tr>
-                    <th className="py-3 px-4">{headings.columnDate || 'তারিখ'}</th>
-                    <th className="py-3 px-4">{headings.columnTitle || 'সহায়তা / ব্যয়ের বিবরণ'}</th>
-                    <th className="py-3 px-4">{headings.columnCategory || 'খাত'}</th>
-                    <th className="py-3 px-4">{headings.columnLocation || 'এলাকা'}</th>
-                    <th className="py-3 px-4 text-center">{headings.columnReceipt || 'ভাউচার'}</th>
-                    <th className="py-3 px-4 text-right">{headings.columnAmount || 'পরিমাণ'} (৳)</th>
+                    <th className="py-3 px-4">{headings.columnDate}</th>
+                    <th className="py-3 px-4">{headings.columnTitle}</th>
+                    <th className="py-3 px-4">{headings.columnCategory}</th>
+                    <th className="py-3 px-4">{headings.columnLocation}</th>
+                    <th className="py-3 px-4 text-center">{headings.columnReceipt}</th>
+                    <th className="py-3 px-4 text-right">{headings.columnAmount} (৳)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#EBE8E0]">
@@ -1033,21 +1068,21 @@ export const FundPage: React.FC = () => {
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#223026] text-[#82CCA3] border border-[#2D3E32] mb-2">
                   <HeartHandshake className="w-3.5 h-3.5" />
-                  <span>তহবিল ব্যবহার ও নিরাপত্তা অনুপাত</span>
+                  <span>{t('fundUtilizationBadge')}</span>
                 </div>
                 <h3 className="text-base sm:text-lg font-bold text-[#FDFCF9]">
-                  মানবিক সহায়তা ও চিকিৎসায় ব্যয়িত হার
+                  {t('fundUtilizationTitle')}
                 </h3>
                 <p className="text-xs text-[#8A9B8F] mt-1">
-                  সর্বমোট সংগৃহীত তহবিলের বিপরীতে মানবিক কাজে ব্যয় এবং বাইতুল মালের অবশিষ্ট মওজুদ
+                  {t('fundUtilizationSubtitle')}
                 </p>
               </div>
 
               <div className="text-right sm:text-right">
                 <span className="text-2xl sm:text-3xl font-bold font-mono text-[#82CCA3]">
-                  {expenseRatioFormatted}%
+                  {formatLocalizedNumber(expenseRatioFormatted, language)}%
                 </span>
-                <span className="block text-[11px] text-[#8A9B8F]">ব্যয় অনুপাত</span>
+                <span className="block text-[11px] text-[#8A9B8F]">{t('expenseRatioLabel')}</span>
               </div>
             </div>
 
@@ -1061,16 +1096,16 @@ export const FundPage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-1">
               <div className="p-3 rounded-xl bg-[#202C23] border border-[#28382C] space-y-1">
-                <span className="text-[#8A9B8F] block">মোট মানবিক সহায়তা ব্যয়:</span>
+                <span className="text-[#8A9B8F] block">{t('totalHumanitarianExpenseLabel')}:</span>
                 <span className="text-base font-bold font-mono text-[#E0A899]">
-                  ৳ {totalOut.toLocaleString()}
+                  ৳ {formatLocalizedAmount(totalOut, language)}
                 </span>
               </div>
 
               <div className="p-3 rounded-xl bg-[#202C23] border border-[#28382C] space-y-1">
-                <span className="text-[#8A9B8F] block">বাইতুল মালে কার্যকর নগদ স্থিতি:</span>
+                <span className="text-[#8A9B8F] block">{t('netCashReserveLabel')}:</span>
                 <span className="text-base font-bold font-mono text-[#82CCA3]">
-                  ৳ {currentBalance.toLocaleString()} ({safetyRatioFormatted}%)
+                  ৳ {formatLocalizedAmount(currentBalance, language)} ({formatLocalizedNumber(safetyRatioFormatted, language)}%)
                 </span>
               </div>
             </div>
@@ -1091,7 +1126,7 @@ export const FundPage: React.FC = () => {
             <div className="flex items-center justify-between p-3 border-b border-[#EBE8E0]">
               <span className="text-xs font-bold text-[#2D3630] flex items-center gap-1.5">
                 <Receipt className="w-4 h-4 text-[#2D5A41]" />
-                <span>ব্যয়ের প্রমাণপত্র / ভাউচার কপি</span>
+                <span>{t('voucherModalTitle')}</span>
               </span>
               <button
                 type="button"
@@ -1104,7 +1139,7 @@ export const FundPage: React.FC = () => {
             <div className="p-3 max-h-[80vh] overflow-auto flex items-center justify-center bg-[#FDFCF9]">
               <img
                 src={activeReceiptUrl}
-                alt="ভাউচার কপি"
+                alt={t('voucherModalTitle')}
                 className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-xs"
                 referrerPolicy="no-referrer"
               />

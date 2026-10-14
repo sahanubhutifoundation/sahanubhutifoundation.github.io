@@ -196,6 +196,11 @@ export const translations: TranslationDictionary = {
   },
 
   // Fund Page
+  fundTag: {
+    bn: 'স্বচ্ছ বাইতুল মাল তহবিল',
+    en: 'Transparent Baytul Mal Fund',
+    ar: 'صندوق بيت المال الشفاف',
+  },
   fundDashboardTitle: {
     bn: 'আর্থিক স্বচ্ছতা ড্যাশবোর্ড',
     en: 'Financial Transparency Dashboard',
@@ -415,6 +420,111 @@ export const translations: TranslationDictionary = {
     bn: 'হালনাগাদ হচ্ছে...',
     en: 'Refreshing...',
     ar: 'جاري التحديث...',
+  },
+  statusLiveSheet: {
+    bn: 'লাইভ গুগল শিট সংযুক্ত',
+    en: 'Live Google Sheet Connected',
+    ar: 'متصل بجدول بيانات جوجل المباشر',
+  },
+  statusCachedData: {
+    bn: 'সংরক্ষিত ক্যাশ তথ্য',
+    en: 'Saved Cache Data',
+    ar: 'بيانات مخزنة مؤقتًا',
+  },
+  statusDataUnavailable: {
+    bn: 'তথ্য অনুপলব্ধ',
+    en: 'Data Unavailable',
+    ar: 'البيانات غير متوفرة',
+  },
+  statusCheckingConnection: {
+    bn: 'সংযোগ যাচাই করা হচ্ছে',
+    en: 'Checking connection...',
+    ar: 'جارٍ التحقق من الاتصال...',
+  },
+  sourceSheetBtn: {
+    bn: 'মূল উৎস শিট',
+    en: 'Source Sheet',
+    ar: 'جدول المصدر',
+  },
+  yearNotConfiguredTitle: {
+    bn: 'আর্থিক বছরের তথ্য এখনো সংযুক্ত করা হয়নি',
+    en: 'financial year records not connected yet',
+    ar: 'لم يتم ربط بيانات السنة المالية بعد',
+  },
+  yearNotConfiguredDesc: {
+    bn: 'এই আর্থিক বছরের জন্য কোনো গুগল স্প্রেডশিট বা ডাটাবেজ লিংক যুক্ত করা হয়নি। প্রশাসনিক প্যানেল থেকে লিংক কনফিগার করার পর তথ্য স্বয়ংক্রিয়ভাবে প্রদর্শিত হবে।',
+    en: 'No Google Sheet or database link has been connected for this year. Once configured from the admin panel, information will appear automatically.',
+    ar: 'لم يتم ربط جدول بيانات جوجل أو قاعدة بيانات لهذه السنة المالية. ستظهر البيانات تلقائيًا بمجرد إعدادها في لوحة التحكم.',
+  },
+  sourceUnavailableTitle: {
+    bn: 'আর্থিক বছরের ডাটা সোর্স বর্তমানে অনুপলব্ধ',
+    en: 'financial year data source is currently unavailable',
+    ar: 'مصدر بيانات السنة المالية غير متاح حاليًا',
+  },
+  sourceUnavailableDefaultErr: {
+    bn: 'গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি। স্প্রেডশিটের শেয়ারিং পারমিশন বা নেটওয়ার্ক সংযোগ যাচাই করুন।',
+    en: 'Could not fetch data from Google Spreadsheet. Please verify sheet sharing permissions or network connection.',
+    ar: 'تعذر جلب البيانات من جدول بيانات جوجل. يرجى التحقق من أذونات المشاركة أو الاتصال بالشبكة.',
+  },
+  configuredSourceLabel: {
+    bn: 'কনফিগার করা সোর্স:',
+    en: 'Configured Source:',
+    ar: 'المصدر المُعد:',
+  },
+  reloadButton: {
+    bn: 'পুনরায় লোড করুন',
+    en: 'Reload Data',
+    ar: 'إعادة التحميل',
+  },
+  expenseLedgerDefaultTitle: {
+    bn: 'মানবিক সহায়তা ও ব্যয় বিবরণী',
+    en: 'Humanitarian Aid & Expense Ledger',
+    ar: 'سجل المساعدات الإنسانية والمصروفات',
+  },
+  expenseLedgerDefaultSubtitle: {
+    bn: 'তহবিল হতে অনুমোদিত মানবিক সাহায্য, চিকিৎসা অনুদান ও ত্রাণ ব্যয়ের হিসাব',
+    en: 'Record of approved humanitarian relief, medical grants, and aid expenditures',
+    ar: 'بيان المساعدات الإنسانية ومنح العلاج والإغاثة المعتمدة من الصندوق',
+  },
+  expenseLedgerDefaultTotalSpent: {
+    bn: 'সর্বমোট ব্যয়',
+    en: 'Total Expenditure',
+    ar: 'إجمالي المصروفات',
+  },
+  expenseColDate: {
+    bn: 'তারিখ',
+    en: 'Date',
+    ar: 'التاريخ',
+  },
+  expenseColTitle: {
+    bn: 'সহায়তা / ব্যয়ের বিবরণ',
+    en: 'Description / Purpose',
+    ar: 'بيان المساعدة / المصروف',
+  },
+  expenseColCategory: {
+    bn: 'খাত',
+    en: 'Category',
+    ar: 'الفئة',
+  },
+  expenseColLocation: {
+    bn: 'এলাকা',
+    en: 'Location',
+    ar: 'المنطقة',
+  },
+  expenseColReceipt: {
+    bn: 'ভাউচার',
+    en: 'Voucher',
+    ar: 'الإيصال',
+  },
+  expenseColAmount: {
+    bn: 'পরিমাণ',
+    en: 'Amount',
+    ar: 'المبلغ',
+  },
+  expenseEmptyState: {
+    bn: 'কোনো ব্যয়ের হিসাব পাওয়া যায়নি',
+    en: 'No expense records found',
+    ar: 'لم يتم العثور على أي سجلات مصروفات',
   },
   recentTransactionsTitle: {
     bn: 'সাম্প্রতিক লেনদেন বিবরণী',
@@ -1108,11 +1218,6 @@ export const translations: TranslationDictionary = {
     bn: 'ব্যয়:',
     en: 'Expense:',
     ar: 'المصروف:',
-  },
-  fundTag: {
-    bn: 'স্বচ্ছ বাইতুল মাল তহবিল',
-    en: 'Transparent Baitul Mal Fund',
-    ar: 'صندوق بيت المال الشفاف',
   },
   liveSheetConnected: {
     bn: 'লাইভ গুগল শিট সংযুক্ত',

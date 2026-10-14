@@ -31,7 +31,7 @@ export function formatMonthProgress(paidCount: number, totalMonths: number = 12,
   if (lang === 'ar') {
     return `${p} من ${t} شهرًا`;
   }
-  return `${p}/${t} months`;
+  return `${p} of ${t} months`;
 }
 
 /**
