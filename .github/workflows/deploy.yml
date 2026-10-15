@@ -6,9 +6,18 @@ on:
       - main
       - master
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Social preview mode (auto or custom)'
+        required: false
+        default: ''
+      image_url:
+        description: 'Direct image URL for custom social preview'
+        required: false
+        default: ''
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -22,6 +31,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,15 +41,47 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        # এখানে npm ci বদলে npm install --legacy-peer-deps দেওয়া হয়েছে যাতে লক ফাইলের গরমিল এড়িয়ে প্যাকেজ ইনস্টল হতে পারে
         run: npm install --legacy-peer-deps
 
+      - name: Synchronize Social Preview Asset
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
+          DISPATCH_MODE: ${{ github.event.inputs.mode }}
+          DISPATCH_IMAGE_URL: ${{ github.event.inputs.image_url }}
+        run: |
+          npx tsx scripts/syncSocialPreviewAsset.ts
+
+      - name: Commit updated asset to repository branch
+        run: |
+          if [ -n "$(git status --porcelain public/assets/og-preview.png)" ]; then
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git add public/assets/og-preview.png
+            git commit -m "chore(social): update canonical public/assets/og-preview.png [skip ci]" || echo "No changes to commit"
+            git push origin HEAD:${{ github.ref_name }} || echo "Notice: Push skipped or branch protected"
+          else
+            echo "public/assets/og-preview.png is unchanged."
+          fi
+
       - name: Build application
-        # Passes Supabase credentials from GitHub Actions secrets or repository variables to the Vite build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
+
+      - name: Verify published asset and OpenGraph metadata
+        run: |
+          if [ ! -f "dist/assets/og-preview.png" ]; then
+            echo "Error: dist/assets/og-preview.png was not generated!"
+            exit 1
+          fi
+          echo "Verified dist/assets/og-preview.png ($(wc -c < dist/assets/og-preview.png) bytes)"
+          if ! grep -q "og:image" dist/index.html; then
+            echo "Error: og:image meta tag not found in dist/index.html"
+            exit 1
+          fi
+          echo "Verified dist/index.html OpenGraph metadata successfully."
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

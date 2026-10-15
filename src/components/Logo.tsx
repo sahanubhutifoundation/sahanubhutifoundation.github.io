@@ -81,22 +81,16 @@ export const Logo: React.FC<LogoProps> = ({
 
   return (
     <div className={`flex items-center gap-3 select-none ${className}`}>
-      {/* Emblem Container: Shows neutral same-size placeholder on brand new device until branding resolves, preventing old logo flash */}
+      {/* Emblem Container: Renders canonical logo immediately for fast initial paint without flicker or layout shift */}
       <div className={`relative flex-shrink-0 ${sizeClasses[size]}`}>
-        {isBrandingReady ? (
-          <img
-            src={logoSrc}
-            alt={primaryName}
-            className="w-full h-full object-contain filter drop-shadow-sm"
-            loading="eager"
-          />
-        ) : (
-          <div
-            className={`w-full h-full rounded-xl ${
-              isDark ? 'bg-white/10' : 'bg-[#2D5A41]/10'
-            } animate-pulse flex items-center justify-center`}
-          />
-        )}
+        <img
+          src={logoSrc}
+          alt={primaryName}
+          className="w-full h-full object-contain filter drop-shadow-sm"
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
+        />
       </div>
 
       {showText && (

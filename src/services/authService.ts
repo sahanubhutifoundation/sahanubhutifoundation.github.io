@@ -250,6 +250,14 @@ export const authService = {
   },
 
   /**
+   * Retrieves active session token
+   */
+  getSessionToken(): string | null {
+    if (!this.isAuthenticated()) return null;
+    return localStorage.getItem(AUTH_KEYS.SESSION_TOKEN);
+  },
+
+  /**
    * Terminates admin session
    */
   logout(): void {
