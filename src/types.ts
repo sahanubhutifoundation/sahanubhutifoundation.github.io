@@ -421,6 +421,13 @@ export interface SocialSharePreviewConfig {
   customImageHeight?: number;
 }
 
+export interface FundPrivacySettings {
+  isEnabled: boolean;
+  pinHash?: string;
+  salt?: string;
+  updatedAt?: string;
+}
+
 export interface FoundationConfig {
   nameEn: string;
   nameBn: string;
@@ -456,6 +463,7 @@ export interface FoundationConfig {
   fundSourceUrl: string;
   openingExpenseBalance?: number;
   fundVisibility: FundVisibilitySettings;
+  fundPrivacy?: FundPrivacySettings;
   expenseCategories: string[];
   heroBadge?: MultilingualText;
   heroMessage: MultilingualText;

@@ -12,6 +12,7 @@ import { MemberPhotoCropModal } from '../../components/admin/MemberPhotoCropModa
 import { AdminExpensesTab } from './AdminExpensesTab';
 import { AdminSiteSettingsTab } from './AdminSiteSettingsTab';
 import { AdminDesignationsManager } from './AdminDesignationsManager';
+import { AdminFundPrivacyPanel } from '../../components/admin/AdminFundPrivacyPanel';
 import { AdminSidebar, AdminSection } from './AdminSidebar';
 import { CloudSyncCard } from './CloudSyncCard';
 import { backupService } from '../../services/backupService';
@@ -86,7 +87,7 @@ export const AdminPage: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [activeSection, setActiveSection] = useState<AdminSection>('overview');
   const [memberSubTab, setMemberSubTab] = useState<'list' | 'designations' | 'style'>('list');
-  const [fundSubTab, setFundSubTab] = useState<'sheet' | 'ledger'>('sheet');
+  const [fundSubTab, setFundSubTab] = useState<'sheet' | 'ledger' | 'privacy'>('sheet');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // State data
@@ -4023,7 +4024,24 @@ export const AdminPage: React.FC = () => {
               <Receipt className="w-3.5 h-3.5" />
               <span>ব্যয়ের লেজার ও দৃশ্যমানতা ({expenses.length})</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setFundSubTab('privacy')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                fundSubTab === 'privacy'
+                  ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                  : 'text-[#5C665F] hover:text-[#2D3630]'
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Fund Privacy Protection (তহবিল পিন সুরক্ষা)</span>
+            </button>
           </div>
+
+          {fundSubTab === 'privacy' && (
+            <AdminFundPrivacyPanel onShowToast={showToast} />
+          )}
 
           {fundSubTab === 'ledger' && (
             <AdminExpensesTab

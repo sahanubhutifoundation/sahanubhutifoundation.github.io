@@ -44,7 +44,10 @@ import {
   UserCheck,
   Info,
   Layers,
+  Lock,
 } from 'lucide-react';
+import { fundPrivacyService } from '../services/fundPrivacyService';
+import { FundPrivacyLockScreen } from '../components/FundPrivacyLockScreen';
 
 export const FundPage: React.FC = () => {
   const { t, language } = useLanguage();
@@ -60,6 +63,21 @@ export const FundPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [memberFilter, setMemberFilter] = useState<'all' | 'complete' | 'ongoing'>('all');
   const [activeReceiptUrl, setActiveReceiptUrl] = useState<string | null>(null);
+  const [isAccessGranted, setIsAccessGranted] = useState<boolean>(() =>
+    fundPrivacyService.isAccessGranted()
+  );
+
+  useEffect(() => {
+    const handlePrivacyEvent = () => {
+      setIsAccessGranted(fundPrivacyService.isAccessGranted());
+    };
+    window.addEventListener('sf_fund_privacy_changed', handlePrivacyEvent);
+    window.addEventListener('sf_config_updated', handlePrivacyEvent);
+    return () => {
+      window.removeEventListener('sf_fund_privacy_changed', handlePrivacyEvent);
+      window.removeEventListener('sf_config_updated', handlePrivacyEvent);
+    };
+  }, []);
 
   // Available yearly sources from config (only enabled and public on public page)
   const yearlySources: YearlyFundSource[] = useMemo(() => {
@@ -151,6 +169,12 @@ export const FundPage: React.FC = () => {
     async (isManual = false) => {
       if (isManual) setRefreshing(true);
       else setLoading(true);
+
+      if (!fundPrivacyService.isAccessGranted()) {
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
 
       try {
         const freshConfig = storageService.getConfig();
@@ -387,6 +411,43 @@ export const FundPage: React.FC = () => {
     return Math.max(...vals, 1);
   }, [fundData?.monthlyTotals]);
 
+  if (!isAccessGranted) {
+    return (
+      <ErrorBoundary
+        fallbackTitle={
+          language === 'ar'
+            ? 'حدث خطأ مؤقت في عرض بيانات الصندوق'
+            : language === 'en'
+            ? 'Temporary issue loading fund records'
+            : 'তহবিল তথ্য প্রদর্শনে সাময়িক সমস্যা হয়েছে'
+        }
+        fallbackMessage={
+          language === 'ar'
+            ? 'حدث خطأ أثناء عرض بيان الصندوق. يرجى النقر على الزر أدناه لإعادة التحميل.'
+            : language === 'en'
+            ? 'An issue occurred while rendering the fund statement. Click the button below to reload.'
+            : 'তহবিল বিবরণী রেন্ডার করতে সাময়িক সমস্যা হয়েছে। নিচের বাটনে ক্লিক করে পুনরায় লোড করুন।'
+        }
+        onReset={() => loadData(false)}
+      >
+        <div className="space-y-10 sm:space-y-12 pb-16">
+          <PageHero
+            title={t('fundDashboardTitle')}
+            subtitle={t('fundSubtitle')}
+            breadcrumb={[{ label: t('navFund') }]}
+            tag={t('fundTag')}
+          />
+          <FundPrivacyLockScreen
+            onUnlocked={() => {
+              setIsAccessGranted(true);
+              loadData(false);
+            }}
+          />
+        </div>
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary
       fallbackTitle={
@@ -494,6 +555,39 @@ export const FundPage: React.FC = () => {
                 <span>{t('sourceSheetBtn')}</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
+            )}
+
+            {fundPrivacyService.isProtectionEnabled() && (
+              <div className="flex items-center gap-1.5 pl-2 border-l border-[#EBE8E0]">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-semibold border border-emerald-200">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>
+                    {language === 'ar'
+                      ? 'الوصول مفعّل'
+                      : language === 'en'
+                      ? 'Access Active'
+                      : 'অ্যাক্সেস সক্রিয়'}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    fundPrivacyService.lock();
+                    setIsAccessGranted(false);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#5C665F] hover:text-rose-700 hover:bg-rose-50 border border-[#D9D6CC] hover:border-rose-200 transition-colors cursor-pointer"
+                  title={
+                    language === 'ar'
+                      ? 'قفل الصفحة'
+                      : language === 'en'
+                      ? 'Lock Fund Page'
+                      : 'তহবিল পেজ লক করুন'
+                  }
+                >
+                  <Lock className="w-3.5 h-3.5 text-rose-600" />
+                  <span>{language === 'ar' ? 'قفل' : language === 'en' ? 'Lock' : 'লক করুন'}</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

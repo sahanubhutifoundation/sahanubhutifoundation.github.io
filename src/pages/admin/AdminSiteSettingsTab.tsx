@@ -34,7 +34,9 @@ import {
   Wand2,
   AlertTriangle,
   Clock,
+  Lock,
 } from 'lucide-react';
+import { AdminFundPrivacyPanel } from '../../components/admin/AdminFundPrivacyPanel';
 import {
   FoundationConfig,
   MultilingualText,
@@ -94,6 +96,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
     | 'social'
     | 'social-share'
     | 'members'
+    | 'fund-privacy'
   >(currentSection || 'general');
 
   useEffect(() => {
@@ -520,6 +523,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
             { id: 'social', label: 'যোগাযোগ ও সোশ্যাল', icon: Share2 },
             { id: 'social-share', label: 'সোশ্যাল প্রিভিউ (Social Share)', icon: Share2 },
             { id: 'members', label: 'সদস্য প্রদর্শন শৈলী', icon: User },
+            { id: 'fund-privacy', label: 'তহবিল পিন সুরক্ষা', icon: Lock },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeSection === tab.id;
@@ -4727,6 +4731,11 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* 8. FUND PRIVACY PROTECTION */}
+      {activeSection === 'fund-privacy' && (
+        <AdminFundPrivacyPanel onShowToast={onShowToast} />
       )}
 
       {/* Save Action Bar */}

@@ -685,6 +685,11 @@ export const initialConfig: FoundationConfig = {
     showActivityLinkedExpenses: true,
     showSourceLinks: true,
   },
+  fundPrivacy: {
+    isEnabled: true,
+    salt: 'sf_fund_pin_salt_moulovi_2024',
+    pinHash: '987d1b556fb4922ebb7b8a18a2dbac1ddc67f058a9c3d9c625ff726174f2f759',
+  },
   expenseCategories: [
     'চিকিৎসা সহায়তা',
     'জরুরি সহায়তা',
