@@ -217,9 +217,9 @@ export const translations: TranslationDictionary = {
     ar: 'إجمالي التبرعات المحصلة',
   },
   totalSpentCard: {
-    bn: 'মোট মানবিক ব্যয়',
-    en: 'Total Humanitarian Spent',
-    ar: 'إجمالي المصروفات الإنسانية',
+    bn: 'সর্বমোট ব্যয়',
+    en: 'Total Cost',
+    ar: 'إجمالي النفقات',
   },
   currentBalanceCard: {
     bn: 'বর্তমান অবশিষ্ট স্থিতি',
@@ -488,8 +488,43 @@ export const translations: TranslationDictionary = {
   },
   expenseLedgerDefaultTotalSpent: {
     bn: 'সর্বমোট ব্যয়',
-    en: 'Total Expenditure',
-    ar: 'إجمالي المصروفات',
+    en: 'Total Cost',
+    ar: 'إجمالي النفقات',
+  },
+  totalCostLabel: {
+    bn: 'সর্বমোট ব্যয়',
+    en: 'Total Cost',
+    ar: 'إجمالي النفقات',
+  },
+  addExpenseTitle: {
+    bn: 'নতুন ব্যয়ের হিসাব যুক্ত করুন',
+    en: 'Add New Expense Record',
+    ar: 'إضافة سجل مصروفات جديد',
+  },
+  editExpenseTitle: {
+    bn: 'ব্যয়ের তথ্য সম্পাদনা',
+    en: 'Edit Expense Record',
+    ar: 'تعديل بيانات المصروف',
+  },
+  expenseFormSubtitle: {
+    bn: 'তারিখ, খাতের বিবরণ, পরিমাণ ও ভাউচারের ছবি প্রদান করুন',
+    en: 'Provide date, category details, amount, and voucher photo',
+    ar: 'يرجى إدخال التاريخ وتفاصيل الفئة والمبلغ وصورة الإيصال',
+  },
+  expenseVoucherLabel: {
+    bn: 'রসিদ বা ভাউচারের ছবি / প্রমাণপত্র',
+    en: 'Receipt or Voucher Photo / Document',
+    ar: 'صورة الإيصال أو المستند المؤيد',
+  },
+  expenseTitleLabel: {
+    bn: 'সহায়তার খাত / ব্যয়ের বিবরণ',
+    en: 'Purpose / Description',
+    ar: 'بيان المساعدة / المصروف',
+  },
+  ledgerTotalSpent: {
+    bn: 'লেজার অনুযায়ী সর্বমোট ব্যয়',
+    en: 'Total Cost according to ledger',
+    ar: 'إجمالي النفقات حسب السجل',
   },
   expenseColDate: {
     bn: 'তারিখ',

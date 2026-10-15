@@ -19,9 +19,20 @@ export const Logo: React.FC<LogoProps> = ({
 }) => {
   const { language } = useLanguage();
   const [config, setConfig] = useState(() => storageService.getConfig());
+  const [isBrandingReady, setIsBrandingReady] = useState(() => storageService.hasCachedConfig());
 
   useEffect(() => {
-    const handleUpdate = () => setConfig(storageService.getConfig());
+    if (!isBrandingReady) {
+      storageService.ensureBrandingLoaded().then((resolved) => {
+        setConfig(resolved);
+        setIsBrandingReady(true);
+      });
+    }
+
+    const handleUpdate = () => {
+      setConfig(storageService.getConfig());
+      setIsBrandingReady(true);
+    };
     window.addEventListener('sf_config_updated', handleUpdate);
     window.addEventListener('sf_data_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
@@ -30,7 +41,7 @@ export const Logo: React.FC<LogoProps> = ({
       window.removeEventListener('sf_data_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
-  }, []);
+  }, [isBrandingReady]);
 
   const isDark = variant === 'dark';
 
@@ -70,14 +81,22 @@ export const Logo: React.FC<LogoProps> = ({
 
   return (
     <div className={`flex items-center gap-3 select-none ${className}`}>
-      {/* Emblem SVG with authentic orange & blue handshake circle */}
+      {/* Emblem Container: Shows neutral same-size placeholder on brand new device until branding resolves, preventing old logo flash */}
       <div className={`relative flex-shrink-0 ${sizeClasses[size]}`}>
-        <img
-          src={logoSrc}
-          alt={primaryName}
-          className="w-full h-full object-contain filter drop-shadow-sm"
-          loading="eager"
-        />
+        {isBrandingReady ? (
+          <img
+            src={logoSrc}
+            alt={primaryName}
+            className="w-full h-full object-contain filter drop-shadow-sm"
+            loading="eager"
+          />
+        ) : (
+          <div
+            className={`w-full h-full rounded-xl ${
+              isDark ? 'bg-white/10' : 'bg-[#2D5A41]/10'
+            } animate-pulse flex items-center justify-center`}
+          />
+        )}
       </div>
 
       {showText && (

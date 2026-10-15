@@ -58,6 +58,50 @@ function setLocalItem<T>(key: string, value: T): void {
 }
 
 export const storageService = {
+  // Check if config has been saved in local cache (i.e. not a brand new device/clean session)
+  hasCachedConfig(): boolean {
+    if (typeof window === 'undefined') return true;
+    try {
+      return Boolean(localStorage.getItem(KEYS.CONFIG));
+    } catch {
+      return true;
+    }
+  },
+
+  _brandingPromise: null as Promise<FoundationConfig> | null,
+
+  async ensureBrandingLoaded(): Promise<FoundationConfig> {
+    if (this.hasCachedConfig()) {
+      return this.getConfig();
+    }
+    if (this._brandingPromise) {
+      return this._brandingPromise;
+    }
+
+    this._brandingPromise = (async () => {
+      try {
+        if (supabaseService.isAvailable()) {
+          // Timeout after 1500ms so network delay never causes indefinite waiting
+          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+          const fetchPromise = supabaseService.fetchConfig();
+          const cloudConfig = await Promise.race([fetchPromise, timeoutPromise]);
+          if (cloudConfig) {
+            setLocalItem(KEYS.CONFIG, cloudConfig);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: cloudConfig }));
+            }
+            return this.getConfig();
+          }
+        }
+      } catch (err) {
+        console.warn('ensureBrandingLoaded notice:', err);
+      }
+      return this.getConfig();
+    })();
+
+    return this._brandingPromise;
+  },
+
   // Configuration
   getConfig(): FoundationConfig {
     const saved = getLocalItem<FoundationConfig>(KEYS.CONFIG, initialConfig);

@@ -25,7 +25,8 @@ import {
 import { ExpenseRecord, FundVisibilitySettings, FundData, Activity } from '../../types';
 import { storageService } from '../../services/storageService';
 import { MediaUploadField } from '../../components/MediaUploadField';
-import { getLocalizedValue, normalizeExpense, getActivityUuid } from '../../utils/foundationHelpers';
+import { getLocalizedValue, normalizeExpense, getActivityUuid, getExpenseCategoryLabel } from '../../utils/foundationHelpers';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface AdminExpensesTabProps {
   expenses: ExpenseRecord[];
@@ -55,6 +56,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
   onShowToast,
   fundPreview,
 }) => {
+  const { language, t } = useLanguage();
   const [editingExpense, setEditingExpense] = useState<Partial<ExpenseRecord> | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -179,9 +181,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
   };
 
   const getCategoryBadge = (catId: string, custom?: string) => {
-    if (catId === 'other' && custom) return custom;
-    const found = CATEGORIES.find((c) => c.id === catId);
-    return found ? found.label : 'মানবিক ব্যয়';
+    return getExpenseCategoryLabel(catId, custom, language);
   };
 
   return (
@@ -211,7 +211,9 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold shadow-2xs transition-all active:scale-98 shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span>নতুন ব্যয় যুক্ত করুন</span>
+            <span>
+              {language === 'bn' ? 'নতুন ব্যয় যুক্ত করুন' : language === 'ar' ? 'إضافة مصروف جديد' : 'Add New Expense'}
+            </span>
           </button>
         </div>
 
@@ -232,7 +234,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
 
           <div className="p-4 rounded-xl bg-white border border-[#EBE8E0] shadow-2xs">
             <div className="flex items-center justify-between text-xs text-[#7A877E] mb-1.5">
-              <span>লেজার অনুযায়ী সর্বমোট ব্যয়</span>
+              <span>{t('ledgerTotalSpent')}</span>
               <TrendingDown className="w-4 h-4 text-[#C25442]" />
             </div>
             <div className="text-2xl font-bold font-mono text-[#C25442]">
@@ -252,7 +254,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
               ৳ {currentAvailableBalance.toLocaleString()}
             </div>
             <span className="text-[11px] text-[#2D5A41] mt-1 block font-medium">
-              আদায় - সর্বমোট ব্যয়
+              {language === 'ar' ? 'التحصيل - إجمالي النفقات' : language === 'en' ? 'Collection - Total Cost' : 'আদায় - সর্বমোট ব্যয়'}
             </span>
           </div>
         </div>
@@ -400,10 +402,10 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#EBE8E0] bg-[#FDFCF9] shrink-0">
               <div>
                 <h3 className="text-sm font-bold text-[#2D3630]">
-                  {editingExpense.id ? 'ব্যয়ের তথ্য সম্পাদনা' : 'নতুন ব্যয়ের হিসাব যুক্ত করুন'}
+                  {editingExpense.id ? t('editExpenseTitle') : t('addExpenseTitle')}
                 </h3>
                 <p className="text-[11px] text-[#7A877E] mt-0.5">
-                  তারিখ, খাতের বিবরণ, পরিমাণ ও ভাউচারের ছবি প্রদান করুন।
+                  {t('expenseFormSubtitle')}
                 </p>
               </div>
               <button
@@ -420,21 +422,21 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
                 <label className="block font-bold text-[#2D3630] mb-1">
-                  সহায়তার খাত / ব্যয়ের বিবরণ *
+                  {t('expenseTitleLabel')} *
                 </label>
                 <input
                   type="text"
                   required
                   value={editingExpense.title || ''}
                   onChange={(e) => setEditingExpense({ ...editingExpense, title: e.target.value })}
-                  placeholder="যেমন: রোগীর জরুরি ওষুধ বাবদ সহায়তা"
+                  placeholder={language === 'bn' ? 'যেমন: রোগীর জরুরি ওষুধ বাবদ সহায়তা' : language === 'ar' ? 'مثال: مساعدة لشراء أدوية طارئة لمريض' : 'e.g., Emergency medicine assistance'}
                   className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                 />
               </div>
 
               <div>
                 <label className="block font-bold text-[#2D3630] mb-1">
-                  টাকার পরিমাণ (৳) *
+                  {t('expenseAmountLabel')} (৳) *
                 </label>
                 <input
                   type="number"
@@ -451,7 +453,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block font-bold text-[#2D3630] mb-1">তারিখ *</label>
+                <label className="block font-bold text-[#2D3630] mb-1">{t('expenseColDate')} *</label>
                 <input
                   type="date"
                   required
@@ -462,7 +464,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-[#2D3630] mb-1">ব্যয়ের ক্যাটাগরি</label>
+                <label className="block font-bold text-[#2D3630] mb-1">{t('expenseColCategory')}</label>
                 <select
                   value={editingExpense.category || 'medical_aid'}
                   onChange={(e) => setEditingExpense({ ...editingExpense, category: e.target.value as any })}
@@ -470,7 +472,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
                 >
                   {CATEGORIES.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.label}
+                      {getExpenseCategoryLabel(c.id, undefined, language)}
                     </option>
                   ))}
                 </select>
@@ -478,24 +480,28 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
 
               {editingExpense.category === 'other' && (
                 <div>
-                  <label className="block font-bold text-[#2D3630] mb-1">কাস্টম ক্যাটাগরি</label>
+                  <label className="block font-bold text-[#2D3630] mb-1">
+                    {language === 'bn' ? 'কাস্টম ক্যাটাগরি' : language === 'ar' ? 'فئة مخصصة' : 'Custom Category'}
+                  </label>
                   <input
                     type="text"
                     value={editingExpense.customCategory || ''}
                     onChange={(e) => setEditingExpense({ ...editingExpense, customCategory: e.target.value })}
-                    placeholder="ক্যাটাগরির নাম"
+                    placeholder={language === 'bn' ? 'ক্যাটাগরির নাম' : language === 'ar' ? 'اسم الفئة' : 'Category Name'}
                     className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                   />
                 </div>
               )}
 
               <div>
-                <label className="block font-bold text-[#2D3630] mb-1">এলাকা / অবস্থান (ঐচ্ছিক)</label>
+                <label className="block font-bold text-[#2D3630] mb-1">
+                  {t('expenseColLocation')} {language === 'bn' ? '(ঐচ্ছিক)' : language === 'ar' ? '(اختياري)' : '(Optional)'}
+                </label>
                 <input
                   type="text"
                   value={editingExpense.location || ''}
                   onChange={(e) => setEditingExpense({ ...editingExpense, location: e.target.value })}
-                  placeholder="যেমন: মৌলভী বাড়ি, মোহাম্মদ আলী বাজার"
+                  placeholder={language === 'bn' ? 'যেমন: মৌলভী বাড়ি, মোহাম্মদ আলী বাজার' : language === 'ar' ? 'مثال: مولفي باري، محمد علي بازار' : 'e.g., Moulovi Bari, Mohammad Ali Bazar'}
                   className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
                 />
               </div>
@@ -584,7 +590,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
 
             {/* Media Upload for Voucher / Receipt */}
             <MediaUploadField
-              label="রসিদ বা ভাউচারের ছবি / প্রমাণপত্র"
+              label={t('expenseVoucherLabel')}
               value={editingExpense.receiptUrl || ''}
               onChange={(url) => setEditingExpense({ ...editingExpense, receiptUrl: url })}
               helperText="জরুরি ক্রয় রসিদ, প্রেসক্রিপশন বা মেমো ছবি (JPG, PNG - সর্বোচ্চ ১০ MB)"
@@ -648,7 +654,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
                 rows={2}
                 value={editingExpense.description || ''}
                 onChange={(e) => setEditingExpense({ ...editingExpense, description: e.target.value })}
-                placeholder="সহায়তার বিস্তারিত প্রেক্ষাপট ও নিরীক্ষা নোট..."
+                placeholder={language === 'bn' ? 'সহায়তার বিস্তারিত প্রেক্ষাপট ও নিরীক্ষা নোট...' : language === 'ar' ? 'السياق التفصيلي للمساعدة وملاحظات التدقيق...' : 'Detailed context and audit notes...'}
                 className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
               />
             </div>
@@ -659,7 +665,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
                 onClick={() => setEditingExpense(null)}
                 className="px-4 py-2 rounded-xl border border-[#EBE8E0] text-[#5C665F] hover:bg-[#F7F5F0] font-semibold"
               >
-                বাতিল
+                {language === 'bn' ? 'বাতিল' : language === 'ar' ? 'إلغاء' : 'Cancel'}
               </button>
               <button
                 type="submit"
@@ -667,7 +673,9 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
                 className="px-5 py-2 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white font-semibold shadow-2xs disabled:opacity-60 flex items-center gap-2"
               >
                 {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isSaving ? 'সংরক্ষণ হচ্ছে...' : 'ব্যয় সংরক্ষণ করুন'}
+                {isSaving
+                  ? (language === 'bn' ? 'সংরক্ষণ হচ্ছে...' : language === 'ar' ? 'جاري الحفظ...' : 'Saving...')
+                  : (language === 'bn' ? 'ব্যয় সংরক্ষণ করুন' : language === 'ar' ? 'حفظ المصروف' : 'Save Expense')}
               </button>
             </div>
           </form>

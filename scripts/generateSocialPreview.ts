@@ -112,6 +112,12 @@ export function generateSocialPreviewImage(): void {
   const pngBuffer = resvg.render().asPng();
   fs.writeFileSync(outputPath, pngBuffer);
   console.log(`[social-preview] Successfully generated 1200x630 share card at ${outputPath} (${pngBuffer.length} bytes)`);
+
+  const distAssetPath = path.resolve(process.cwd(), 'dist/assets/og-preview.png');
+  if (fs.existsSync(path.dirname(distAssetPath))) {
+    fs.writeFileSync(distAssetPath, pngBuffer);
+    console.log(`[social-preview] Synchronized share card to ${distAssetPath}`);
+  }
 }
 
 // Execute immediately when run directly

@@ -251,20 +251,42 @@ export const FundPage: React.FC = () => {
 
   // Headings config with safe localization string extraction
   const rawHeadings = config.fundExpenseHeadings || {};
-  const headings = useMemo(() => ({
-    title: getLocalizedValue(rawHeadings.title, language) || t('expenseLedgerDefaultTitle'),
-    subtitle: getLocalizedValue(rawHeadings.subtitle, language) || t('expenseLedgerDefaultSubtitle'),
-    totalSpentLabel: getLocalizedValue(rawHeadings.totalSpentLabel, language) || t('expenseLedgerDefaultTotalSpent'),
-    columnDate: getLocalizedValue(rawHeadings.columnDate, language) || t('expenseColDate'),
-    columnTitle: getLocalizedValue(rawHeadings.columnTitle, language) || t('expenseColTitle'),
-    columnCategory: getLocalizedValue(rawHeadings.columnCategory, language) || t('expenseColCategory'),
-    columnLocation: getLocalizedValue(rawHeadings.columnLocation, language) || t('expenseColLocation'),
-    columnReceipt: getLocalizedValue(rawHeadings.columnReceipt, language) || t('expenseColReceipt'),
-    columnAmount: getLocalizedValue(rawHeadings.columnAmount, language) || t('expenseColAmount'),
-    emptyState: getLocalizedValue(rawHeadings.emptyState, language) || t('expenseEmptyState'),
-    sourceLabel: getLocalizedValue(rawHeadings.sourceLabel, language) || (language === 'ar' ? 'مصدر التمويل' : language === 'en' ? 'Fund Source' : 'তহবিল সূত্র'),
-    verifiedLabel: getLocalizedValue(rawHeadings.verifiedLabel, language) || (language === 'ar' ? 'معتمد وموثق' : language === 'en' ? 'Approved & Verified' : 'অনুমোদিত ও ভেরিফাইড'),
-  }), [rawHeadings, language, t]);
+  const headings = useMemo(() => {
+    const resolve = (val: any, defaultKey: string) => {
+      if (val && typeof val === 'object') {
+        const localized = getLocalizedValue(val, language);
+        if (localized) return localized;
+      }
+      if (typeof val === 'string' && val.trim()) {
+        // If language is not Bengali, don't blindly return hardcoded legacy default Bengali string
+        if (language !== 'bn' && [
+          'সর্বমোট ব্যয়', 'তারিখ', 'খাত', 'এলাকা', 'ভাউচার', 'পরিমাণ',
+          'সহায়তা / ব্যয়ের বিবরণ', 'মানবিক সহায়তা ও ব্যয় বিবরণী',
+          'তহবিল হতে অনুমোদিত মানবিক সাহায্য, চিকিৎসা অনুদান ও ত্রাণ ব্যয়ের হিসাব',
+          'কোনো ব্যয়ের হিসাব পাওয়া যায়নি'
+        ].includes(val.trim())) {
+          return t(defaultKey as any);
+        }
+        return val.trim();
+      }
+      return t(defaultKey as any);
+    };
+
+    return {
+      title: resolve(rawHeadings.title, 'expenseLedgerDefaultTitle'),
+      subtitle: resolve(rawHeadings.subtitle, 'expenseLedgerDefaultSubtitle'),
+      totalSpentLabel: resolve(rawHeadings.totalSpentLabel, 'totalCostLabel'),
+      columnDate: resolve(rawHeadings.columnDate, 'expenseColDate'),
+      columnTitle: resolve(rawHeadings.columnTitle, 'expenseColTitle'),
+      columnCategory: resolve(rawHeadings.columnCategory, 'expenseColCategory'),
+      columnLocation: resolve(rawHeadings.columnLocation, 'expenseColLocation'),
+      columnReceipt: resolve(rawHeadings.columnReceipt, 'expenseColReceipt'),
+      columnAmount: resolve(rawHeadings.columnAmount, 'expenseColAmount'),
+      emptyState: resolve(rawHeadings.emptyState, 'expenseEmptyState'),
+      sourceLabel: resolve(rawHeadings.sourceLabel, 'sourceLabel'),
+      verifiedLabel: resolve(rawHeadings.verifiedLabel, 'verifiedLabel'),
+    };
+  }, [rawHeadings, language, t]);
 
   const memberLinkSettings = config.fundMemberLinkSettings || {
     showMemberName: true,
