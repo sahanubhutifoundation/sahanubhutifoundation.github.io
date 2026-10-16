@@ -37,7 +37,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { AdminFundPrivacyPanel } from '../../components/admin/AdminFundPrivacyPanel';
-import { socialPublishService } from '../../services/socialPublishService';
+import { socialPublishService, PublishStatusType } from '../../services/socialPublishService';
 import {
   FoundationConfig,
   MultilingualText,
@@ -469,9 +469,10 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [publishStatus, setPublishStatus] = useState<{
     saved: boolean;
-    published: 'idle' | 'pending' | 'success' | 'manual_required' | 'missing_secret' | 'failed';
+    published: PublishStatusType;
     message: string;
     details?: string;
+    runUrl?: string;
     setupGuide?: {
       title: string;
       step1: string;
@@ -519,18 +520,69 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
 
           setPublishStatus({
             saved: true,
-            published: pubRes.status as any,
+            published: pubRes.status,
             message: pubRes.message,
             details: pubRes.details,
             setupGuide: pubRes.setupGuide,
           });
 
-          if (pubRes.success) {
-            onShowToast('GitHub Actions ওয়ার্কফ্লো সফলভাবে চালু হয়েছে!');
+          if (pubRes.status === 'dispatched') {
+            onShowToast('GitHub Actions ওয়ার্কফ্লো ট্রিগার হয়েছে! ডিপ্লয়মেন্ট চলমান...');
+
+            // Real workflow run monitoring
+            let checkCount = 0;
+            const maxChecks = 24;
+            const intervalId = window.setInterval(async () => {
+              checkCount++;
+              const wf = await socialPublishService.checkWorkflowStatus();
+
+              if (wf.state === 'running' || wf.state === 'queued') {
+                setPublishStatus((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        published: 'running',
+                        message: wf.message || 'GitHub Actions-এ বিল্ড ও ডিপ্লয়মেন্ট চলমান (Running)...',
+                        runUrl: wf.runUrl || prev.runUrl,
+                      }
+                    : null
+                );
+              } else if (wf.state === 'success') {
+                window.clearInterval(intervalId);
+                setPublishStatus((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        published: 'success',
+                        message: 'GitHub Pages পাবলিকেশন ও মেটাডাটা আপডেট সফলভাবে সম্পন্ন হয়েছে!',
+                        runUrl: wf.runUrl || prev.runUrl,
+                      }
+                    : null
+                );
+                onShowToast('পাবলিকেশন ও ডিপ্লয়মেন্ট সফলভাবে সম্পন্ন হয়েছে!');
+              } else if (wf.state === 'failed') {
+                window.clearInterval(intervalId);
+                setPublishStatus((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        published: 'failed',
+                        message: wf.message || 'GitHub Actions বিল্ড বা ডিপ্লয়মেন্ট ব্যর্থ হয়েছে।',
+                        runUrl: wf.runUrl || prev.runUrl,
+                      }
+                    : null
+                );
+                onShowToast('ডিপ্লয়মেন্ট সম্পন্ন হতে ব্যর্থ হয়েছে।');
+              } else if (checkCount >= maxChecks) {
+                window.clearInterval(intervalId);
+              }
+            }, 5000);
+          } else if (pubRes.status === 'undeployed') {
+            onShowToast('সেটিংস সংরক্ষিত; তবে Supabase Edge Function ডিপ্লয় করা নেই।');
           } else if (pubRes.status === 'missing_secret') {
-            onShowToast('সেটিংস সংরক্ষিত হয়েছে। স্বয়ংক্রিয় ডিপ্লয়ের জন্য GITHUB_PAT সিক্রেট কনফিগার করুন।');
+            onShowToast('সেটিংস সংরক্ষিত; তবে Supabase সিক্রেটে GITHUB_PAT সেটআপ প্রয়োজন।');
           } else {
-            onShowToast(`পাবলিশিং ওয়ার্কফ্লো শুরু করা যায়নি: ${pubRes.message}`);
+            onShowToast(`পাবলিশিং রিপোর্ট: ${pubRes.message}`);
           }
         } else {
           setPublishStatus({
@@ -4406,26 +4458,48 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                 {publishStatus && (
                   <div className="space-y-2 pt-2 border-t border-[#2D5A41]/10">
                     <div
-                      className={`p-3 rounded-xl border text-xs flex flex-col gap-2 ${
+                      className={`p-3.5 rounded-xl border text-xs flex flex-col gap-2.5 ${
                         publishStatus.published === 'success'
-                          ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                          : publishStatus.published === 'pending'
-                          ? 'bg-blue-50 border-blue-200 text-blue-900'
-                          : publishStatus.published === 'missing_secret'
-                          ? 'bg-amber-50 border-amber-200 text-amber-900'
-                          : 'bg-rose-50 border-rose-200 text-rose-900'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                          : publishStatus.published === 'running' || publishStatus.published === 'dispatched' || publishStatus.published === 'pending'
+                          ? 'bg-blue-50 border-blue-200 text-blue-950'
+                          : publishStatus.published === 'undeployed' || publishStatus.published === 'missing_secret'
+                          ? 'bg-amber-50 border-amber-200 text-amber-950'
+                          : 'bg-rose-50 border-rose-200 text-rose-950'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 font-bold">
-                          {publishStatus.published === 'pending' && <Loader2 className="w-4 h-4 animate-spin text-blue-600" />}
-                          {publishStatus.published === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                          {publishStatus.published === 'missing_secret' && <AlertTriangle className="w-4 h-4 text-amber-600" />}
-                          {publishStatus.published === 'failed' && <AlertTriangle className="w-4 h-4 text-rose-600" />}
+                          {(publishStatus.published === 'pending' || publishStatus.published === 'running') && (
+                            <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          )}
+                          {publishStatus.published === 'dispatched' && (
+                            <Clock className="w-4 h-4 text-blue-600" />
+                          )}
+                          {publishStatus.published === 'success' && (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          )}
+                          {(publishStatus.published === 'undeployed' || publishStatus.published === 'missing_secret') && (
+                            <AlertTriangle className="w-4 h-4 text-amber-600" />
+                          )}
+                          {(publishStatus.published === 'github_unauthorized' ||
+                            publishStatus.published === 'github_forbidden' ||
+                            publishStatus.published === 'workflow_not_found' ||
+                            publishStatus.published === 'invalid_ref' ||
+                            publishStatus.published === 'failed') && (
+                            <AlertTriangle className="w-4 h-4 text-rose-600" />
+                          )}
                           <span>
                             {publishStatus.published === 'pending' && 'পাবলিকেশন প্রক্রিয়াধীন (Publication Pending)'}
+                            {publishStatus.published === 'dispatched' && 'ওয়ার্কফ্লো শুরু হয়েছে (Workflow Dispatched)'}
+                            {publishStatus.published === 'running' && 'গিটহাব ডিপ্লয়মেন্ট চলমান (Deployment Running)'}
                             {publishStatus.published === 'success' && 'পাবলিকেশন সফল হয়েছে (Publication Successful)'}
-                            {publishStatus.published === 'missing_secret' && 'সেটিংস সংরক্ষিত; সার্ভার-সাইড সিক্রেট সেটআপ আবশ্যক'}
+                            {publishStatus.published === 'undeployed' && 'Supabase Edge Function ডিপ্লয় করা নেই (Deployment Required)'}
+                            {publishStatus.published === 'missing_secret' && 'সার্ভার সিক্রেট GITHUB_PAT অনুপস্থিত (Secret Required)'}
+                            {publishStatus.published === 'github_unauthorized' && 'GitHub Authentication ব্যর্থ (401 Bad Credentials)'}
+                            {publishStatus.published === 'github_forbidden' && 'GitHub Permission প্রত্যাখ্যাত (403 Forbidden)'}
+                            {publishStatus.published === 'workflow_not_found' && 'GitHub Workflow পাওয়া যায়নি (404 Not Found)'}
+                            {publishStatus.published === 'invalid_ref' && 'Branch Protection অথবা Ref ত্রুটি (422)'}
                             {publishStatus.published === 'failed' && 'পাবলিকেশন ব্যর্থ (Publication Failed)'}
                           </span>
                         </div>
@@ -4438,8 +4512,28 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                         {publishStatus.message}
                       </p>
 
+                      {publishStatus.runUrl && (
+                        <div>
+                          <a
+                            href={publishStatus.runUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-semibold text-xs text-[#2D5A41] hover:underline"
+                          >
+                            <span>GitHub Actions লাইভ রান মনিটর করুন</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      )}
+
+                      {publishStatus.details && (
+                        <p className="text-[10px] text-[#7A877E] font-mono bg-white/60 p-1.5 rounded">
+                          {publishStatus.details}
+                        </p>
+                      )}
+
                       {publishStatus.setupGuide && (
-                        <div className="mt-1 p-2.5 rounded-lg bg-white/80 border border-amber-300 text-[10px] text-amber-950 space-y-1 font-sans">
+                        <div className="mt-1 p-2.5 rounded-lg bg-white/90 border border-amber-300 text-[10px] text-amber-950 space-y-1 font-sans">
                           <p className="font-bold text-[11px] text-amber-900">{publishStatus.setupGuide.title}</p>
                           <p>১. {publishStatus.setupGuide.step1}</p>
                           <p>২. {publishStatus.setupGuide.step2}</p>
