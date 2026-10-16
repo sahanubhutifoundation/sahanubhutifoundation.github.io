@@ -1,0 +1,14 @@
+{
+  "nameBn": "সহানুভূতি ফাউন্ডেশন",
+  "nameEn": "Sahanubhuti Foundation",
+  "nameAr": "مؤسسة ساهانوبوتي",
+  "logoUrl": "https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/branding/1789800393607_mxj0a1.png",
+  "logoOverrides": {
+    "hero": "",
+    "admin": "",
+    "footer": "https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/branding/1789800571549_8r6h1e.png",
+    "header": ""
+  },
+  "brandingVersion": "779cc312",
+  "isAuthoritative": true
+}

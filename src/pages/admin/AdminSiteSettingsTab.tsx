@@ -554,12 +554,31 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                     ? {
                         ...prev,
                         published: 'success',
-                        message: 'GitHub Pages পাবলিকেশন ও মেটাডাটা আপডেট সফলভাবে সম্পন্ন হয়েছে!',
+                        message: 'GitHub Actions বিল্ড সফল হয়েছে। লাইভ অ্যাসেট ভেরিফাই করা হচ্ছে...',
                         runUrl: wf.runUrl || prev.runUrl,
                       }
                     : null
                 );
-                onShowToast('পাবলিকেশন ও ডিপ্লয়মেন্ট সফলভাবে সম্পন্ন হয়েছে!');
+                // Perform real HTTP verification of published og-preview.png asset
+                socialPublishService.verifyPublishedAsset().then((vRes) => {
+                  setPublishStatus((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          published: vRes.verified ? 'verified' : 'success',
+                          message: vRes.verified
+                            ? 'GitHub Pages পাবলিকেশন ও মেটাডাটা আপডেট সফলভাবে সম্পন্ন এবং যাচাইকৃত (Verified)! og-preview.png অনলাইনে সক্রিয় রয়েছে।'
+                            : `GitHub Actions সফল; ${vRes.message}`,
+                          runUrl: wf.runUrl || prev.runUrl,
+                        }
+                      : null
+                  );
+                  if (vRes.verified) {
+                    onShowToast('পাবলিকেশন ও ডিপ্লয়মেন্ট সফল ও যাচাইকৃত (Published & Verified)!');
+                  } else {
+                    onShowToast('ডিপ্লয়মেন্ট সম্পন্ন হয়েছে; ক্যাশ প্রপাগেশন চলমান...');
+                  }
+                });
               } else if (wf.state === 'failed') {
                 window.clearInterval(intervalId);
                 setPublishStatus((prev) =>
@@ -4459,7 +4478,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                   <div className="space-y-2 pt-2 border-t border-[#2D5A41]/10">
                     <div
                       className={`p-3.5 rounded-xl border text-xs flex flex-col gap-2.5 ${
-                        publishStatus.published === 'success'
+                        publishStatus.published === 'verified' || publishStatus.published === 'success'
                           ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
                           : publishStatus.published === 'running' || publishStatus.published === 'dispatched' || publishStatus.published === 'pending'
                           ? 'bg-blue-50 border-blue-200 text-blue-950'
@@ -4476,7 +4495,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                           {publishStatus.published === 'dispatched' && (
                             <Clock className="w-4 h-4 text-blue-600" />
                           )}
-                          {publishStatus.published === 'success' && (
+                          {(publishStatus.published === 'verified' || publishStatus.published === 'success') && (
                             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                           )}
                           {(publishStatus.published === 'undeployed' || publishStatus.published === 'missing_secret') && (
@@ -4493,6 +4512,7 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
                             {publishStatus.published === 'pending' && 'পাবলিকেশন প্রক্রিয়াধীন (Publication Pending)'}
                             {publishStatus.published === 'dispatched' && 'ওয়ার্কফ্লো শুরু হয়েছে (Workflow Dispatched)'}
                             {publishStatus.published === 'running' && 'গিটহাব ডিপ্লয়মেন্ট চলমান (Deployment Running)'}
+                            {publishStatus.published === 'verified' && 'পাবলিকেশন সফল ও যাচাইকৃত (Published & Verified)'}
                             {publishStatus.published === 'success' && 'পাবলিকেশন সফল হয়েছে (Publication Successful)'}
                             {publishStatus.published === 'undeployed' && 'Supabase Edge Function ডিপ্লয় করা নেই (Deployment Required)'}
                             {publishStatus.published === 'missing_secret' && 'সার্ভার সিক্রেট GITHUB_PAT অনুপস্থিত (Secret Required)'}

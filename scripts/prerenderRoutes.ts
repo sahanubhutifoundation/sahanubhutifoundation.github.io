@@ -1,15 +1,16 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 /**
  * Static route generator for GitHub Pages link crawlers (Facebook, WhatsApp, Messenger, Twitter/X)
- * Reads published activities and notices from initial/public seed data and generates route-specific
- * HTML files inside dist/ with pristine open graph and twitter card metadata.
- * When a social crawler fetches https://sahanubhutifoundation.github.io/activities/act-1 or slug,
- * it gets valid HTML with the localized title, description, and preview image without executing React.
+ * Reads published activities, notices, members, and site configuration from Supabase (or bundled seed data)
+ * and generates route-specific HTML files inside dist/ with pristine open graph, twitter card metadata,
+ * and authoritative initial branding to eliminate first-load flash on fresh browsers.
  */
 
 const DIST_DIR = path.resolve(process.cwd(), 'dist');
+const PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 const BASE_URL = 'https://sahanubhutifoundation.github.io';
 const DEFAULT_SHARE_IMAGE = `${BASE_URL}/assets/og-preview.png`;
 
@@ -80,28 +81,56 @@ async function generateStaticRoutes() {
     console.warn('[prerender] Supabase build-time sync notice (using bundled defaults):', err);
   }
 
-  // Resolve effective share image according to configured mode (Auto-Generated vs Custom Upload)
-  let effectiveShareImage = DEFAULT_SHARE_IMAGE;
-  const sp = liveConfig?.socialSharePreview;
-  if (sp) {
-    let chosen = '';
-    if (sp.mode === 'custom' && sp.customImageUrl && sp.customImageUrl.trim().length > 0 && !sp.customImageUrl.startsWith('data:')) {
-      chosen = sp.customImageUrl.trim();
-      console.log('[prerender] Using Custom Uploaded Social Share Image:', chosen);
-    } else if (sp.mode === 'auto') {
-      // In auto mode, the published asset is always the canonical 1200x630 /assets/og-preview.png
-      chosen = `${BASE_URL}/assets/og-preview.png`;
-      console.log('[prerender] Using Auto-Generated Branded Social Share Image:', chosen);
-    } else if (sp.imageUrl && sp.imageUrl.trim().length > 0 && !sp.imageUrl.startsWith('data:')) {
-      chosen = sp.imageUrl.trim();
-      console.log('[prerender] Using Configured Social Share Image:', chosen);
-    }
+  // Calculate canonical social preview asset version hash for instant crawler cache invalidation
+  let assetVersionHash = '';
+  const distOgPath = path.join(DIST_DIR, 'assets/og-preview.png');
+  const publicOgPath = path.join(PUBLIC_DIR, 'assets/og-preview.png');
+  const targetOgFile = fs.existsSync(distOgPath) ? distOgPath : (fs.existsSync(publicOgPath) ? publicOgPath : null);
 
-    if (chosen && !chosen.startsWith('data:')) {
-      effectiveShareImage = chosen.startsWith('http')
-        ? chosen
-        : `${BASE_URL}${chosen.startsWith('/') ? '' : '/'}${chosen}`;
+  if (targetOgFile) {
+    try {
+      const fileBuf = fs.readFileSync(targetOgFile);
+      assetVersionHash = crypto.createHash('md5').update(fileBuf).digest('hex').substring(0, 8);
+      console.log(`[prerender] Canonical og-preview.png content hash: ${assetVersionHash} (${fileBuf.length} bytes)`);
+    } catch (e) {
+      console.warn('[prerender] Could not compute asset hash:', e);
     }
+  }
+
+  // Canonical share image is ALWAYS https://sahanubhutifoundation.github.io/assets/og-preview.png
+  // Appending ?v=hash forces social platforms (Facebook, Twitter, WhatsApp) to bust their CDN cache immediately
+  const effectiveShareImage = `${BASE_URL}/assets/og-preview.png${assetVersionHash ? `?v=${assetVersionHash}` : ''}`;
+  console.log('[prerender] Effective Canonical Social Share Image:', effectiveShareImage);
+
+  // Authoritative Initial Branding Configuration
+  // Solves GOAL B: Injected directly into static HTML so fresh browsers display the latest Admin branding on the very first byte
+  const authoritativeBranding = {
+    nameBn: liveConfig?.nameBn || 'সহানুভূতি ফাউন্ডেশন',
+    nameEn: liveConfig?.nameEn || 'Sahanubhuti Foundation',
+    nameAr: liveConfig?.nameAr || 'مؤسسة ساهানوبوتي',
+    logoUrl: liveConfig?.logoUrl || '/assets/logo.svg',
+    logoOverrides: liveConfig?.logoOverrides || {
+      header: '',
+      hero: '',
+      footer: '',
+      admin: '',
+    },
+    brandingVersion: liveConfig?.brandingVersion || assetVersionHash || Date.now().toString(),
+    isAuthoritative: true,
+  };
+
+  // Synchronize static initial-branding.json files
+  try {
+    const brandingJson = JSON.stringify(authoritativeBranding, null, 2);
+    const distAssetsDir = path.join(DIST_DIR, 'assets');
+    const publicAssetsDir = path.join(PUBLIC_DIR, 'assets');
+    fs.mkdirSync(distAssetsDir, { recursive: true });
+    fs.mkdirSync(publicAssetsDir, { recursive: true });
+    fs.writeFileSync(path.join(distAssetsDir, 'initial-branding.json'), brandingJson, 'utf-8');
+    fs.writeFileSync(path.join(publicAssetsDir, 'initial-branding.json'), brandingJson, 'utf-8');
+    console.log('[prerender] Successfully generated initial-branding.json asset.');
+  } catch (err) {
+    console.warn('[prerender] Notice generating initial-branding.json:', err);
   }
 
   function injectMeta(html: string, opts: {
@@ -158,6 +187,25 @@ async function generateStaticRoutes() {
       } else {
         result = result.replace('</head>', `    ${replacement}\n  </head>`);
       }
+    }
+
+    // Remove any stale preloading of obsolete /assets/logo.svg
+    result = result.replace(/<link\s+rel="preload"\s+as="image"\s+href="\/assets\/logo\.svg"[^>]*\/?>\s*/gi, '');
+
+    // Preload authoritative logo if non-empty and valid
+    if (authoritativeBranding.logoUrl && authoritativeBranding.logoUrl.trim().length > 0) {
+      const preloadTag = `<link rel="preload" as="image" href="${authoritativeBranding.logoUrl}" />`;
+      if (!result.includes(preloadTag)) {
+        result = result.replace('</head>', `    ${preloadTag}\n  </head>`);
+      }
+    }
+
+    // Inject authoritative initial branding into window.__SF_INITIAL_BRANDING__
+    const brandingScript = `<script id="sf-authoritative-branding">window.__SF_INITIAL_BRANDING__=${JSON.stringify(authoritativeBranding)};</script>`;
+    if (result.includes('id="sf-authoritative-branding"')) {
+      result = result.replace(/<script id="sf-authoritative-branding">.*?<\/script>/is, brandingScript);
+    } else {
+      result = result.replace('</head>', `    ${brandingScript}\n  </head>`);
     }
 
     return result;

@@ -10,7 +10,7 @@ import path from 'path';
  * - Humanitarian tagline, origin, and official domain badge
  * - Warm, uncluttered, professional aesthetic
  */
-export function generateSocialPreviewImage(): void {
+export function generateSocialPreviewImage(config?: any): void {
   const logoPath = path.resolve(process.cwd(), 'public/assets/logo.svg');
   const outputPath = path.resolve(process.cwd(), 'public/assets/og-preview.png');
   const fontBengaliPath = path.resolve(process.cwd(), 'scripts/fonts/NotoSansBengali.ttf');
@@ -29,6 +29,11 @@ export function generateSocialPreviewImage(): void {
 
   const width = 1200;
   const height = 630;
+
+  const nameEn = config?.nameEn || 'Sahanubhuti Foundation';
+  const nameBn = config?.nameBn || 'সহানুভূতি ফাউন্ডেশন';
+  const title = config?.socialSharePreview?.title?.bn || nameBn;
+  const desc = config?.socialSharePreview?.description?.bn || 'সহানুভূতি ও মানবিকতার মাধ্যমে নিজেদের মানুষদের পাশে দাঁড়ানোর একটি পারিবারিক উদ্যোগ।';
 
   const fullSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
@@ -69,18 +74,18 @@ export function generateSocialPreviewImage(): void {
   </g>
 
   <!-- Primary English Foundation Name -->
-  <text x="560" y="195" font-family="Plus Jakarta Sans, sans-serif" font-weight="800" font-size="44" letter-spacing="-0.5" fill="#1E3E2B">Sahanubhuti Foundation</text>
+  <text x="560" y="195" font-family="Plus Jakarta Sans, sans-serif" font-weight="800" font-size="44" letter-spacing="-0.5" fill="#1E3E2B">${nameEn}</text>
 
-  <!-- Primary Bengali Foundation Name -->
-  <text x="560" y="260" font-family="Noto Sans Bengali, sans-serif" font-weight="700" font-size="38" letter-spacing="0" fill="#2D5A41">সহানুভূতি ফাউন্ডেশন</text>
+  <!-- Primary Bengali Foundation Name / Title -->
+  <text x="560" y="260" font-family="Noto Sans Bengali, sans-serif" font-weight="700" font-size="38" letter-spacing="0" fill="#2D5A41">${title}</text>
 
   <!-- Balanced Dual Accent Line -->
   <rect x="560" y="285" width="90" height="4" rx="2" fill="#2D5A41" />
   <rect x="655" y="285" width="45" height="4" rx="2" fill="#F37A20" />
 
   <!-- Humanitarian Mission Summary -->
-  <text x="560" y="340" font-family="Noto Sans Bengali, sans-serif" font-weight="500" font-size="20" fill="#3D4A41">সহানুভূতি ও মানবিকতার মাধ্যমে নিজেদের মানুষদের</text>
-  <text x="560" y="370" font-family="Noto Sans Bengali, sans-serif" font-weight="500" font-size="20" fill="#3D4A41">পাশে দাঁড়ানোর একটি পারিবারিক উদ্যোগ।</text>
+  <text x="560" y="340" font-family="Noto Sans Bengali, sans-serif" font-weight="500" font-size="20" fill="#3D4A41">${desc.substring(0, 48)}</text>
+  ${desc.length > 48 ? `<text x="560" y="370" font-family="Noto Sans Bengali, sans-serif" font-weight="500" font-size="20" fill="#3D4A41">${desc.substring(48, 100)}</text>` : ''}
 
   <!-- Origin & Foundation Location -->
   <g transform="translate(560, 420)">

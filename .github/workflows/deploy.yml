@@ -45,7 +45,7 @@ jobs:
 
       - name: Synchronize Social Preview Asset
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://oskmpyuofgiivprcojfh.supabase.co' }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
           DISPATCH_MODE: ${{ github.event.inputs.mode }}
           DISPATCH_IMAGE_URL: ${{ github.event.inputs.image_url }}
@@ -54,20 +54,22 @@ jobs:
 
       - name: Commit updated asset to repository branch
         run: |
-          if [ -n "$(git status --porcelain public/assets/og-preview.png)" ]; then
+          if [ -n "$(git status --porcelain public/assets/og-preview.png public/assets/initial-branding.json)" ]; then
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
-            git add public/assets/og-preview.png
-            git commit -m "chore(social): update canonical public/assets/og-preview.png [skip ci]" || echo "No changes to commit"
+            git add public/assets/og-preview.png public/assets/initial-branding.json
+            git commit -m "chore(assets): update canonical og-preview.png and initial-branding.json [skip ci]" || echo "No changes to commit"
             git push origin HEAD:${{ github.ref_name }} || echo "Notice: Push skipped or branch protected"
           else
-            echo "public/assets/og-preview.png is unchanged."
+            echo "public/assets/og-preview.png and initial-branding.json are unchanged."
           fi
 
       - name: Build application
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://oskmpyuofgiivprcojfh.supabase.co' }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
+          DISPATCH_MODE: ${{ github.event.inputs.mode }}
+          DISPATCH_IMAGE_URL: ${{ github.event.inputs.image_url }}
         run: npm run build
 
       - name: Verify published asset and OpenGraph metadata

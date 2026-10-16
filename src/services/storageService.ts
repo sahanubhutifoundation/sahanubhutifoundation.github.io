@@ -57,7 +57,29 @@ function setLocalItem<T>(key: string, value: T): void {
   }
 }
 
+export interface AuthoritativeBrandingPayload extends Partial<FoundationConfig> {
+  isAuthoritative?: boolean;
+}
+
+// Helper to read authoritative initial branding embedded during build/prerender
+function getAuthoritativeInitialBranding(): AuthoritativeBrandingPayload | null {
+  if (typeof window === 'undefined') return null;
+  const globalBranding = (window as any).__SF_INITIAL_BRANDING__;
+  if (globalBranding && typeof globalBranding === 'object' && globalBranding.isAuthoritative) {
+    return globalBranding as AuthoritativeBrandingPayload;
+  }
+  return null;
+}
+
 export const storageService = {
+  // Check if authoritative branding is immediately available without waiting
+  hasAuthoritativeBranding(): boolean {
+    if (typeof window === 'undefined') return true;
+    if (this.hasCachedConfig()) return true;
+    const authBranding = getAuthoritativeInitialBranding();
+    return Boolean(authBranding?.isAuthoritative);
+  },
+
   // Check if config has been saved in local cache (i.e. not a brand new device/clean session)
   hasCachedConfig(): boolean {
     if (typeof window === 'undefined') return true;
@@ -71,7 +93,18 @@ export const storageService = {
   _brandingPromise: null as Promise<FoundationConfig> | null,
 
   async ensureBrandingLoaded(): Promise<FoundationConfig> {
-    if (this.hasCachedConfig()) {
+    if (this.hasCachedConfig() || this.hasAuthoritativeBranding()) {
+      // Revalidate in background with Supabase so subsequent visits stay updated
+      if (supabaseService.isAvailable()) {
+        supabaseService.fetchConfig().then((cloudConfig) => {
+          if (cloudConfig) {
+            setLocalItem(KEYS.CONFIG, cloudConfig);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: cloudConfig }));
+            }
+          }
+        }).catch(() => null);
+      }
       return this.getConfig();
     }
     if (this._brandingPromise) {
@@ -104,7 +137,36 @@ export const storageService = {
 
   // Configuration
   getConfig(): FoundationConfig {
-    const saved = getLocalItem<FoundationConfig>(KEYS.CONFIG, initialConfig);
+    const authBranding = getAuthoritativeInitialBranding();
+    const authoritativeBase: FoundationConfig = authBranding
+      ? {
+          ...initialConfig,
+          nameBn: authBranding.nameBn || initialConfig.nameBn,
+          nameEn: authBranding.nameEn || initialConfig.nameEn,
+          nameAr: authBranding.nameAr || initialConfig.nameAr,
+          logoUrl: authBranding.logoUrl || initialConfig.logoUrl,
+          logoOverrides: {
+            ...initialConfig.logoOverrides,
+            ...(authBranding.logoOverrides || {}),
+          },
+        }
+      : initialConfig;
+
+    const saved = getLocalItem<FoundationConfig>(KEYS.CONFIG, authoritativeBase);
+
+    // Cache versioning and reconciliation:
+    // If the deployed authoritative branding is present and differs from cached logoUrl,
+    // immediately reconcile cache to prevent obsolete logo from reappearing.
+    if (authBranding?.isAuthoritative && authBranding.logoUrl && saved.logoUrl !== authBranding.logoUrl) {
+      saved.logoUrl = authBranding.logoUrl;
+      if (authBranding.logoOverrides) {
+        saved.logoOverrides = {
+          ...saved.logoOverrides,
+          ...authBranding.logoOverrides,
+        };
+      }
+      setLocalItem(KEYS.CONFIG, saved);
+    }
     // Sanitize any legacy cached text containing 1,200 medical assistance in aboutSpeech
     let cleanSpeech = saved.aboutSpeech || initialConfig.aboutSpeech;
     if (cleanSpeech) {

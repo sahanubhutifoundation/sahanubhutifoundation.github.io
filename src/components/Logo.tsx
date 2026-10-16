@@ -19,7 +19,7 @@ export const Logo: React.FC<LogoProps> = ({
 }) => {
   const { language } = useLanguage();
   const [config, setConfig] = useState(() => storageService.getConfig());
-  const [isBrandingReady, setIsBrandingReady] = useState(() => storageService.hasCachedConfig());
+  const [isBrandingReady, setIsBrandingReady] = useState(() => storageService.hasAuthoritativeBranding());
 
   useEffect(() => {
     if (!isBrandingReady) {
@@ -81,16 +81,25 @@ export const Logo: React.FC<LogoProps> = ({
 
   return (
     <div className={`flex items-center gap-3 select-none ${className}`}>
-      {/* Emblem Container: Renders canonical logo immediately for fast initial paint without flicker or layout shift */}
+      {/* Emblem Container: Renders authoritative logo or neutral placeholder without layout shift or stale flash */}
       <div className={`relative flex-shrink-0 ${sizeClasses[size]}`}>
-        <img
-          src={logoSrc}
-          alt={primaryName}
-          className="w-full h-full object-contain filter drop-shadow-sm"
-          loading="eager"
-          decoding="async"
-          fetchPriority="high"
-        />
+        {isBrandingReady && logoSrc ? (
+          <img
+            src={logoSrc}
+            alt={primaryName}
+            className="w-full h-full object-contain filter drop-shadow-sm"
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
+          />
+        ) : (
+          <div
+            className={`w-full h-full rounded-lg ${
+              isDark ? 'bg-white/10' : 'bg-[#E8EFEA]'
+            } animate-pulse`}
+            aria-hidden="true"
+          />
+        )}
       </div>
 
       {showText && (

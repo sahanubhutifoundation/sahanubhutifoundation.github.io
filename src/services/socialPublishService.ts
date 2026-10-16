@@ -9,6 +9,7 @@ export type PublishStatusType =
   | 'dispatched'
   | 'running'
   | 'success'
+  | 'verified'
   | 'undeployed'
   | 'missing_secret'
   | 'unauthorized'
@@ -253,5 +254,35 @@ export const socialPublishService = {
     }
 
     return { state: 'unknown' };
+  },
+
+  /**
+   * Verifies that the deployed asset is live and reachable at https://sahanubhutifoundation.github.io/assets/og-preview.png
+   */
+  async verifyPublishedAsset(): Promise<{ verified: boolean; statusCode?: number; size?: number; message: string }> {
+    try {
+      const cacheBustUrl = `https://sahanubhutifoundation.github.io/assets/og-preview.png?t=${Date.now()}`;
+      const res = await fetch(cacheBustUrl, { method: 'GET', cache: 'no-store' });
+      if (res.ok) {
+        const contentLength = res.headers.get('content-length');
+        const size = contentLength ? parseInt(contentLength, 10) : undefined;
+        return {
+          verified: true,
+          statusCode: res.status,
+          size,
+          message: `পাবলিক অ্যাসেট og-preview.png অনলাইনে সক্রিয় রয়েছে (${size ? `${Math.round(size / 1024)} KB` : '200 OK'})।`,
+        };
+      }
+      return {
+        verified: false,
+        statusCode: res.status,
+        message: `পাবলিক অ্যাসেট এখনও প্রপাগেট হচ্ছে (HTTP ${res.status})। কয়েক সেকেন্ড পর চেক করুন।`,
+      };
+    } catch (e: any) {
+      return {
+        verified: false,
+        message: `পাবলিক অ্যাসেট ভেরিফিকেশন রিকোয়েস্ট ব্যর্থ: ${e.message}`,
+      };
+    }
   },
 };
