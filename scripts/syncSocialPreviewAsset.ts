@@ -35,9 +35,10 @@ export async function syncSocialPreviewAsset(): Promise<void> {
   }
 
   // 2. Fetch live config from Supabase if credentials are present
+  const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9za21weXVvZmdpaXZwcmNvamZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxOTM3MDQsImV4cCI6MjEwNDc2OTcwNH0.pJpHdR6HrbxTVJ94g6g3mOYKjq0s_H1Q8PBBuy_xoIg';
   const rawSupabaseUrl = process.env.VITE_SUPABASE_URL || 'https://oskmpyuofgiivprcojfh.supabase.co';
   const supabaseUrl = rawSupabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
 
   if (supabaseUrl && supabaseKey) {
     try {

@@ -167,6 +167,8 @@ async function generateStaticRoutes() {
       { property: 'og:title', content: `${title} | ${liveConfig?.nameBn || 'সহানুভূতি ফাউন্ডেশন'}` },
       { property: 'og:description', content: desc },
       { property: 'og:image', content: absImg },
+      { property: 'og:image:secure_url', content: absImg },
+      { property: 'og:image:type', content: 'image/png' },
       { property: 'og:image:width', content: '1200' },
       { property: 'og:image:height', content: '630' },
       { property: 'og:image:alt', content: `${title} | ${liveConfig?.nameEn || 'Sahanubhuti Foundation'}` },

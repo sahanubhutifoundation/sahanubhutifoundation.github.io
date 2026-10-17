@@ -156,7 +156,12 @@ export const storageService = {
 
     // Cache versioning and reconciliation:
     // If the deployed authoritative branding is present and differs from cached logoUrl,
-    // immediately reconcile cache to prevent obsolete logo from reappearing.
+    // or if cached logoUrl is the old fallback SVG, immediately reconcile cache.
+    const isObsoleteCachedLogo = !saved.logoUrl || saved.logoUrl === '/assets/logo.svg' || saved.logoUrl === '/assets/logo-white.svg';
+    if (isObsoleteCachedLogo && authoritativeBase.logoUrl && authoritativeBase.logoUrl !== saved.logoUrl) {
+      saved.logoUrl = authoritativeBase.logoUrl;
+      setLocalItem(KEYS.CONFIG, saved);
+    }
     if (authBranding?.isAuthoritative && authBranding.logoUrl && saved.logoUrl !== authBranding.logoUrl) {
       saved.logoUrl = authBranding.logoUrl;
       if (authBranding.logoOverrides) {

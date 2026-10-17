@@ -46,7 +46,7 @@ jobs:
       - name: Synchronize Social Preview Asset
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://oskmpyuofgiivprcojfh.supabase.co' }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9za21weXVvZmdpaXZwcmNvamZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxOTM3MDQsImV4cCI6MjEwNDc2OTcwNH0.pJpHdR6HrbxTVJ94g6g3mOYKjq0s_H1Q8PBBuy_xoIg' }}
           DISPATCH_MODE: ${{ github.event.inputs.mode }}
           DISPATCH_IMAGE_URL: ${{ github.event.inputs.image_url }}
         run: |
@@ -67,7 +67,7 @@ jobs:
       - name: Build application
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL || 'https://oskmpyuofgiivprcojfh.supabase.co' }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9za21weXVvZmdpaXZwcmNvamZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxOTM3MDQsImV4cCI6MjEwNDc2OTcwNH0.pJpHdR6HrbxTVJ94g6g3mOYKjq0s_H1Q8PBBuy_xoIg' }}
           DISPATCH_MODE: ${{ github.event.inputs.mode }}
           DISPATCH_IMAGE_URL: ${{ github.event.inputs.image_url }}
         run: npm run build
