@@ -184,25 +184,45 @@ export const fundPrivacyService = {
         '_' +
         Date.now().toString(36);
       newHash = await sha256(newSalt + pin);
+
+      // Invalidate current session grant so new PIN must be entered
+      try {
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem(SESSION_KEY);
+        }
+      } catch {}
     }
 
     const updatedPrivacy: FundPrivacySettings = {
-      isEnabled: options.isEnabled,
+      isEnabled: Boolean(options.isEnabled),
       salt: newSalt,
       pinHash: newHash,
       updatedAt: new Date().toISOString(),
     };
 
     currentConfig.fundPrivacy = updatedPrivacy;
-    storageService.saveConfig(currentConfig);
 
     try {
-      await storageService.saveConfigAsync(currentConfig);
-    } catch (err) {
-      console.warn('Fund privacy save notice:', err);
+      // Direct, verified asynchronous persistence to database & local storage
+      const res = await storageService.saveConfigAsync(currentConfig);
+      if (!res.success) {
+        return {
+          success: false,
+          message: res.error || 'তহবিল গোপনীয়তা সুরক্ষা সেটিংস ডাটাবেজে সংরক্ষণ করা সম্ভব হয়নি।',
+        };
+      }
+    } catch (err: any) {
+      console.error('Fund privacy save error:', err);
+      return {
+        success: false,
+        message: err.message || 'তহবিল গোপনীয়তা সুরক্ষা সেটিংস সংরক্ষণ করতে ত্রুটি ঘটেছে।',
+      };
     }
 
     if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('sf_config_updated', { detail: currentConfig })
+      );
       window.dispatchEvent(
         new CustomEvent('sf_fund_privacy_changed', {
           detail: { isUnlocked: this.isAccessGranted() },
@@ -212,7 +232,9 @@ export const fundPrivacyService = {
 
     return {
       success: true,
-      message: 'তহবিল তথ্যের গোপনীয়তা সুরক্ষা সেটিংস সফলভাবে সংরক্ষিত হয়েছে।',
+      message: options.isEnabled
+        ? 'তহবিল তথ্যের পিন সুরক্ষা সফলভাবে সক্রিয় (ON) করা হয়েছে।'
+        : 'তহবিল তথ্যের পিন সুরক্ষা সফলভাবে নিষ্ক্রিয় (OFF) করা হয়েছে।',
     };
   },
 };

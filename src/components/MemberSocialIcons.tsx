@@ -1,6 +1,6 @@
 import React from 'react';
-import { Phone, Mail, MessageCircle } from 'lucide-react';
 import { Member } from '../types';
+import { UnifiedContactLink } from './ContactIcons';
 
 interface MemberSocialIconsProps {
   member: Member;
@@ -49,6 +49,7 @@ export const MemberSocialIcons: React.FC<MemberSocialIconsProps> = ({
           target="_blank"
           rel="noopener noreferrer"
           title="Facebook"
+          aria-label="Facebook Profile"
           className={`${btnClass} shrink-0 rounded-full bg-[#1877F2]/10 text-[#1877F2] hover:bg-[#1877F2] hover:text-white flex items-center justify-center transition-colors font-bold font-sans leading-none`}
         >
           f
@@ -62,6 +63,7 @@ export const MemberSocialIcons: React.FC<MemberSocialIconsProps> = ({
           target="_blank"
           rel="noopener noreferrer"
           title="Instagram"
+          aria-label="Instagram Profile"
           className={`${btnClass} shrink-0 rounded-full bg-[#E1306C]/10 text-[#E1306C] hover:bg-[#E1306C] hover:text-white flex items-center justify-center transition-colors font-bold font-sans leading-none`}
         >
           in
@@ -70,49 +72,44 @@ export const MemberSocialIcons: React.FC<MemberSocialIconsProps> = ({
 
       {/* WhatsApp */}
       {whatsapp && member.showWhatsapp !== false && (
-        <a
-          href={`https://wa.me/${whatsapp.replace(/[^0-9]/g, '')}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="WhatsApp"
-          className={`${btnClass} shrink-0 rounded-full bg-[#25D366]/15 text-[#25D366] hover:bg-[#25D366] hover:text-white flex items-center justify-center transition-colors`}
-        >
-          <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-        </a>
+        <UnifiedContactLink
+          type="whatsapp"
+          value={whatsapp}
+          size={size}
+          variant="circle"
+        />
       )}
 
-      {/* Imo */}
+      {/* IMO */}
       {imo && member.showImo !== false && (
-        <a
-          href={`tel:${imo}`}
-          title="Imo"
-          className={`${btnClass} shrink-0 rounded-full bg-[#00A4E4]/15 text-[#00A4E4] hover:bg-[#00A4E4] hover:text-white flex items-center justify-center transition-colors font-bold font-sans text-[9px] leading-none whitespace-nowrap`}
-        >
-          imo
-        </a>
+        <UnifiedContactLink
+          type="imo"
+          value={imo}
+          size={size}
+          variant="circle"
+        />
       )}
 
       {/* Direct Phone */}
       {showPhone && (
-        <a
-          href={`tel:${member.phone}`}
-          title="Call"
-          className={`${btnClass} shrink-0 rounded-full bg-[#2D5A41]/10 text-[#2D5A41] hover:bg-[#2D5A41] hover:text-white flex items-center justify-center transition-colors`}
-        >
-          <Phone className="w-3 h-3 shrink-0" />
-        </a>
+        <UnifiedContactLink
+          type="phone"
+          value={member.phone || ''}
+          size={size}
+          variant="circle"
+        />
       )}
 
       {/* Direct Email */}
       {showEmail && (
-        <a
-          href={`mailto:${member.email}`}
-          title="Email"
-          className={`${btnClass} shrink-0 rounded-full bg-[#7A877E]/15 text-[#5C665F] hover:bg-[#2D5A41] hover:text-white flex items-center justify-center transition-colors`}
-        >
-          <Mail className="w-3 h-3 shrink-0" />
-        </a>
+        <UnifiedContactLink
+          type="email"
+          value={member.email || ''}
+          size={size}
+          variant="circle"
+        />
       )}
     </div>
   );
 };
+

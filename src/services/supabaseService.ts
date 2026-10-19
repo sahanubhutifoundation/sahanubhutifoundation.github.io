@@ -1679,19 +1679,32 @@ export const supabaseService = {
         updated_at: now,
       };
 
-      let { error } = await supabase.from('gallery_items').upsert(payload, { onConflict: 'id' });
+      // Remove any previously identified unsupported columns in live DB
+      (supabaseService as any)._unsupportedGalleryCols?.forEach((col: string) => {
+        delete payload[col];
+      });
 
-      // Schema mismatch fallback
-      if (error && (error.message?.includes('column') || error.code === 'PGRST204')) {
-        const errMsg = error.message.toLowerCase();
-        if (errMsg.includes('media_url')) delete payload.media_url;
-        if (errMsg.includes('thumbnail_url')) delete payload.thumbnail_url;
-        if (errMsg.includes('description')) delete payload.description;
-        if (errMsg.includes('caption')) delete payload.caption;
-        if (errMsg.includes('year')) delete payload.year;
-        if (errMsg.includes('date')) delete payload.date;
-        const retry = await supabase.from('gallery_items').upsert(payload, { onConflict: 'id' });
-        error = retry.error;
+      let error: any = null;
+      let attempts = 0;
+      while (attempts < 10) {
+        attempts++;
+        const res = await supabase.from('gallery_items').upsert(payload, { onConflict: 'id' });
+        if (!res.error) {
+          error = null;
+          break;
+        }
+        error = res.error;
+        const missingColMatch = res.error.message?.match(/Could not find the '([^']+)' column/i);
+        if (missingColMatch && missingColMatch[1]) {
+          const colName = missingColMatch[1];
+          delete payload[colName];
+          if (!(supabaseService as any)._unsupportedGalleryCols) {
+            (supabaseService as any)._unsupportedGalleryCols = new Set<string>();
+          }
+          (supabaseService as any)._unsupportedGalleryCols.add(colName);
+          continue;
+        }
+        break;
       }
 
       if (error) {

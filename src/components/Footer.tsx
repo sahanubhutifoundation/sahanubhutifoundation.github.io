@@ -12,8 +12,13 @@ import {
   MapPin,
   Calendar,
   Youtube,
-  MessageCircle,
 } from 'lucide-react';
+import {
+  WhatsAppIcon,
+  ImoIcon,
+  PhoneCallIcon,
+  EmailEnvelopeIcon,
+} from './ContactIcons';
 
 export const Footer: React.FC = () => {
   const { t, tMulti, language } = useLanguage();
@@ -149,17 +154,17 @@ export const Footer: React.FC = () => {
                       className="w-8 h-8 rounded-lg bg-[#223026] flex items-center justify-center text-[#A4B3A8] hover:text-white hover:bg-[#25D366] transition-colors border border-[#2D3E32]"
                       title={`WhatsApp: ${config.whatsappNumber}`}
                     >
-                      <MessageCircle className="w-4 h-4" />
+                      <WhatsAppIcon className="w-4 h-4" />
                     </a>
                   )}
                   {config.imoNumber && (
                     <a
                       href={`tel:${config.imoNumber}`}
-                      aria-label="Imo"
-                      className="w-8 h-8 rounded-lg bg-[#223026] flex items-center justify-center text-[#A4B3A8] hover:text-white hover:bg-[#0084FF] transition-colors border border-[#2D3E32] text-xs font-bold"
-                      title={`Imo: ${config.imoNumber}`}
+                      aria-label="IMO"
+                      className="w-8 h-8 rounded-lg bg-[#223026] flex items-center justify-center text-[#A4B3A8] hover:text-white hover:bg-[#00A4E4] transition-colors border border-[#2D3E32]"
+                      title={`IMO: ${config.imoNumber}`}
                     >
-                      imo
+                      <ImoIcon className="w-4 h-4" />
                     </a>
                   )}
                   {config.email && (
@@ -169,7 +174,7 @@ export const Footer: React.FC = () => {
                       className="w-8 h-8 rounded-lg bg-[#223026] flex items-center justify-center text-[#A4B3A8] hover:text-white hover:bg-[#2D5A41] transition-colors border border-[#2D3E32]"
                       title={`Email: ${config.email}`}
                     >
-                      <Mail className="w-4 h-4" />
+                      <EmailEnvelopeIcon className="w-4 h-4" />
                     </a>
                   )}
                   {config.phone && config.showPhone !== false && (
@@ -179,7 +184,7 @@ export const Footer: React.FC = () => {
                       className="w-8 h-8 rounded-lg bg-[#223026] flex items-center justify-center text-[#65B78A] hover:text-white hover:bg-[#2D5A41] transition-colors border border-[#2D3E32]"
                       title={`Phone: ${config.phone}`}
                     >
-                      <Phone className="w-4 h-4" />
+                      <PhoneCallIcon className="w-4 h-4" />
                     </a>
                   )}
                 </div>

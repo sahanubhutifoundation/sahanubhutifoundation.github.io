@@ -19,6 +19,7 @@ import { backupService } from '../../services/backupService';
 import { BackupRestoreModal } from '../../components/admin/BackupRestoreModal';
 import { ActivityCategoryManager } from '../../components/admin/ActivityCategoryManager';
 import { ActivityCategoryInlineSelector } from '../../components/admin/ActivityCategoryInlineSelector';
+import { GalleryBulkUploadModal } from '../../components/admin/GalleryBulkUploadModal';
 import {
   FoundationConfig,
   Activity,
@@ -203,6 +204,7 @@ export const AdminPage: React.FC = () => {
   const [activitySubTab, setActivitySubTab] = useState<'list' | 'categories'>('list');
   const [editingNotice, setEditingNotice] = useState<Partial<Notice> | null>(null);
   const [editingGallery, setEditingGallery] = useState<Partial<GalleryItem> | null>(null);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [galleryLang, setGalleryLang] = useState<'bn' | 'en' | 'ar'>('bn');
   const [activeMessage, setActiveMessage] = useState<ContactMessage | null>(null);
   const [inboxFilter, setInboxFilter] = useState<'all' | 'unread' | 'read'>('all');
@@ -3465,13 +3467,24 @@ export const AdminPage: React.FC = () => {
                 পাবলিক গ্যালারির স্থিরচিত্রসমূহ পরিচালনা করুন। (ছবি-ভিত্তিক গ্যালারি)
               </p>
             </div>
-            <button
-              onClick={() => setEditingGallery({ isPublished: true, type: 'photo' })}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold self-start sm:self-auto cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>নতুন ছবি যুক্ত করুন</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsBulkUploadOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#E8EFEA] hover:bg-[#D5E4D9] text-[#2D5A41] text-xs font-semibold border border-[#2D5A41]/30 transition-colors cursor-pointer shadow-2xs"
+              >
+                <Upload className="w-4 h-4 text-[#2D5A41]" />
+                <span>একাধিক ছবি আপলোড (Bulk Upload)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingGallery({ isPublished: true, type: 'photo' })}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold cursor-pointer shadow-2xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>একক ছবি যুক্ত করুন</span>
+              </button>
+            </div>
           </div>
 
           {editingGallery && (
@@ -4040,7 +4053,7 @@ export const AdminPage: React.FC = () => {
           </div>
 
           {fundSubTab === 'privacy' && (
-            <AdminFundPrivacyPanel onShowToast={showToast} />
+            <AdminFundPrivacyPanel onShowToast={showToast} onConfigChange={setConfig} />
           )}
 
           {fundSubTab === 'ledger' && (
@@ -4883,6 +4896,24 @@ export const AdminPage: React.FC = () => {
           loadAllData();
           showToast('ব্যাকআপ সফলভাবে রিস্টোর হয়েছে!');
         }}
+      />
+
+      {/* Gallery Multiple-Image Bulk Upload Modal */}
+      <GalleryBulkUploadModal
+        isOpen={isBulkUploadOpen}
+        onClose={() => setIsBulkUploadOpen(false)}
+        existingCategories={Array.from(new Set(gallery.map((g) => g.category).filter(Boolean)))}
+        activities={activities}
+        onSuccess={(newItems) => {
+          setGallery((prev) => [...newItems, ...prev]);
+          const currentList = storageService.getGalleryItems();
+          // Ensure deduplicated list in local storage
+          const existingIds = new Set(newItems.map((n) => n.id));
+          const updated = [...newItems, ...currentList.filter((g) => !existingIds.has(g.id))];
+          storageService.setGalleryItems(updated);
+          showToast(`${newItems.length}টি ছবি সফলভাবে গ্যালারিতে সংরক্ষিত হয়েছে!`);
+        }}
+        onShowToast={showToast}
       />
     </div>
   );

@@ -67,18 +67,6 @@ export const FundPage: React.FC = () => {
     fundPrivacyService.isAccessGranted()
   );
 
-  useEffect(() => {
-    const handlePrivacyEvent = () => {
-      setIsAccessGranted(fundPrivacyService.isAccessGranted());
-    };
-    window.addEventListener('sf_fund_privacy_changed', handlePrivacyEvent);
-    window.addEventListener('sf_config_updated', handlePrivacyEvent);
-    return () => {
-      window.removeEventListener('sf_fund_privacy_changed', handlePrivacyEvent);
-      window.removeEventListener('sf_config_updated', handlePrivacyEvent);
-    };
-  }, []);
-
   // Available yearly sources from config (only enabled and public on public page)
   const yearlySources: YearlyFundSource[] = useMemo(() => {
     const list =
@@ -232,6 +220,22 @@ export const FundPage: React.FC = () => {
 
   useEffect(() => {
     loadData(false);
+  }, [loadData]);
+
+  useEffect(() => {
+    const handlePrivacyEvent = () => {
+      const granted = fundPrivacyService.isAccessGranted();
+      setIsAccessGranted(granted);
+      if (granted) {
+        loadData(false);
+      }
+    };
+    window.addEventListener('sf_fund_privacy_changed', handlePrivacyEvent);
+    window.addEventListener('sf_config_updated', handlePrivacyEvent);
+    return () => {
+      window.removeEventListener('sf_fund_privacy_changed', handlePrivacyEvent);
+      window.removeEventListener('sf_config_updated', handlePrivacyEvent);
+    };
   }, [loadData]);
 
   // Real-time revalidation: visibilitychange, window focus, storage events, interval polling

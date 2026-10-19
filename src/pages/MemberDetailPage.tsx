@@ -7,8 +7,14 @@ import { MemberAvatar } from '../components/MemberAvatar';
 import { MemberSerialBadge } from '../components/MemberSerialBadge';
 import { MemberSocialIcons } from '../components/MemberSocialIcons';
 import { storageService } from '../services/storageService';
+import { User, ArrowLeft, Calendar, MapPin, ShieldCheck } from 'lucide-react';
+import {
+  WhatsAppIcon,
+  ImoIcon,
+  PhoneCallIcon,
+  EmailEnvelopeIcon,
+} from '../components/ContactIcons';
 import { Member, Designation, FoundationConfig } from '../types';
-import { User, ArrowLeft, Calendar, MapPin, Mail, Phone, ShieldCheck } from 'lucide-react';
 import { toBengaliDigits, getMemberLocalizedField } from '../utils/foundationHelpers';
 
 export const MemberDetailPage: React.FC = () => {
@@ -175,7 +181,7 @@ export const MemberDetailPage: React.FC = () => {
               )}
               {member.email && member.showEmail !== false && (
                 <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-[#A4B3A8] shrink-0" />
+                  <EmailEnvelopeIcon className="w-4 h-4 text-[#A4B3A8] shrink-0" />
                   <a href={`mailto:${member.email}`} className="text-[#2D5A41] hover:underline truncate">
                     {member.email}
                   </a>
@@ -183,9 +189,33 @@ export const MemberDetailPage: React.FC = () => {
               )}
               {member.phone && member.showPhone !== false && (
                 <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-[#A4B3A8] shrink-0" />
+                  <PhoneCallIcon className="w-4 h-4 text-[#A4B3A8] shrink-0" />
                   <a href={`tel:${member.phone}`} className="hover:underline">
                     {member.phone}
+                  </a>
+                </div>
+              )}
+              {member.whatsapp && member.showWhatsapp !== false && (
+                <div className="flex items-center gap-2">
+                  <WhatsAppIcon className="w-4 h-4 text-[#25D366] shrink-0" />
+                  <a
+                    href={`https://wa.me/${member.whatsapp.replace(/[^0-9]/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-[#25D366] transition-colors"
+                  >
+                    {member.whatsapp} (WhatsApp)
+                  </a>
+                </div>
+              )}
+              {member.imo && member.showImo !== false && (
+                <div className="flex items-center gap-2">
+                  <ImoIcon className="w-4 h-4 text-[#00A4E4] shrink-0" />
+                  <a
+                    href={`tel:${member.imo}`}
+                    className="hover:text-[#00A4E4] transition-colors"
+                  >
+                    {member.imo} (IMO)
                   </a>
                 </div>
               )}

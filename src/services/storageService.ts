@@ -101,6 +101,7 @@ export const storageService = {
             setLocalItem(KEYS.CONFIG, cloudConfig);
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: cloudConfig }));
+              window.dispatchEvent(new CustomEvent('sf_fund_privacy_changed'));
             }
           }
         }).catch(() => null);
@@ -224,17 +225,32 @@ export const storageService = {
       yearlyFundSources: Array.isArray(saved.yearlyFundSources) && saved.yearlyFundSources.length > 0
         ? saved.yearlyFundSources
         : initialConfig.yearlyFundSources,
+      fundPrivacy: saved.fundPrivacy
+        ? {
+            ...initialConfig.fundPrivacy,
+            ...saved.fundPrivacy,
+            isEnabled: saved.fundPrivacy.isEnabled === false ? false : Boolean(saved.fundPrivacy.isEnabled),
+          }
+        : initialConfig.fundPrivacy,
     };
   },
 
   saveConfig(config: FoundationConfig): void {
-    setLocalItem(KEYS.CONFIG, config);
+    const existing = getLocalItem<FoundationConfig>(KEYS.CONFIG, initialConfig);
+    const safeConfig: FoundationConfig = {
+      ...config,
+      fundPrivacy: config.fundPrivacy !== undefined
+        ? config.fundPrivacy
+        : (existing?.fundPrivacy || initialConfig.fundPrivacy),
+    };
+    setLocalItem(KEYS.CONFIG, safeConfig);
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: config }));
+      window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: safeConfig }));
+      window.dispatchEvent(new CustomEvent('sf_fund_privacy_changed'));
     }
     // Asynchronously sync to Supabase Cloud if available
     if (supabaseService.isAvailable()) {
-      supabaseService.saveConfig(config).catch((err) => {
+      supabaseService.saveConfig(safeConfig).catch((err) => {
         console.warn('Background Supabase config sync notice:', err);
       });
     }
@@ -888,6 +904,7 @@ export const storageService = {
         setLocalItem(KEYS.CONFIG, res.data);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: res.data }));
+          window.dispatchEvent(new CustomEvent('sf_fund_privacy_changed'));
           window.dispatchEvent(new Event('sf_data_updated'));
         }
         return res;
@@ -898,6 +915,7 @@ export const storageService = {
     setLocalItem(KEYS.CONFIG, config);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: config }));
+      window.dispatchEvent(new CustomEvent('sf_fund_privacy_changed'));
       window.dispatchEvent(new Event('sf_data_updated'));
     }
     return { success: true, data: config };
@@ -1266,6 +1284,9 @@ export const storageService = {
   setGalleryItems(list: GalleryItem[]): void {
     setLocalItem(KEYS.GALLERY, list);
   },
+  setGallery(list: GalleryItem[]): void {
+    this.setGalleryItems(list);
+  },
   setExpenses(list: ExpenseRecord[]): void {
     const normalized = (list || []).map((e) => normalizeExpense(e));
     setLocalItem(KEYS.EXPENSES, normalized);
@@ -1353,6 +1374,7 @@ export const storageService = {
         window.dispatchEvent(new Event('sf_data_updated'));
         if (cloudConfig) {
           window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: cloudConfig }));
+          window.dispatchEvent(new CustomEvent('sf_fund_privacy_changed'));
         }
       }
 

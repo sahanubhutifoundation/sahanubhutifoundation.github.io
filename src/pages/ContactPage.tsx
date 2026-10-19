@@ -12,6 +12,13 @@ import {
   CheckCircle2,
   HeartHandshake,
 } from 'lucide-react';
+import {
+  WhatsAppIcon,
+  ImoIcon,
+  PhoneCallIcon,
+  EmailEnvelopeIcon,
+  UnifiedContactLink,
+} from '../components/ContactIcons';
 
 export const ContactPage: React.FC = () => {
   const { t, language } = useLanguage();
@@ -137,52 +144,98 @@ export const ContactPage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="space-y-4 text-xs sm:text-sm">
+              <div className="space-y-3.5 text-xs sm:text-sm">
                 {/* Official Email */}
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
-                  <div className="w-8 h-8 rounded-lg bg-[#E8EFEA] text-[#2D5A41] flex items-center justify-center shrink-0">
-                    <Mail className="w-4 h-4" />
+                {config.email && (
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                    <div className="w-8 h-8 rounded-lg bg-[#E8EFEA] text-[#2D5A41] flex items-center justify-center shrink-0">
+                      <EmailEnvelopeIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[#7A877E] block text-[11px] font-semibold">
+                        {t('officialEmail')}
+                      </span>
+                      <a
+                        href={`mailto:${config.email}`}
+                        className="font-mono font-medium text-[#2D5A41] hover:underline break-all"
+                      >
+                        {config.email}
+                      </a>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[#7A877E] block text-[11px] font-semibold">
-                      {t('officialEmail')}
-                    </span>
-                    <a
-                      href={`mailto:${config.email}`}
-                      className="font-mono font-medium text-[#2D5A41] hover:underline break-all"
-                    >
-                      {config.email}
-                    </a>
-                  </div>
-                </div>
+                )}
 
                 {/* Facebook Page */}
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
-                  <div className="w-8 h-8 rounded-lg bg-[#E8EFEA] text-[#2D5A41] flex items-center justify-center shrink-0">
-                    <Facebook className="w-4 h-4" />
+                {config.facebookUrl && (
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                    <div className="w-8 h-8 rounded-lg bg-[#1877F2]/10 text-[#1877F2] flex items-center justify-center shrink-0">
+                      <Facebook className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[#7A877E] block text-[11px] font-semibold">
+                        {t('officialFacebook')}
+                      </span>
+                      <a
+                        href={config.facebookUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-[#2D3630] hover:text-[#2D5A41] hover:underline text-xs break-all"
+                      >
+                        facebook.com/profile (সহানুভূতি ফাউন্ডেশন)
+                      </a>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[#7A877E] block text-[11px] font-semibold">
-                      {t('officialFacebook')}
-                    </span>
-                    <a
-                      href={config.facebookUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-[#2D3630] hover:text-[#2D5A41] hover:underline text-xs"
-                    >
-                      facebook.com/profile (সহানুভূতি ফাউন্ডেশন)
-                    </a>
+                )}
+
+                {/* WhatsApp Channel - if configured */}
+                {config.whatsappNumber && (
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                    <div className="w-8 h-8 rounded-lg bg-[#25D366]/15 text-[#25D366] flex items-center justify-center shrink-0">
+                      <WhatsAppIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[#7A877E] block text-[11px] font-semibold">
+                        হোয়াটসঅ্যাপ (WhatsApp)
+                      </span>
+                      <a
+                        href={`https://wa.me/${config.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-[#2D3630] font-semibold hover:text-[#25D366] transition-colors"
+                      >
+                        {config.whatsappNumber}
+                      </a>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* IMO Channel - if configured */}
+                {config.imoNumber && (
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                    <div className="w-8 h-8 rounded-lg bg-[#00A4E4]/15 text-[#00A4E4] flex items-center justify-center shrink-0">
+                      <ImoIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[#7A877E] block text-[11px] font-semibold">
+                        ইমো (IMO)
+                      </span>
+                      <a
+                        href={`tel:${config.imoNumber}`}
+                        className="font-mono text-[#2D3630] font-semibold hover:text-[#00A4E4] transition-colors"
+                      >
+                        {config.imoNumber}
+                      </a>
+                    </div>
+                  </div>
+                )}
 
                 {/* Phone - only displayed if configured and enabled */}
                 {config.phone && config.showPhone !== false && (
                   <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
                     <div className="w-8 h-8 rounded-lg bg-[#E8EFEA] text-[#2D5A41] flex items-center justify-center shrink-0">
-                      <Phone className="w-4 h-4" />
+                      <PhoneCallIcon className="w-4 h-4" />
                     </div>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <span className="text-[#7A877E] block text-[11px] font-semibold">
                         {t('phoneLabel')}
                       </span>

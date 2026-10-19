@@ -110,6 +110,34 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
     setFormData(config);
   }, [config]);
 
+  useEffect(() => {
+    const handleConfigUpdated = (e: any) => {
+      const updated = e.detail || storageService.getConfig();
+      if (updated) {
+        setFormData((prev) => ({
+          ...prev,
+          ...updated,
+          fundPrivacy: updated.fundPrivacy !== undefined ? updated.fundPrivacy : prev.fundPrivacy,
+        }));
+      }
+    };
+    const handlePrivacyChanged = () => {
+      const latestCfg = storageService.getConfig();
+      if (latestCfg?.fundPrivacy) {
+        setFormData((prev) => ({
+          ...prev,
+          fundPrivacy: latestCfg.fundPrivacy,
+        }));
+      }
+    };
+    window.addEventListener('sf_config_updated', handleConfigUpdated);
+    window.addEventListener('sf_fund_privacy_changed', handlePrivacyChanged);
+    return () => {
+      window.removeEventListener('sf_config_updated', handleConfigUpdated);
+      window.removeEventListener('sf_fund_privacy_changed', handlePrivacyChanged);
+    };
+  }, []);
+
   const [availableActivities, setAvailableActivities] = useState<Activity[]>([]);
   const [selectedActivityToAdd, setSelectedActivityToAdd] = useState<string>('');
 
@@ -485,6 +513,11 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
     setIsSaving(true);
     try {
       const finalData = { ...formData };
+      // Safeguard: Always preserve latest authoritative fundPrivacy from storageService so site settings saves never overwrite lock state
+      const currentConfig = storageService.getConfig();
+      if (currentConfig?.fundPrivacy) {
+        finalData.fundPrivacy = currentConfig.fundPrivacy;
+      }
       let effectiveMode: 'auto' | 'custom' = 'auto';
       let effectiveImg = '';
 
@@ -623,44 +656,61 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
     await executeSaveAndPublish(false);
   };
 
+  const renderSubNav = () => (
+    <div className="flex overflow-x-auto gap-2 p-1.5 bg-[#F7F5F0] rounded-2xl border border-[#EBE8E0]">
+      {[
+        { id: 'general', label: 'সাধারণ পরিচিতি', icon: Globe },
+        { id: 'hero', label: 'হোমপেজ ও হিরো CMS', icon: Sparkles },
+        { id: 'logo', label: 'লোগো ও অবস্থান', icon: ImageIcon },
+        { id: 'header', label: 'হেডার কন্ট্রোল', icon: Compass },
+        { id: 'footer', label: 'ফুটার কন্ট্রোল', icon: Layers },
+        { id: 'about', label: 'আমাদের সম্পর্কে CMS', icon: FileText },
+        { id: 'contact', label: 'যোগাযোগ পেজ CMS', icon: Mail },
+        { id: 'social', label: 'যোগাযোগ ও সোশ্যাল', icon: Share2 },
+        { id: 'social-share', label: 'সোশ্যাল প্রিভিউ (Social Share)', icon: Share2 },
+        { id: 'members', label: 'সদস্য প্রদর্শন শৈলী', icon: User },
+        { id: 'fund-privacy', label: 'তহবিল পিন সুরক্ষা', icon: Lock },
+      ].map((tab) => {
+        const Icon = tab.icon;
+        const isActive = activeSection === tab.id;
+        return (
+          <button
+            type="button"
+            key={tab.id}
+            onClick={() => setActiveSection(tab.id as any)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold whitespace-nowrap transition-all cursor-pointer ${
+              isActive
+                ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                : 'text-[#5C665F] hover:text-[#2D3630]'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            <span>{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (activeSection === 'fund-privacy') {
+    return (
+      <div className="space-y-6 text-xs">
+        {!hideSubNav && renderSubNav()}
+        <AdminFundPrivacyPanel
+          onShowToast={onShowToast}
+          onConfigChange={(updated) => {
+            setFormData(updated);
+            onConfigChange(updated);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6 text-xs">
       {/* Sub-tab Navigation (Hidden when controlled from primary Admin sidebar) */}
-      {!hideSubNav && (
-        <div className="flex overflow-x-auto gap-2 p-1.5 bg-[#F7F5F0] rounded-2xl border border-[#EBE8E0]">
-          {[
-            { id: 'general', label: 'সাধারণ পরিচিতি', icon: Globe },
-            { id: 'hero', label: 'হোমপেজ ও হিরো CMS', icon: Sparkles },
-            { id: 'logo', label: 'লোগো ও অবস্থান', icon: ImageIcon },
-            { id: 'header', label: 'হেডার কন্ট্রোল', icon: Compass },
-            { id: 'footer', label: 'ফুটার কন্ট্রোল', icon: Layers },
-            { id: 'about', label: 'আমাদের সম্পর্কে CMS', icon: FileText },
-            { id: 'contact', label: 'যোগাযোগ পেজ CMS', icon: Mail },
-            { id: 'social', label: 'যোগাযোগ ও সোশ্যাল', icon: Share2 },
-            { id: 'social-share', label: 'সোশ্যাল প্রিভিউ (Social Share)', icon: Share2 },
-            { id: 'members', label: 'সদস্য প্রদর্শন শৈলী', icon: User },
-            { id: 'fund-privacy', label: 'তহবিল পিন সুরক্ষা', icon: Lock },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeSection === tab.id;
-            return (
-              <button
-                type="button"
-                key={tab.id}
-                onClick={() => setActiveSection(tab.id as any)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold whitespace-nowrap transition-all ${
-                  isActive
-                    ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
-                    : 'text-[#5C665F] hover:text-[#2D3630]'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {!hideSubNav && renderSubNav()}
 
       {/* 1. GENERAL IDENTITY */}
       {activeSection === 'general' && (
@@ -4958,17 +5008,12 @@ export const AdminSiteSettingsTab: React.FC<AdminSiteSettingsTabProps> = ({
         </div>
       )}
 
-      {/* 8. FUND PRIVACY PROTECTION */}
-      {activeSection === 'fund-privacy' && (
-        <AdminFundPrivacyPanel onShowToast={onShowToast} />
-      )}
-
-      {/* Save Action Bar */}
+      {/* Save Action Bar - dedicated to general site settings tabs */}
       <div className="sticky bottom-6 z-20 flex justify-end p-4 rounded-2xl bg-white/90 backdrop-blur-md border border-[#EBE8E0] shadow-lg">
         <button
           type="submit"
           disabled={isSaving}
-          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white font-semibold text-xs shadow-2xs active:scale-98 transition-all disabled:opacity-60"
+          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white font-semibold text-xs shadow-2xs active:scale-98 transition-all disabled:opacity-60 cursor-pointer"
         >
           {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           <span>

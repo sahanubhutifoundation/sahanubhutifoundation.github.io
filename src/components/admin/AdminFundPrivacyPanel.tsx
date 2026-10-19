@@ -14,11 +14,15 @@ import {
   Info,
 } from 'lucide-react';
 
+import { FoundationConfig } from '../../types';
+import { storageService } from '../../services/storageService';
+
 interface AdminFundPrivacyPanelProps {
   onShowToast?: (message: string, type?: 'success' | 'error') => void;
+  onConfigChange?: (config: FoundationConfig) => void;
 }
 
-export const AdminFundPrivacyPanel: React.FC<AdminFundPrivacyPanelProps> = ({ onShowToast }) => {
+export const AdminFundPrivacyPanel: React.FC<AdminFundPrivacyPanelProps> = ({ onShowToast, onConfigChange }) => {
   const currentSettings = fundPrivacyService.getSettings();
 
   const [isEnabled, setIsEnabled] = useState<boolean>(currentSettings.isEnabled);
@@ -30,14 +34,30 @@ export const AdminFundPrivacyPanel: React.FC<AdminFundPrivacyPanelProps> = ({ on
   const [pinChangeRequested, setPinChangeRequested] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string | undefined>(currentSettings.updatedAt);
 
-  useEffect(() => {
-    const s = fundPrivacyService.getSettings();
-    setIsEnabled(s.isEnabled);
-    setLastSavedTime(s.updatedAt);
-  }, []);
+  const isDirtyRef = React.useRef(false);
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    const syncState = () => {
+      if (isSaving || isDirtyRef.current) return;
+      const s = fundPrivacyService.getSettings();
+      setIsEnabled(s.isEnabled);
+      setLastSavedTime(s.updatedAt);
+    };
+    syncState();
+    window.addEventListener('sf_config_updated', syncState);
+    window.addEventListener('sf_fund_privacy_changed', syncState);
+    return () => {
+      window.removeEventListener('sf_config_updated', syncState);
+      window.removeEventListener('sf_fund_privacy_changed', syncState);
+    };
+  }, [isSaving]);
+
+  const handleSave = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      (e as any).nativeEvent?.stopImmediatePropagation?.();
+    }
 
     if (pinChangeRequested) {
       if (!newPin.trim()) {
@@ -63,17 +83,21 @@ export const AdminFundPrivacyPanel: React.FC<AdminFundPrivacyPanelProps> = ({ on
       });
 
       if (res.success) {
+        isDirtyRef.current = false;
         onShowToast?.(res.message, 'success');
         setNewPin('');
         setConfirmPin('');
         setPinChangeRequested(false);
         const fresh = fundPrivacyService.getSettings();
+        setIsEnabled(fresh.isEnabled);
         setLastSavedTime(fresh.updatedAt);
+        const updatedConfig = storageService.getConfig();
+        onConfigChange?.(updatedConfig);
       } else {
         onShowToast?.(res.message, 'error');
       }
-    } catch {
-      onShowToast?.('সেটিংস সংরক্ষণ করতে ব্যর্থ হয়েছে।', 'error');
+    } catch (err: any) {
+      onShowToast?.(err?.message || 'সেটিংস সংরক্ষণ করতে ব্যর্থ হয়েছে।', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -117,7 +141,7 @@ export const AdminFundPrivacyPanel: React.FC<AdminFundPrivacyPanelProps> = ({ on
         </div>
 
         {/* Protection Enable/Disable Toggle */}
-        <form onSubmit={handleSave} className="space-y-6">
+        <div className="space-y-6">
           <div className="p-4 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] space-y-3">
             <div className="flex items-center justify-between">
               <div>
@@ -132,7 +156,10 @@ export const AdminFundPrivacyPanel: React.FC<AdminFundPrivacyPanelProps> = ({ on
                 <input
                   type="checkbox"
                   checked={isEnabled}
-                  onChange={(e) => setIsEnabled(e.target.checked)}
+                  onChange={(e) => {
+                    isDirtyRef.current = true;
+                    setIsEnabled(e.target.checked);
+                  }}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2D5A41]"></div>
@@ -267,7 +294,8 @@ export const AdminFundPrivacyPanel: React.FC<AdminFundPrivacyPanelProps> = ({ on
           {/* Save Button */}
           <div className="flex items-center justify-end gap-3 pt-2">
             <button
-              type="submit"
+              type="button"
+              onClick={(e) => handleSave(e)}
               disabled={isSaving}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-bold shadow-xs hover:shadow transition-all disabled:opacity-60 cursor-pointer"
             >
@@ -284,7 +312,7 @@ export const AdminFundPrivacyPanel: React.FC<AdminFundPrivacyPanelProps> = ({ on
               )}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
