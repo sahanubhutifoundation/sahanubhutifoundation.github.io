@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, Mail } from 'lucide-react';
+import { Phone, Mail, Instagram } from 'lucide-react';
 
 /**
  * Recognizable Official WhatsApp Vector Icon
@@ -49,7 +49,15 @@ export const EmailEnvelopeIcon: React.FC<{ className?: string }> = ({ className 
   <Mail className={className} aria-hidden="true" />
 );
 
-export type ContactChannelType = 'whatsapp' | 'imo' | 'phone' | 'email';
+/**
+ * Recognizable Official Instagram Vector Icon
+ * Uses the authentic Instagram brand mark from the project's lucide-react icon library.
+ */
+export const InstagramIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <Instagram className={className} aria-hidden="true" focusable="false" />
+);
+
+export type ContactChannelType = 'whatsapp' | 'imo' | 'phone' | 'email' | 'instagram';
 
 interface UnifiedContactLinkProps {
   type: ContactChannelType;
@@ -127,6 +135,16 @@ export const UnifiedContactLink: React.FC<UnifiedContactLinkProps> = ({
       brandText = 'text-[#2D5A41]';
       break;
     }
+    case 'instagram': {
+      href = cleanValue.startsWith('http') ? cleanValue : `https://${cleanValue}`;
+      title = label || `Instagram: ${cleanValue}`;
+      ariaLabel = `Instagram Profile: ${cleanValue}`;
+      IconComponent = InstagramIcon;
+      brandBg = 'bg-[#E1306C]/10 text-[#E1306C] hover:bg-[#E1306C] hover:text-white border-[#E1306C]/20';
+      brandHover = 'hover:bg-[#E1306C] hover:text-white';
+      brandText = 'text-[#E1306C]';
+      break;
+    }
   }
 
   // Size variations
@@ -150,13 +168,14 @@ export const UnifiedContactLink: React.FC<UnifiedContactLinkProps> = ({
 
   const currentSize = sizeMap[size];
   const roundedClass = variant === 'circle' ? 'rounded-full' : 'rounded-xl';
+  const isExternalTarget = type === 'whatsapp' || type === 'instagram';
 
   if (variant === 'card') {
     return (
       <a
         href={href}
-        target={type === 'whatsapp' ? '_blank' : undefined}
-        rel={type === 'whatsapp' ? 'noopener noreferrer' : undefined}
+        target={isExternalTarget ? '_blank' : undefined}
+        rel={isExternalTarget ? 'noopener noreferrer' : undefined}
         title={title}
         aria-label={ariaLabel}
         className={`flex items-start gap-3 p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] hover:border-[#2D5A41]/40 transition-colors group ${className}`}
@@ -172,6 +191,8 @@ export const UnifiedContactLink: React.FC<UnifiedContactLinkProps> = ({
               ? 'WhatsApp'
               : type === 'imo'
               ? 'IMO'
+              : type === 'instagram'
+              ? 'ইনস্টাগ্রাম (Instagram)'
               : type === 'phone'
               ? 'ফোন (Phone)'
               : 'ইমেইল (Email)'}
@@ -187,8 +208,8 @@ export const UnifiedContactLink: React.FC<UnifiedContactLinkProps> = ({
   return (
     <a
       href={href}
-      target={type === 'whatsapp' ? '_blank' : undefined}
-      rel={type === 'whatsapp' ? 'noopener noreferrer' : undefined}
+      target={isExternalTarget ? '_blank' : undefined}
+      rel={isExternalTarget ? 'noopener noreferrer' : undefined}
       title={title}
       aria-label={ariaLabel}
       className={`inline-flex items-center justify-center shrink-0 transition-all cursor-pointer font-sans leading-none ${roundedClass} ${

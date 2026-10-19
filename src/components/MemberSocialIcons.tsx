@@ -1,6 +1,6 @@
 import React from 'react';
 import { Member } from '../types';
-import { UnifiedContactLink } from './ContactIcons';
+import { UnifiedContactLink, InstagramIcon } from './ContactIcons';
 
 interface MemberSocialIconsProps {
   member: Member;
@@ -66,7 +66,7 @@ export const MemberSocialIcons: React.FC<MemberSocialIconsProps> = ({
           aria-label="Instagram Profile"
           className={`${btnClass} shrink-0 rounded-full bg-[#E1306C]/10 text-[#E1306C] hover:bg-[#E1306C] hover:text-white flex items-center justify-center transition-colors font-bold font-sans leading-none`}
         >
-          in
+          <InstagramIcon className={size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
         </a>
       )}
 

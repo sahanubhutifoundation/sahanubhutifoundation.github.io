@@ -14,8 +14,12 @@ import { toBengaliDigits, formatFoundingDate, getMemberLocalizedField } from '..
 
 export const MembersPage: React.FC = () => {
   const { t, language, isRTL } = useLanguage();
-  const [members, setMembers] = useState<Member[]>([]);
-  const [designations, setDesignations] = useState<Designation[]>([]);
+  const [members, setMembers] = useState<Member[]>(() =>
+    storageService.getMembers().filter((m) => m.isActive)
+  );
+  const [designations, setDesignations] = useState<Designation[]>(() =>
+    storageService.getDesignations()
+  );
   const [config, setConfig] = useState(() => storageService.getConfig());
 
   const loadData = () => {

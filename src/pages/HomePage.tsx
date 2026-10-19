@@ -39,12 +39,52 @@ import {
 
 export const HomePage: React.FC = () => {
   const { t, tMulti, language, isRTL } = useLanguage();
-  const [config, setConfig] = useState<FoundationConfig>(storageService.getConfig());
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [notices, setNotices] = useState<Notice[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [designations, setDesignations] = useState<Designation[]>([]);
-  const [gallery, setGallery] = useState<GalleryItem[]>([]);
+  const [config, setConfig] = useState<FoundationConfig>(() => storageService.getConfig());
+  const [activities, setActivities] = useState<Activity[]>(() => {
+    const currentConfig = storageService.getConfig();
+    const allActivities = storageService.getActivities();
+    const published = allActivities.filter((a) => a.isPublished !== false);
+    const orderingMode = currentConfig.homeActivitiesOrdering || 'latest';
+    const featuredIds = currentConfig.homeFeaturedActivityIds || [];
+
+    let orderedActivities: Activity[] = [];
+    if (orderingMode === 'manual' || (featuredIds.length > 0 && orderingMode === 'featured')) {
+      const featured = featuredIds
+        .map((id) => published.find((a) => a.id === id))
+        .filter((a): a is Activity => !!a);
+
+      if (orderingMode === 'featured') {
+        const remaining = published
+          .filter((a) => !featuredIds.includes(a.id))
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        orderedActivities = [...featured, ...remaining];
+      } else {
+        orderedActivities = featured.length > 0 ? featured : [...published].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      }
+    } else if (orderingMode === 'oldest') {
+      orderedActivities = [...published].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    } else {
+      orderedActivities = [...published].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    }
+
+    const previewLimit = currentConfig.homeActivitiesLimit || 6;
+    return orderedActivities.slice(0, previewLimit);
+  });
+  const [notices, setNotices] = useState<Notice[]>(() =>
+    storageService.getNotices().filter((n) => n.isPublished).slice(0, 3)
+  );
+  const [members, setMembers] = useState<Member[]>(() =>
+    storageService
+      .getMembers()
+      .filter((m) => m.isActive)
+      .sort((a, b) => (a.serial || 0) - (b.serial || 0))
+  );
+  const [designations, setDesignations] = useState<Designation[]>(() =>
+    storageService.getDesignations()
+  );
+  const [gallery, setGallery] = useState<GalleryItem[]>(() =>
+    storageService.getGalleryItems().filter((g) => g.isPublished).slice(0, 4)
+  );
   const activitiesRailRef = React.useRef<HTMLDivElement>(null);
   const [windowWidth, setWindowWidth] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth : 1200
