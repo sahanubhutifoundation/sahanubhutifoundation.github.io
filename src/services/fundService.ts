@@ -397,8 +397,28 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     effectiveTotalCost = dbDeductedExpenseTotal > 0 ? dbDeductedExpenseTotal : totalCost;
   }
 
-  // Reconciled Available Net Balance = Total Received - Effective Deducted Cost
-  const effectiveBalance = totalReceived > 0 ? totalReceived - effectiveTotalCost : 0;
+  // 3. Other Monthly Contributions (Feature 1)
+  const otherContributions = storageService.getOtherMonthlyContributions(targetYearKey);
+  const otherMonthlyTotal = otherContributions.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
+
+  // 4. Purpose-Specific Separate Funds (Feature 2 & 3)
+  const allSpecialFunds = storageService.getSpecialFunds(targetYearKey);
+  const integratedFunds = allSpecialFunds.filter((f) => f.integrationMode === 'integrated');
+  const integratedDonationsTotal = integratedFunds.reduce((acc, f) => {
+    const cash = (f.donations || [])
+      .filter((d) => !d.isInKind || d.isCashEquivalent)
+      .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+    return acc + cash;
+  }, 0);
+  const integratedExpensesTotal = integratedFunds.reduce((acc, f) => {
+    const exp = (f.expenses || []).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    return acc + exp;
+  }, 0);
+
+  // Grand Total Received = Sheet Total Received + Other Monthly Contributions + Integrated Special Fund Collections
+  const grandTotalReceived = totalReceived + otherMonthlyTotal + integratedDonationsTotal;
+  const grandTotalCost = effectiveTotalCost + integratedExpensesTotal;
+  const grandBalance = grandTotalReceived > 0 ? grandTotalReceived - grandTotalCost : 0;
 
   // Discrepancy audit check against Google Sheet's static summary cell
   const balanceDiscrepancy =
@@ -406,14 +426,14 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
   const discrepancyDiff = dbDeductedExpenseTotal - totalCost;
 
   const expenseRatio =
-    totalReceived > 0 ? (effectiveTotalCost / totalReceived) * 100 : 0;
+    grandTotalReceived > 0 ? (grandTotalCost / grandTotalReceived) * 100 : 0;
   const safetyRatio = Math.max(0, 100 - expenseRatio);
 
   return {
-    totalFund: totalReceived,
-    amountReceived: totalReceived,
-    amountSpent: effectiveTotalCost,
-    currentBalance: effectiveBalance,
+    totalFund: grandTotalReceived,
+    amountReceived: grandTotalReceived,
+    amountSpent: grandTotalCost,
+    currentBalance: grandBalance,
     sheetSummaryCost: totalCost,
     sheetSummaryBalance: availableBalance,
     balanceDiscrepancy,
@@ -426,6 +446,9 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     memberRecords: members,
     transactions: [],
     expenses: dbExpenses,
+    otherMonthlyContributions: otherContributions,
+    otherMonthlyTotal,
+    specialFunds: allSpecialFunds,
     lastUpdated: new Date().toISOString(),
     sourceUrl: rawSourceUrl,
     sourceType: 'google_sheet',
@@ -497,15 +520,21 @@ function parseGenericTransactions(rows: string[][], rawSourceUrl: string): FundD
   }
 
   const dbExpenses = storageService.getExpenses();
+  const otherContributions = storageService.getOtherMonthlyContributions();
+  const otherMonthlyTotal = otherContributions.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const allSpecialFunds = storageService.getSpecialFunds();
 
   return {
-    totalFund: totalIncome,
-    amountReceived: totalIncome,
+    totalFund: totalIncome + otherMonthlyTotal,
+    amountReceived: totalIncome + otherMonthlyTotal,
     amountSpent: totalExpense,
-    currentBalance: totalIncome - totalExpense,
+    currentBalance: totalIncome + otherMonthlyTotal - totalExpense,
     contributorCount: contributors.size,
     transactions: txs.reverse(),
     expenses: dbExpenses,
+    otherMonthlyContributions: otherContributions,
+    otherMonthlyTotal,
+    specialFunds: allSpecialFunds,
     lastUpdated: new Date().toISOString(),
     sourceUrl: rawSourceUrl,
     sourceType: 'google_sheet',
@@ -551,6 +580,12 @@ export function getCachedFundData(year?: string): FundData | null {
       const effectiveSpent =
         dbExpenseTotal > 0 ? dbExpenseTotal : (data.sheetSummaryCost || 0);
       data.expenses = dbExpenses;
+      data.otherMonthlyContributions = storageService.getOtherMonthlyContributions(year);
+      data.otherMonthlyTotal = (data.otherMonthlyContributions || []).reduce(
+        (acc, c) => acc + (Number(c.amount) || 0),
+        0
+      );
+      data.specialFunds = storageService.getSpecialFunds(year);
       data.amountSpent = effectiveSpent;
       data.currentBalance = (data.amountReceived || 0) - effectiveSpent;
       data.expenseRatio =
@@ -579,16 +614,24 @@ export async function fetchFundData(
 ): Promise<FundData> {
   // If the sheet source URL is not configured or empty, return clean 'not_found' status
   if (!rawSourceUrl || !rawSourceUrl.trim()) {
+    const otherContributions = storageService.getOtherMonthlyContributions(selectedYear);
+    const otherMonthlyTotal = otherContributions.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const allSpecialFunds = storageService.getSpecialFunds(selectedYear);
+    const dbExpenses = storageService.getExpenses();
+
     return {
-      totalFund: 0,
-      amountReceived: 0,
+      totalFund: otherMonthlyTotal,
+      amountReceived: otherMonthlyTotal,
       amountSpent: 0,
-      currentBalance: 0,
+      currentBalance: otherMonthlyTotal,
       contributorCount: 0,
       yearlyReceived: {},
       monthlyTotals: {},
       transactions: [],
-      expenses: [],
+      expenses: dbExpenses,
+      otherMonthlyContributions: otherContributions,
+      otherMonthlyTotal,
+      specialFunds: allSpecialFunds,
       lastUpdated: new Date().toISOString(),
       sourceUrl: '',
       sourceType: 'google_sheet',

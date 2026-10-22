@@ -1449,4 +1449,59 @@ export const translations: TranslationDictionary = {
     en: 'Fill Contact Form',
     ar: 'ملء نموذج الاتصال',
   },
+  otherMonthlyContributionsTitle: {
+    bn: 'অন্যান্য মাসিক অনুদান',
+    en: 'Other Monthly Contributions',
+    ar: 'تبرعات شهرية أخرى',
+  },
+  otherMonthlyContributionsSubtitle: {
+    bn: 'মূল তহবিলে নিয়মিত সদস্য চাঁদার পাশাপাশি ব্যক্তিগত ও স্বেচ্ছাসেবী অনুদানের তালিকা',
+    en: 'List of individual voluntary contributions to the main fund alongside regular membership fees',
+    ar: 'قائمة بالمساهمات التطوعية الفردية في الصندوق الرئيسي إلى جانب الرسوم الدورية',
+  },
+  specialFundsTitle: {
+    bn: 'আলাদা ও বিশেষ তহবিল',
+    en: 'Separate & Special Purpose Funds',
+    ar: 'صناديق مخصصة ومشاريع خاصة',
+  },
+  specialFundsSubtitle: {
+    bn: 'ইফতার মাহফিল, জরুরি সহায়তা বা নির্দিষ্ট উদ্দেশ্যে গঠিত স্বতন্ত্র ফান্ড ও আলাদা আয়-ব্যয়',
+    en: 'Independent funds and income-expense ledgers for Iftar, relief, or dedicated events',
+    ar: 'صناديق وسجلات دخل ومصروفات مستقلة لإفطار رمضان، والإغاثة الطارئة، والمشاريع المخصصة',
+  },
+  anonymousContributor: {
+    bn: 'নাম প্রকাশে অনিচ্ছুক',
+    en: 'Anonymous Contributor',
+    ar: 'فاعل خير',
+  },
+  inKindSupportBadge: {
+    bn: 'পণ্য/সামগ্রী অনুদান',
+    en: 'In-Kind Support',
+    ar: 'تبرع عيني',
+  },
+  cashDonationBadge: {
+    bn: 'নগদ অনুদান',
+    en: 'Cash Donation',
+    ar: 'تبرع نقدي',
+  },
+  specialFundSurplus: {
+    bn: 'অবশিষ্ট উদ্বৃত্ত',
+    en: 'Surplus Balance',
+    ar: 'الفائض المتبقي',
+  },
+  specialFundDeficit: {
+    bn: 'ঘাটতি',
+    en: 'Deficit',
+    ar: 'عجز مالي',
+  },
+  integrationModeSeparate: {
+    bn: 'স্বতন্ত্র তহবিল',
+    en: 'Isolated Fund',
+    ar: 'صندوق مستقل',
+  },
+  integrationModeMain: {
+    bn: 'মূল ফান্ডে সমন্বিত',
+    en: 'Integrated into Main Fund',
+    ar: 'مدمج في الصندوق الرئيسي',
+  },
 };

@@ -10,6 +10,10 @@ import {
   SocialLink,
   ExpenseRecord,
   FundVisibilitySettings,
+  OtherMonthlyContribution,
+  SpecialFundRecord,
+  SpecialFundDonation,
+  SpecialFundExpense,
 } from '../types';
 import {
   initialConfig,
@@ -35,6 +39,8 @@ const KEYS = {
   MESSAGES: 'sf_foundation_inbox',
   SOCIAL: 'sf_foundation_social',
   EXPENSES: 'sf_foundation_expenses',
+  OTHER_CONTRIBUTIONS: 'sf_foundation_other_contributions',
+  SPECIAL_FUNDS: 'sf_foundation_special_funds',
 };
 
 // Helper for local storage access with safe error fallbacks
@@ -893,6 +899,177 @@ export const storageService = {
   },
 
   // --------------------------------------------------------------------------
+  // FEATURE 1: OTHER MONTHLY CONTRIBUTIONS (অন্যান্য মাসিক অনুদান)
+  // --------------------------------------------------------------------------
+
+  getOtherMonthlyContributions(year?: string): OtherMonthlyContribution[] {
+    const config = this.getConfig();
+    const configList = config.otherMonthlyContributions || [];
+    const localList = getLocalItem<OtherMonthlyContribution[]>(KEYS.OTHER_CONTRIBUTIONS, configList);
+    const combined = Array.isArray(localList) && localList.length > 0 ? localList : configList;
+
+    const filtered = year ? combined.filter((c) => String(c.year) === String(year)) : combined;
+    return [...filtered].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  },
+
+  saveOtherMonthlyContribution(item: OtherMonthlyContribution): OtherMonthlyContribution[] {
+    const all = this.getOtherMonthlyContributions();
+    const id = item.id || `other-contrib-${Date.now()}`;
+    const cleanItem: OtherMonthlyContribution = {
+      ...item,
+      id,
+      amount: Number(item.amount) || 0,
+      createdAt: item.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      source: item.source || 'admin',
+    };
+
+    const idx = all.findIndex((c) => c.id === id);
+    let updated: OtherMonthlyContribution[];
+    if (idx >= 0) {
+      updated = [...all];
+      updated[idx] = cleanItem;
+    } else {
+      updated = [cleanItem, ...all];
+    }
+
+    setLocalItem(KEYS.OTHER_CONTRIBUTIONS, updated);
+
+    // Sync to config and Supabase
+    const config = this.getConfig();
+    const updatedConfig: FoundationConfig = {
+      ...config,
+      otherMonthlyContributions: updated,
+    };
+    setLocalItem(KEYS.CONFIG, updatedConfig);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveConfigDetailed(updatedConfig).catch(console.warn);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: updatedConfig }));
+    }
+
+    return updated;
+  },
+
+  deleteOtherMonthlyContribution(id: string): OtherMonthlyContribution[] {
+    const all = this.getOtherMonthlyContributions();
+    const updated = all.filter((c) => c.id !== id);
+    setLocalItem(KEYS.OTHER_CONTRIBUTIONS, updated);
+
+    // Sync to config and Supabase
+    const config = this.getConfig();
+    const updatedConfig: FoundationConfig = {
+      ...config,
+      otherMonthlyContributions: updated,
+    };
+    setLocalItem(KEYS.CONFIG, updatedConfig);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveConfigDetailed(updatedConfig).catch(console.warn);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: updatedConfig }));
+    }
+
+    return updated;
+  },
+
+  // --------------------------------------------------------------------------
+  // FEATURE 2: PURPOSE-SPECIFIC SEPARATE FUNDS (আলাদা ও বিশেষ তহবিল)
+  // --------------------------------------------------------------------------
+
+  getSpecialFunds(year?: string): SpecialFundRecord[] {
+    const config = this.getConfig();
+    const configList = config.specialFunds || [];
+    const localList = getLocalItem<SpecialFundRecord[]>(KEYS.SPECIAL_FUNDS, configList);
+    const combined = Array.isArray(localList) && localList.length > 0 ? localList : configList;
+
+    const filtered = year ? combined.filter((f) => String(f.year) === String(year)) : combined;
+    return [...filtered].sort((a, b) => {
+      const dateA = a.eventDate || a.createdAtDate || a.createdAt;
+      const dateB = b.eventDate || b.createdAtDate || b.createdAt;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+  },
+
+  saveSpecialFund(fund: SpecialFundRecord): SpecialFundRecord[] {
+    const all = this.getSpecialFunds();
+    const id = fund.id || `sp-fund-${Date.now()}`;
+    const cleanFund: SpecialFundRecord = {
+      ...fund,
+      id,
+      year: fund.year || (fund.eventDate ? fund.eventDate.substring(0, 4) : '2026'),
+      status: fund.status || 'ongoing',
+      integrationMode: fund.integrationMode || 'separate',
+      donations: Array.isArray(fund.donations) ? fund.donations : [],
+      expenses: Array.isArray(fund.expenses) ? fund.expenses : [],
+      createdAt: fund.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const idx = all.findIndex((f) => f.id === id);
+    let updated: SpecialFundRecord[];
+    if (idx >= 0) {
+      updated = [...all];
+      updated[idx] = cleanFund;
+    } else {
+      updated = [cleanFund, ...all];
+    }
+
+    setLocalItem(KEYS.SPECIAL_FUNDS, updated);
+
+    // Sync to config and Supabase
+    const config = this.getConfig();
+    const updatedConfig: FoundationConfig = {
+      ...config,
+      specialFunds: updated,
+    };
+    setLocalItem(KEYS.CONFIG, updatedConfig);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveConfigDetailed(updatedConfig).catch(console.warn);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: updatedConfig }));
+    }
+
+    return updated;
+  },
+
+  deleteSpecialFund(id: string): SpecialFundRecord[] {
+    const all = this.getSpecialFunds();
+    const updated = all.filter((f) => f.id !== id);
+    setLocalItem(KEYS.SPECIAL_FUNDS, updated);
+
+    // Sync to config and Supabase
+    const config = this.getConfig();
+    const updatedConfig: FoundationConfig = {
+      ...config,
+      specialFunds: updated,
+    };
+    setLocalItem(KEYS.CONFIG, updatedConfig);
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveConfigDetailed(updatedConfig).catch(console.warn);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_config_updated', { detail: updatedConfig }));
+    }
+
+    return updated;
+  },
+
+  // --------------------------------------------------------------------------
   // ASYNCHRONOUS PRIMARY PRODUCTION BACKEND PERSISTENCE (Requirement 1 & 2)
   // Direct save -> verify -> local cache update -> dispatch event
   // --------------------------------------------------------------------------
@@ -1310,6 +1487,12 @@ export const storageService = {
       const cloudConfig = await supabaseService.fetchConfig();
       if (cloudConfig) {
         setLocalItem(KEYS.CONFIG, cloudConfig);
+        if (Array.isArray(cloudConfig.otherMonthlyContributions)) {
+          setLocalItem(KEYS.OTHER_CONTRIBUTIONS, cloudConfig.otherMonthlyContributions);
+        }
+        if (Array.isArray(cloudConfig.specialFunds)) {
+          setLocalItem(KEYS.SPECIAL_FUNDS, cloudConfig.specialFunds);
+        }
         synced.push('config');
       }
 
@@ -1409,6 +1592,8 @@ export const storageService = {
     const social = this.getSocialLinks();
     const expenses = this.getExpenses();
     const messages = this.getContactMessages();
+    const otherContributions = this.getOtherMonthlyContributions();
+    const specialFunds = this.getSpecialFunds();
     const nowIso = new Date().toISOString();
 
     const counts = {
@@ -1421,6 +1606,8 @@ export const storageService = {
       expenses: expenses.length,
       messages: messages.length,
       social: social.length,
+      otherContributions: otherContributions.length,
+      specialFunds: specialFunds.length,
       total:
         (cleanConfig ? 1 : 0) +
         designations.length +
@@ -1430,7 +1617,9 @@ export const storageService = {
         gallery.length +
         expenses.length +
         messages.length +
-        social.length,
+        social.length +
+        otherContributions.length +
+        specialFunds.length,
     };
 
     const data = {
@@ -1455,6 +1644,8 @@ export const storageService = {
         social,
         expenses,
         messages,
+        otherContributions,
+        specialFunds,
       },
       // Backward-compatibility flat keys
       config: cleanConfig,
@@ -1465,6 +1656,8 @@ export const storageService = {
       gallery,
       social,
       expenses,
+      otherContributions,
+      specialFunds,
       messages,
     };
     return JSON.stringify(data, null, 2);

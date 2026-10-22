@@ -343,6 +343,16 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
               desc: 'বিভিন্ন বছরের তহবিলের তুলনামূলক গ্রাফ প্রদর্শন করবে',
             },
             {
+              key: 'showOtherMonthlyContributions' as keyof FundVisibilitySettings,
+              label: 'অন্যান্য মাসিক অনুদান সেকশন',
+              desc: 'মূল তহবিলের অধীনে অতিরিক্ত ও বেনামী অনুদানের সেকশন প্রদর্শন করবে',
+            },
+            {
+              key: 'showSpecialFunds' as keyof FundVisibilitySettings,
+              label: 'আলাদা ও বিশেষ তহবিল সেকশন',
+              desc: 'ইফতার মাহফিল বা বিশেষ উদ্দেশ্যভিত্তিক স্বতন্ত্র তহবিলের কার্ড ও বিবরণ প্রদর্শন করবে',
+            },
+            {
               key: 'showSourceLinks' as keyof FundVisibilitySettings,
               label: 'গুগল শিট উৎস লিংক (Source Links)',
               desc: 'পাবলিক পেজে মূল স্প্রেডশিটের লিংক বাটন দেখাবে',

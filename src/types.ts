@@ -246,6 +246,98 @@ export interface FundVisibilitySettings {
   showHistoricalYears?: boolean;
   showActivityLinkedExpenses?: boolean;
   showSourceLinks?: boolean;
+  showOtherMonthlyContributions?: boolean;
+  showSpecialFunds?: boolean;
+}
+
+/**
+ * Additional Monthly Contributions to the Main Foundation Fund
+ * Supports both named and anonymous contributors without replacing sheet data.
+ */
+export interface OtherMonthlyContribution {
+  id: string;
+  date: string; // YYYY-MM-DD
+  month: string; // e.g. "Jan", "Feb", "Mar", etc.
+  year: string; // e.g. "2026"
+  amount: number; // in Bangladeshi Taka
+  contributorName?: string; // Optional name
+  isAnonymous: boolean; // If true, display "নাম প্রকাশে অনিচ্ছুক" / "Anonymous Contributor"
+  note?: string; // Optional short description or memo
+  source?: 'admin' | 'google_sheet';
+  sheetRowIndex?: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+/**
+ * Contributor donation to a separate purpose-specific fund
+ * Supports multiple donors, individual amounts, group donations, and in-kind items.
+ */
+export interface SpecialFundDonation {
+  id: string;
+  fundId?: string;
+  donorName?: string;
+  isAnonymous: boolean;
+  amount: number; // Cash amount in BDT (0 for non-cash equivalent in-kind items)
+  date?: string;
+  note?: string;
+  notes?: string;
+  isGroupDonation?: boolean;
+  donorCount?: number;
+  // In-kind goods/supplies support:
+  isInKind?: boolean;
+  inKindItem?: string; // e.g. "ট্যাং", "কাঁচা সবজি"
+  inKindEstimatedValue?: number; // Estimated market value in BDT
+  isCashEquivalent?: boolean; // If true, counted towards cash balance; if false, recorded as goods support
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Separate expense item for a specific purpose fund
+ */
+export interface SpecialFundExpense {
+  id: string;
+  fundId?: string;
+  title: string;
+  amount: number;
+  date?: string;
+  category?: string;
+  description?: string;
+  location?: string;
+  receiptUrl?: string;
+  note?: string;
+  notes?: string;
+  isIntegratedWithMainFund?: boolean;
+  linkedMainExpenseId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type FundIntegrationMode = 'separate' | 'integrated';
+export type SpecialFundStatus = 'ongoing' | 'active' | 'completed' | 'archived';
+
+/**
+ * Purpose-Specific Separate Fund Record (e.g. Ramadan Iftar Party, Food Distribution, Emergency Medical Aid)
+ */
+export interface SpecialFundRecord {
+  id: string;
+  name: string; // e.g. "রমজান ইফতার পার্টি ২০২৬"
+  purpose: string; // e.g. "ইফতার ও সামাজিক সম্প্রীতি"
+  description?: string;
+  createdAtDate?: string; // e.g. "2026-03-20"
+  eventDate?: string; // e.g. "2026-03-23"
+  year?: string; // e.g. "2026"
+  location?: string;
+  status?: SpecialFundStatus; // 'ongoing' | 'active' | 'completed' | 'archived'
+  integrationMode?: FundIntegrationMode; // 'separate' (default) or 'integrated'
+  donations: SpecialFundDonation[];
+  expenses: SpecialFundExpense[];
+  reportedTotalCollected?: number; // Historical stated figure for reconciliation validation
+  reportedTotalExpenses?: number;
+  reportedSurplus?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface YearlyFundSource {
@@ -351,6 +443,9 @@ export interface FundData {
   expenseRatio?: number;
   safetyRatio?: number;
   year?: string;
+  otherMonthlyContributions?: OtherMonthlyContribution[];
+  otherMonthlyTotal?: number;
+  specialFunds?: SpecialFundRecord[];
 }
 
 export interface ContactMessage {
@@ -550,6 +645,8 @@ export interface FoundationConfig {
   fundReconciliationMode?: 'detailed_ledger' | 'summary_authority' | 'reconciled';
   fundExpenseHeadings?: FundExpenseHeadings;
   fundMemberLinkSettings?: FundMemberLinkSettings;
+  otherMonthlyContributions?: OtherMonthlyContribution[];
+  specialFunds?: SpecialFundRecord[];
   contactPageConfig?: ContactPageConfig;
   footerAppearance?: FooterAppearanceSettings;
   homeSectionsAppearance?: HomeSectionsAppearanceConfig;

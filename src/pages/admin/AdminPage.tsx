@@ -13,6 +13,8 @@ import { AdminExpensesTab } from './AdminExpensesTab';
 import { AdminSiteSettingsTab } from './AdminSiteSettingsTab';
 import { AdminDesignationsManager } from './AdminDesignationsManager';
 import { AdminFundPrivacyPanel } from '../../components/admin/AdminFundPrivacyPanel';
+import { AdminOtherContributionsManager } from '../../components/admin/AdminOtherContributionsManager';
+import { AdminSpecialFundsManager } from '../../components/admin/AdminSpecialFundsManager';
 import { AdminSidebar, AdminSection } from './AdminSidebar';
 import { CloudSyncCard } from './CloudSyncCard';
 import { backupService } from '../../services/backupService';
@@ -70,6 +72,7 @@ import {
   Layers,
   Tag,
   Menu,
+  Heart,
   Sparkles,
   Globe,
   PhoneCall,
@@ -88,7 +91,7 @@ export const AdminPage: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [activeSection, setActiveSection] = useState<AdminSection>('overview');
   const [memberSubTab, setMemberSubTab] = useState<'list' | 'designations' | 'style'>('list');
-  const [fundSubTab, setFundSubTab] = useState<'sheet' | 'ledger' | 'privacy'>('sheet');
+  const [fundSubTab, setFundSubTab] = useState<'sheet' | 'other_contributions' | 'special_funds' | 'ledger' | 'privacy'>('sheet');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // State data
@@ -4027,6 +4030,32 @@ export const AdminPage: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => setFundSubTab('other_contributions')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                fundSubTab === 'other_contributions'
+                  ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                  : 'text-[#5C665F] hover:text-[#2D3630]'
+              }`}
+            >
+              <Heart className="w-3.5 h-3.5 text-rose-500" />
+              <span>অন্যান্য মাসিক অনুদান</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFundSubTab('special_funds')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                fundSubTab === 'special_funds'
+                  ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                  : 'text-[#5C665F] hover:text-[#2D3630]'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 text-teal-600" />
+              <span>আলাদা ও বিশেষ তহবিল</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setFundSubTab('ledger')}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 fundSubTab === 'ledger'
@@ -4054,6 +4083,26 @@ export const AdminPage: React.FC = () => {
 
           {fundSubTab === 'privacy' && (
             <AdminFundPrivacyPanel onShowToast={showToast} onConfigChange={setConfig} />
+          )}
+
+          {fundSubTab === 'other_contributions' && (
+            <AdminOtherContributionsManager
+              selectedYear="2026"
+              onDataChanged={() => {
+                showToast('অন্যান্য মাসিক অনুদানের তথ্য হালনাগাদ করা হয়েছে!');
+                loadAllData();
+              }}
+            />
+          )}
+
+          {fundSubTab === 'special_funds' && (
+            <AdminSpecialFundsManager
+              selectedYear="2026"
+              onDataChanged={() => {
+                showToast('বিশেষ তহবিলের তথ্য হালনাগাদ করা হয়েছে!');
+                loadAllData();
+              }}
+            />
           )}
 
           {fundSubTab === 'ledger' && (

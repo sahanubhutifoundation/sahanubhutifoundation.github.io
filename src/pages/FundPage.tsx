@@ -48,6 +48,8 @@ import {
 } from 'lucide-react';
 import { fundPrivacyService } from '../services/fundPrivacyService';
 import { FundPrivacyLockScreen } from '../components/FundPrivacyLockScreen';
+import { OtherMonthlyContributionsSection } from '../components/fund/OtherMonthlyContributionsSection';
+import { SpecialFundsSection } from '../components/fund/SpecialFundsSection';
 
 export const FundPage: React.FC = () => {
   const { t, language } = useLanguage();
@@ -1055,6 +1057,30 @@ export const FundPage: React.FC = () => {
               </div>
             </div>
           )}
+
+        {/* Additional Monthly Contributions to Main Fund */}
+        {visibility.showOtherMonthlyContributions !== false && (
+          <OtherMonthlyContributionsSection
+            contributions={
+              (fundData?.otherMonthlyContributions && fundData.otherMonthlyContributions.length > 0)
+                ? fundData.otherMonthlyContributions
+                : storageService.getOtherMonthlyContributions(selectedYear)
+            }
+            selectedYear={selectedYear}
+          />
+        )}
+
+        {/* Purpose-Specific Separate Funds (Special Funds) */}
+        {visibility.showSpecialFunds !== false && (
+          <SpecialFundsSection
+            specialFunds={
+              (fundData?.specialFunds && fundData.specialFunds.length > 0)
+                ? fundData.specialFunds
+                : storageService.getSpecialFunds(selectedYear)
+            }
+            selectedYear={selectedYear}
+          />
+        )}
 
         {/* Humanitarian Aid & Expense Ledger Section */}
         {visibility.showExpenseDetails !== false && displayExpenses.length > 0 && (
