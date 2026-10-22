@@ -250,6 +250,8 @@ export interface FundVisibilitySettings {
   showSpecialFunds?: boolean;
 }
 
+export type MainFundAccountingStatus = 'already_included' | 'not_included' | 'unverified';
+
 /**
  * Additional Monthly Contributions to the Main Foundation Fund
  * Supports both named and anonymous contributors without replacing sheet data.
@@ -265,6 +267,14 @@ export interface OtherMonthlyContribution {
   note?: string; // Optional short description or memo
   source?: 'admin' | 'google_sheet';
   sheetRowIndex?: number;
+
+  // Main-fund accounting status & inclusion
+  accountingStatus?: MainFundAccountingStatus;
+  includedInMainFund?: boolean; // true if this contribution is part of main fund total
+  isExplicitlyAdded?: boolean; // true if admin explicitly clicked "মূল ফান্ডে যোগ করুন"
+  reconciliationNote?: string;
+  includedAt?: string;
+
   createdAt: string;
   updatedAt?: string;
 }

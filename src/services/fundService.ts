@@ -1,4 +1,4 @@
-import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord, Language } from '../types';
+import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord, Language, OtherMonthlyContribution } from '../types';
 import { storageService } from './storageService';
 
 const CACHE_PREFIX = 'sf_fund_cache_data_v4_';
@@ -158,6 +158,77 @@ export function parseNumber(val: any): number {
 
   const num = parseFloat(westernized);
   return isNaN(num) ? 0 : num;
+}
+
+/**
+ * Calculates the incremental amount from other monthly contributions that should be
+ * added to the authoritative main fund total, strictly preventing double-counting.
+ *
+ * Rules:
+ * 1. If accountingStatus is 'already_included', the amount is ALREADY inside the authoritative
+ *    sheet/baseline total, so incremental addition is 0 (prevents double-counting).
+ * 2. If accountingStatus is 'not_included':
+ *    - If includedInMainFund is true, add +amount exactly once.
+ *    - If includedInMainFund is false, incremental addition is 0 (not yet added).
+ * 3. If accountingStatus is 'unverified' or missing, do NOT add to main fund until verified.
+ * 4. If authoritative baseline totalReceived is 0 (e.g., no sheet configured), any contribution
+ *    marked includedInMainFund === true is counted towards the main fund.
+ */
+export function calculateEligibleAdditionalContributionsTotal(
+  contributions: OtherMonthlyContribution[],
+  baselineReceived: number
+): {
+  eligibleTotalToAdd: number;
+  allIncludedTotal: number;
+  alreadyIncludedBaselineTotal: number;
+  explicitlyAddedTotal: number;
+  pendingInclusionTotal: number;
+  unverifiedTotal: number;
+} {
+  let eligibleTotalToAdd = 0;
+  let allIncludedTotal = 0;
+  let alreadyIncludedBaselineTotal = 0;
+  let explicitlyAddedTotal = 0;
+  let pendingInclusionTotal = 0;
+  let unverifiedTotal = 0;
+
+  for (const c of contributions) {
+    const amt = Number(c.amount) || 0;
+    if (amt <= 0) continue;
+
+    const status = c.accountingStatus;
+
+    if (status === 'already_included') {
+      alreadyIncludedBaselineTotal += amt;
+      allIncludedTotal += amt;
+      // If baselineReceived == 0 (no sheet exists), then already_included contributions
+      // still form the baseline fund balance!
+      if (baselineReceived === 0) {
+        eligibleTotalToAdd += amt;
+      }
+    } else if (status === 'not_included') {
+      if (c.includedInMainFund) {
+        explicitlyAddedTotal += amt;
+        allIncludedTotal += amt;
+        eligibleTotalToAdd += amt;
+      } else {
+        pendingInclusionTotal += amt;
+      }
+    } else {
+      // unverified or legacy without explicit accounting status
+      unverifiedTotal += amt;
+      // Strictly prevent double-counting: unverified records are NOT added automatically
+    }
+  }
+
+  return {
+    eligibleTotalToAdd,
+    allIncludedTotal,
+    alreadyIncludedBaselineTotal,
+    explicitlyAddedTotal,
+    pendingInclusionTotal,
+    unverifiedTotal,
+  };
 }
 
 /**
@@ -397,9 +468,13 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     effectiveTotalCost = dbDeductedExpenseTotal > 0 ? dbDeductedExpenseTotal : totalCost;
   }
 
-  // 3. Other Monthly Contributions (Feature 1)
+  // 3. Other Monthly Contributions (Feature 1) with Strict Double-Counting Prevention
   const otherContributions = storageService.getOtherMonthlyContributions(targetYearKey);
-  const otherMonthlyTotal = otherContributions.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
+  const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
+    otherContributions,
+    totalReceived
+  );
+  const otherMonthlyTotal = eligibleTotalToAdd;
 
   // 4. Purpose-Specific Separate Funds (Feature 2 & 3)
   const allSpecialFunds = storageService.getSpecialFunds(targetYearKey);
@@ -521,7 +596,11 @@ function parseGenericTransactions(rows: string[][], rawSourceUrl: string): FundD
 
   const dbExpenses = storageService.getExpenses();
   const otherContributions = storageService.getOtherMonthlyContributions();
-  const otherMonthlyTotal = otherContributions.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
+    otherContributions,
+    totalIncome
+  );
+  const otherMonthlyTotal = eligibleTotalToAdd;
   const allSpecialFunds = storageService.getSpecialFunds();
 
   return {
@@ -581,10 +660,11 @@ export function getCachedFundData(year?: string): FundData | null {
         dbExpenseTotal > 0 ? dbExpenseTotal : (data.sheetSummaryCost || 0);
       data.expenses = dbExpenses;
       data.otherMonthlyContributions = storageService.getOtherMonthlyContributions(year);
-      data.otherMonthlyTotal = (data.otherMonthlyContributions || []).reduce(
-        (acc, c) => acc + (Number(c.amount) || 0),
-        0
+      const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
+        data.otherMonthlyContributions || [],
+        data.amountReceived || 0
       );
+      data.otherMonthlyTotal = eligibleTotalToAdd;
       data.specialFunds = storageService.getSpecialFunds(year);
       data.amountSpent = effectiveSpent;
       data.currentBalance = (data.amountReceived || 0) - effectiveSpent;
@@ -615,7 +695,11 @@ export async function fetchFundData(
   // If the sheet source URL is not configured or empty, return clean 'not_found' status
   if (!rawSourceUrl || !rawSourceUrl.trim()) {
     const otherContributions = storageService.getOtherMonthlyContributions(selectedYear);
-    const otherMonthlyTotal = otherContributions.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
+      otherContributions,
+      0
+    );
+    const otherMonthlyTotal = eligibleTotalToAdd;
     const allSpecialFunds = storageService.getSpecialFunds(selectedYear);
     const dbExpenses = storageService.getExpenses();
 
