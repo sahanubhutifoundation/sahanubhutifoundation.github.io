@@ -15,6 +15,7 @@ import { AdminDesignationsManager } from './AdminDesignationsManager';
 import { AdminFundPrivacyPanel } from '../../components/admin/AdminFundPrivacyPanel';
 import { AdminOtherContributionsManager } from '../../components/admin/AdminOtherContributionsManager';
 import { AdminSpecialFundsManager } from '../../components/admin/AdminSpecialFundsManager';
+import { AdminReceiptSettingsTab } from '../../components/admin/AdminReceiptSettingsTab';
 import { AdminSidebar, AdminSection } from './AdminSidebar';
 import { CloudSyncCard } from './CloudSyncCard';
 import { backupService } from '../../services/backupService';
@@ -91,7 +92,7 @@ export const AdminPage: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [activeSection, setActiveSection] = useState<AdminSection>('overview');
   const [memberSubTab, setMemberSubTab] = useState<'list' | 'designations' | 'style'>('list');
-  const [fundSubTab, setFundSubTab] = useState<'sheet' | 'other_contributions' | 'special_funds' | 'ledger' | 'privacy'>('sheet');
+  const [fundSubTab, setFundSubTab] = useState<'sheet' | 'other_contributions' | 'special_funds' | 'ledger' | 'privacy' | 'receipt_settings'>('sheet');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // State data
@@ -203,7 +204,17 @@ export const AdminPage: React.FC = () => {
     handleCloseCropModal();
     showToast('ছবি সফলভাবে সংরক্ষিত হয়েছে।');
   };
-  const [editingActivity, setEditingActivity] = useState<Partial<Activity> | null>(null);
+  const [editingActivity, setEditingActivity] = useState<
+    | (Partial<Activity> & {
+        isFundLinked?: boolean;
+        fundLinkMode?: 'existing' | 'new';
+        newExpenseTitle?: string;
+        newExpenseAmount?: number;
+        newExpenseDate?: string;
+        newExpenseCategory?: string;
+      })
+    | null
+  >(null);
   const [activitySubTab, setActivitySubTab] = useState<'list' | 'categories'>('list');
   const [editingNotice, setEditingNotice] = useState<Partial<Notice> | null>(null);
   const [editingGallery, setEditingGallery] = useState<Partial<GalleryItem> | null>(null);
@@ -640,8 +651,49 @@ export const AdminPage: React.FC = () => {
     const beneficiariesVal = editingActivity.beneficiaries ? getMulti(editingActivity.beneficiaries) : undefined;
     const outcomesVal = editingActivity.outcomes ? getMulti(editingActivity.outcomes) : undefined;
 
+    const actId = editingActivity.id || `act-${Date.now()}`;
+    let finalLinkedExpenseId: string | undefined = undefined;
+
+    if (editingActivity.isFundLinked) {
+      if (editingActivity.fundLinkMode === 'new' && editingActivity.newExpenseAmount) {
+        const newExpId = `exp-${Date.now()}`;
+        const newExp: ExpenseRecord = {
+          id: newExpId,
+          date: editingActivity.newExpenseDate || editingActivity.date || new Date().toISOString().split('T')[0],
+          amount: Number(editingActivity.newExpenseAmount),
+          title: editingActivity.newExpenseTitle || titleStr,
+          category: editingActivity.newExpenseCategory || editingActivity.category || 'অন্যান্য',
+          linkedActivityId: actId,
+          activityId: actId,
+          isPublic: true,
+          isVerified: true,
+          createdAt: new Date().toISOString(),
+        };
+        const expRes = await storageService.saveExpenseAsync(newExp);
+        if (expRes.success && expRes.data) {
+          setExpenses(expRes.data);
+        }
+        finalLinkedExpenseId = newExpId;
+      } else if (editingActivity.fundLinkMode !== 'new' && editingActivity.linkedExpenseId) {
+        finalLinkedExpenseId = editingActivity.linkedExpenseId;
+        const targetExp = expenses.find((e) => e.id === editingActivity.linkedExpenseId);
+        if (targetExp) {
+          const expRes = await storageService.saveExpenseAsync({
+            ...targetExp,
+            linkedActivityId: actId,
+            activityId: actId,
+          });
+          if (expRes.success && expRes.data) {
+            setExpenses(expRes.data);
+          }
+        }
+      }
+    } else {
+      finalLinkedExpenseId = undefined;
+    }
+
     const newAct: Activity = {
-      id: editingActivity.id || `act-${Date.now()}`,
+      id: actId,
       slug: editingActivity.slug || titleStr.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `activity-${Date.now()}`,
       title: titleObj,
       summary: summaryVal,
@@ -660,7 +712,7 @@ export const AdminPage: React.FC = () => {
       images: Array.isArray(editingActivity.images) ? editingActivity.images : [],
       galleryImages: Array.isArray(editingActivity.galleryImages) ? editingActivity.galleryImages : [],
       isPublished: editingActivity.isPublished !== false,
-      linkedExpenseId: editingActivity.linkedExpenseId || undefined,
+      linkedExpenseId: finalLinkedExpenseId,
       financialRecord: editingActivity.financialRecord || undefined,
       badge: (() => {
         if (!editingActivity.badge) return undefined;
@@ -2732,7 +2784,7 @@ export const AdminPage: React.FC = () => {
 
             {activitySubTab === 'list' && (
               <button
-                onClick={() => setEditingActivity({ isPublished: true, showShortSummaryInDetail: false, showOnMediaPage: false })}
+                onClick={() => setEditingActivity({ isPublished: true, showShortSummaryInDetail: false, showOnMediaPage: false, isFundLinked: false, fundLinkMode: 'existing' })}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold shadow-2xs transition-colors self-start sm:self-auto"
               >
                 <Plus className="w-4 h-4" />
@@ -3102,6 +3154,124 @@ export const AdminPage: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* Link to Fund Expense */}
+                    <div className="p-4 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Wallet className="w-4 h-4 text-[#2D5A41]" />
+                        <label className="font-bold text-[#2D3630]">
+                          ফান্ডের হিসাবের সঙ্গে যুক্ত করুন?
+                        </label>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#2D3630]">
+                          <input
+                            type="radio"
+                            name="linkToFund"
+                            checked={!editingActivity.isFundLinked}
+                            onChange={() => setEditingActivity({ ...editingActivity, isFundLinked: false })}
+                            className="text-[#2D5A41] accent-[#2D5A41]"
+                          />
+                          <span>না, শুধু কার্যক্রম হিসেবে রাখুন</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#2D3630]">
+                          <input
+                            type="radio"
+                            name="linkToFund"
+                            checked={Boolean(editingActivity.isFundLinked)}
+                            onChange={() => setEditingActivity({
+                              ...editingActivity,
+                              isFundLinked: true,
+                              fundLinkMode: editingActivity.fundLinkMode || (editingActivity.linkedExpenseId ? 'existing' : 'existing'),
+                            })}
+                            className="text-[#2D5A41] accent-[#2D5A41]"
+                          />
+                          <span>হ্যাঁ, ফান্ডের খরচের সঙ্গে যুক্ত করুন</span>
+                        </label>
+                      </div>
+
+                      {/* When Yes is selected */}
+                      {Boolean(editingActivity.isFundLinked) && (
+                        <div className="pt-3 border-t border-[#EBE8E0] space-y-3">
+                          <div className="flex gap-4 text-xs font-medium">
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="fundLinkMode"
+                                checked={editingActivity.fundLinkMode !== 'new'}
+                                onChange={() => setEditingActivity({ ...editingActivity, fundLinkMode: 'existing' })}
+                                className="accent-[#2D5A41]"
+                              />
+                              <span>লেজারের বিদ্যমান খরচ নির্বাচন করুন</span>
+                            </label>
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="fundLinkMode"
+                                checked={editingActivity.fundLinkMode === 'new'}
+                                onChange={() => setEditingActivity({ ...editingActivity, fundLinkMode: 'new' })}
+                                className="accent-[#2D5A41]"
+                              />
+                              <span>নতুন খরচ তৈরি করে যুক্ত করুন</span>
+                            </label>
+                          </div>
+
+                          {editingActivity.fundLinkMode === 'new' ? (
+                            <div className="p-3 bg-white rounded-lg border border-[#EBE8E0] grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                              <div className="sm:col-span-2">
+                                <label className="block font-bold text-[#2D3630] mb-1">ব্যয়ের খাত ও বিবরণ</label>
+                                <input
+                                  type="text"
+                                  value={editingActivity.newExpenseTitle || (typeof editingActivity.title === 'object' ? editingActivity.title.bn : editingActivity.title || '')}
+                                  onChange={(e) => setEditingActivity({ ...editingActivity, newExpenseTitle: e.target.value })}
+                                  placeholder="যেমন: জরুরি ওষুধ সহায়তা কর্মসূচি ব্যয়"
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block font-bold text-[#2D3630] mb-1">ব্যয়ের পরিমাণ (টাকা) *</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={editingActivity.newExpenseAmount || ''}
+                                  onChange={(e) => setEditingActivity({ ...editingActivity, newExpenseAmount: Number(e.target.value) })}
+                                  placeholder="যেমন: ১৫০০"
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] font-mono"
+                                />
+                              </div>
+                              <div>
+                                <label className="block font-bold text-[#2D3630] mb-1">ব্যয়ের তারিখ</label>
+                                <input
+                                  type="date"
+                                  value={editingActivity.newExpenseDate || editingActivity.date || ''}
+                                  onChange={(e) => setEditingActivity({ ...editingActivity, newExpenseDate: e.target.value })}
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630]"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block font-bold text-[#2D3630] mb-1">
+                                বিদ্যমান খরচ তালিকা থেকে বাছাই করুন:
+                              </label>
+                              <select
+                                value={editingActivity.linkedExpenseId || ''}
+                                onChange={(e) => setEditingActivity({ ...editingActivity, linkedExpenseId: e.target.value })}
+                                className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] text-xs"
+                              >
+                                <option value="">-- খরচ নির্বাচন করুন --</option>
+                                {expenses.map((exp) => (
+                                  <option key={exp.id} value={exp.id}>
+                                    {exp.title} (৳{exp.amount.toLocaleString()} - {exp.date})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -3187,13 +3357,17 @@ export const AdminPage: React.FC = () => {
 
                     <div className="flex items-center gap-2 self-end sm:self-center shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#EBE8E0] w-full sm:w-auto justify-end">
                       <button
-                        onClick={() =>
+                        onClick={() => {
+                          const linkedExp = expenses.find((e) => e.linkedActivityId === act.id || e.activityId === act.id);
                           setEditingActivity({
                             ...act,
                             showOnMediaPage: Boolean(act.showOnMediaPage),
                             showShortSummaryInDetail: Boolean(act.showShortSummaryInDetail),
-                          })
-                        }
+                            isFundLinked: Boolean(act.linkedExpenseId || linkedExp),
+                            fundLinkMode: 'existing',
+                            linkedExpenseId: act.linkedExpenseId || linkedExp?.id || '',
+                          });
+                        }}
                         className="p-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] hover:text-[#2D5A41] hover:bg-[#F7F5F0]"
                         title="সম্পাদনা"
                       >
@@ -4079,7 +4253,29 @@ export const AdminPage: React.FC = () => {
               <Lock className="w-3.5 h-3.5" />
               <span>Fund Privacy Protection (তহবিল পিন সুরক্ষা)</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setFundSubTab('receipt_settings')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                fundSubTab === 'receipt_settings'
+                  ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                  : 'text-[#5C665F] hover:text-[#2D3630]'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5 text-emerald-600" />
+              <span>অনলাইন রসিদ ডিজাইন ও সেটিংস</span>
+            </button>
           </div>
+
+          {fundSubTab === 'receipt_settings' && (
+            <AdminReceiptSettingsTab
+              config={config}
+              onConfigChange={setConfig}
+              showToast={showToast}
+              triggerSyncStatus={triggerSyncStatus}
+            />
+          )}
 
           {fundSubTab === 'privacy' && (
             <AdminFundPrivacyPanel onShowToast={showToast} onConfigChange={setConfig} />

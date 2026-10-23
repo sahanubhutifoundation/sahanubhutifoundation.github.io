@@ -45,11 +45,13 @@ import {
   Info,
   Layers,
   Lock,
+  FileText,
 } from 'lucide-react';
 import { fundPrivacyService } from '../services/fundPrivacyService';
 import { FundPrivacyLockScreen } from '../components/FundPrivacyLockScreen';
 import { OtherMonthlyContributionsSection } from '../components/fund/OtherMonthlyContributionsSection';
 import { SpecialFundsSection } from '../components/fund/SpecialFundsSection';
+import { OnlineReceiptModal } from '../components/receipt/OnlineReceiptModal';
 
 export const FundPage: React.FC = () => {
   const { t, language } = useLanguage();
@@ -68,6 +70,30 @@ export const FundPage: React.FC = () => {
   const [isAccessGranted, setIsAccessGranted] = useState<boolean>(() =>
     fundPrivacyService.isAccessGranted()
   );
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+
+  // Auto-scroll and highlight target expense when navigating from an activity
+  useEffect(() => {
+    if (!isAccessGranted) return;
+    const urlParams = new URLSearchParams(location.search);
+    const targetExpenseId = urlParams.get('expenseId') || (location.hash ? location.hash.replace('#expense-', '') : '');
+    if (!targetExpenseId) return;
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`expense-${targetExpenseId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedExpenseId(targetExpenseId);
+        const clearTimer = setTimeout(() => {
+          setHighlightedExpenseId(null);
+        }, 4000);
+        return () => clearTimeout(clearTimer);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [location.search, location.hash, isAccessGranted, fundData]);
 
   // Available yearly sources from config (only enabled and public on public page)
   const yearlySources: YearlyFundSource[] = useMemo(() => {
@@ -1119,7 +1145,15 @@ export const FundPage: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-[#EBE8E0]">
                   {displayExpenses.map((exp) => (
-                    <tr key={exp.id} className="hover:bg-[#FDFCF9] transition-colors">
+                    <tr
+                      key={exp.id}
+                      id={`expense-${exp.id}`}
+                      className={`transition-all duration-300 ${
+                        highlightedExpenseId === exp.id
+                          ? 'bg-amber-100/90 ring-2 ring-amber-500 rounded-lg shadow-md font-semibold'
+                          : 'hover:bg-[#FDFCF9]'
+                      }`}
+                    >
                       <td className="py-3 px-4 font-mono text-[#5C665F] whitespace-nowrap">
                         {formatLocalizedNumber(exp.date, language)}
                       </td>
@@ -1257,7 +1291,46 @@ export const FundPage: React.FC = () => {
             </div>
           </div>
         )}
+        {/* Online Donation Receipt Generator Entry Point */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1E3E2B] via-[#2D5A41] to-[#1E3E2B] text-white p-6 sm:p-8 shadow-lg border border-emerald-700/40">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+            <div className="space-y-2 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-800/80 text-emerald-200 border border-emerald-600/40">
+                <FileText className="w-3.5 h-3.5" />
+                <span>ডিজিটাল মানি রসিদ</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                আপনার অনলাইন রসিদ সংগ্রহ করুন
+              </h3>
+              <p className="text-sm text-emerald-100/90 max-w-xl">
+                আপনার জমাকৃত মাসিক চাঁদা বা অনুদানের রসিদ নির্বাচন করুন এবং ডাউনলোড করুন।
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsReceiptModalOpen(true)}
+              className="flex-shrink-0 inline-flex items-center gap-2.5 px-6 py-3.5 bg-white hover:bg-emerald-50 text-emerald-950 font-bold text-sm sm:text-base rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+            >
+              <FileText className="w-5 h-5 text-emerald-700" />
+              <span>অনলাইন রসিদ সংগ্রহ করুন</span>
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Online Receipt Generator Modal */}
+      <OnlineReceiptModal
+        isOpen={isReceiptModalOpen}
+        onClose={() => setIsReceiptModalOpen(false)}
+        config={config}
+        membersList={membersList}
+        yearlySources={yearlySources}
+        currentYear={selectedYear}
+        memberRecords={fundData?.memberRecords || []}
+        onYearChange={handleSelectYear}
+        isLoadingYearData={loading}
+      />
 
       {/* Receipt / Voucher Lightbox Modal */}
       {activeReceiptUrl && (

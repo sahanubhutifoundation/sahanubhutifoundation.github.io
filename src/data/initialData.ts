@@ -790,6 +790,33 @@ Sahanubhuti Foundation`,
 
   galleryCategories: ['মানবিক সহায়তা', 'পারিবারিক উদ্যোগ', 'সভা', 'ইফতার ও দোয়া', 'ওষুধ সহায়তা', 'অন্যান্য'],
   activityCategories: ['ওষুধ ও চিকিৎসা', 'বাইতুল মাল', 'জরুরি মানবিক সহায়তা', 'পারিবারিক সমাবেশ'],
+  donationReceiptSettings: {
+    fieldVisibility: {
+      showAddress: true,
+      showPhone: true,
+      showDonorSerial: true,
+      showWordsAmount: true,
+      showCollectorSignature: true,
+      showWatermark: true,
+      showNotes: true,
+      showDisclaimer: true,
+    },
+    labels: {
+      receiptTitle: 'দান গ্রহণ রসিদ',
+      organizationNameBangla: 'সহানুভূতি ফাউন্ডেশন',
+      organizationNameEnglish: 'Sahanubhuti Foundation',
+      sloganBangla: 'মানবতার সেবায় নিয়োজিত',
+      organizationAddress: 'মৌলভী বাড়ি, মোহাম্মদ আলী বাজারের নিকটে, শর্শদী, ফেনী সদর, ফেনী, বাংলাদেশ',
+      organizationContact: 'ফেসবুক: fb.com/sahanubhutifoundation',
+      thankYouMessage: 'ধন্যবাদসহ গ্রহণ করা হলো। আপনার অনুদান মানবতার কল্যাণে ব্যবহৃত হবে।',
+      signatureLabel: 'আদায়কারী / অনুমোদিত স্বাক্ষর',
+      disclaimerText: 'এটি একটি কম্পিউটার জেনারেটেড ডিজিটাল রসিদ।',
+    },
+    signaturePlacement: 'bottom-right',
+    signatureWidth: 140,
+    receiptPrefix: 'SF-MR',
+    borderStyle: 'ornate',
+  },
 };
 
 // Initial verified activity

@@ -660,9 +660,43 @@ export interface FoundationConfig {
   contactPageConfig?: ContactPageConfig;
   footerAppearance?: FooterAppearanceSettings;
   homeSectionsAppearance?: HomeSectionsAppearanceConfig;
+  donationReceiptSettings?: DonationReceiptSettings;
   customTranslations?: {
     [key: string]: MultilingualText;
   };
+}
+
+export interface ReceiptFieldVisibility {
+  showAddress?: boolean;
+  showPhone?: boolean;
+  showDonorSerial?: boolean;
+  showWordsAmount?: boolean;
+  showCollectorSignature?: boolean;
+  showWatermark?: boolean;
+  showNotes?: boolean;
+  showDisclaimer?: boolean;
+}
+
+export interface ReceiptCustomLabels {
+  receiptTitle?: string;
+  organizationNameBangla?: string;
+  organizationNameEnglish?: string;
+  sloganBangla?: string;
+  organizationAddress?: string;
+  organizationContact?: string;
+  thankYouMessage?: string;
+  signatureLabel?: string;
+  disclaimerText?: string;
+}
+
+export interface DonationReceiptSettings {
+  fieldVisibility: ReceiptFieldVisibility;
+  labels: ReceiptCustomLabels;
+  signatureImageUrl?: string; // transparent PNG
+  signaturePlacement?: 'bottom-right' | 'bottom-center' | 'bottom-left';
+  signatureWidth?: number; // width in px, default 140
+  receiptPrefix?: string; // e.g. "SF-MR"
+  borderStyle?: 'ornate' | 'classic' | 'modern' | 'minimal';
 }
 
 export interface FooterAppearanceSettings {

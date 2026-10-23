@@ -238,6 +238,18 @@ export const storageService = {
             isEnabled: saved.fundPrivacy.isEnabled === false ? false : Boolean(saved.fundPrivacy.isEnabled),
           }
         : initialConfig.fundPrivacy,
+      donationReceiptSettings: {
+        ...initialConfig.donationReceiptSettings!,
+        ...(saved.donationReceiptSettings || {}),
+        fieldVisibility: {
+          ...initialConfig.donationReceiptSettings!.fieldVisibility,
+          ...(saved.donationReceiptSettings?.fieldVisibility || {}),
+        },
+        labels: {
+          ...initialConfig.donationReceiptSettings!.labels,
+          ...(saved.donationReceiptSettings?.labels || {}),
+        },
+      },
     };
   },
 

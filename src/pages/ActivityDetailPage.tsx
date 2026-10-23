@@ -318,13 +318,27 @@ export const ActivityDetailPage: React.FC = () => {
                 </div>
               </div>
 
-              <Link
-                to={location.state?.selectedYear ? `/fund?year=${location.state.selectedYear}` : '/fund'}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#2D5A41] text-[#2D5A41] hover:bg-[#E8EFEA] text-xs font-bold transition-colors shrink-0 self-start sm:self-auto"
-              >
-                <span>{t('viewFundStatement')}</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </Link>
+              {(() => {
+                const targetExpenseId = activity.linkedExpenseId || (linkedExpenses.length > 0 ? linkedExpenses[0].id : '');
+                return targetExpenseId ? (
+                  <Link
+                    to={`/fund?expenseId=${targetExpenseId}#expense-${targetExpenseId}`}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-bold shadow-sm transition-all shrink-0 self-start sm:self-auto group"
+                  >
+                    <Wallet className="w-4 h-4 text-emerald-200" />
+                    <span>{language === 'ar' ? 'عرض تفاصيل مصروفات النشاط' : language === 'en' ? 'View Activity Expense Details' : 'কার্যক্রমের খরচের বিস্তারিত দেখুন'}</span>
+                    <ExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </Link>
+                ) : (
+                  <Link
+                    to={location.state?.selectedYear ? `/fund?year=${location.state.selectedYear}` : '/fund'}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#2D5A41] text-[#2D5A41] hover:bg-[#E8EFEA] text-xs font-bold transition-colors shrink-0 self-start sm:self-auto"
+                  >
+                    <span>{t('viewFundStatement')}</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </Link>
+                );
+              })()}
             </div>
 
             {linkedExpenses.length > 0 && (
@@ -332,15 +346,26 @@ export const ActivityDetailPage: React.FC = () => {
                 <span className="text-[11px] font-bold text-[#5C665F]">{t('canonicalLedgerRecords')}</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {linkedExpenses.map((exp) => (
-                    <div key={exp.id} className="p-3 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] flex items-center justify-between text-xs">
+                    <Link
+                      key={exp.id}
+                      to={`/fund?expenseId=${exp.id}#expense-${exp.id}`}
+                      className="p-3 rounded-xl bg-[#F7F5F0] hover:bg-[#E8EFEA] border border-[#EBE8E0] hover:border-[#2D5A41]/40 flex items-center justify-between text-xs transition-colors group"
+                      title="ফান্ডে বিস্তারিত দেখুন"
+                    >
                       <div>
-                        <span className="font-bold text-[#2D3630] block">{getLocalizedValue(exp.title, language)}</span>
+                        <span className="font-bold text-[#2D3630] group-hover:text-[#2D5A41] block">{getLocalizedValue(exp.title, language)}</span>
                         <span className="text-[10px] text-[#7A877E]">{language === 'bn' ? toBengaliDigits(exp.date) : exp.date}</span>
                       </div>
-                      <span className="font-mono font-bold text-rose-600 bg-white px-2 py-0.5 rounded-md border border-[#EBE8E0]">
-                        -৳ {language === 'bn' ? toBengaliDigits(Number(exp.amount)) : Number(exp.amount).toLocaleString()}
-                      </span>
-                    </div>
+                      <div className="text-right">
+                        <span className="font-mono font-bold text-rose-600 bg-white px-2 py-0.5 rounded-md border border-[#EBE8E0] block">
+                          -৳ {language === 'bn' ? toBengaliDigits(Number(exp.amount)) : Number(exp.amount).toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-[#2D5A41] font-semibold flex items-center justify-end gap-0.5 mt-1">
+                          <span>ফান্ডে দেখুন</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </span>
+                      </div>
+                    </Link>
                   ))}
                 </div>
               </div>
