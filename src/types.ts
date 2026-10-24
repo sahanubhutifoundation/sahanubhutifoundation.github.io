@@ -162,6 +162,8 @@ export interface Activity {
   galleryImages?: string[];
   isPublished: boolean;
   linkedExpenseId?: string;
+  linkedExpenseIds?: string[]; // Multiple main-fund expense IDs
+  linkedSpecialExpenses?: Array<{ fundId: string; expenseId: string }>; // Multiple special-fund expense references
   financialRecord?: ActivityFinancialRecord;
   order?: number;
   purpose?: MultilingualText;
@@ -304,6 +306,18 @@ export interface SpecialFundDonation {
 }
 
 /**
+ * Expense document attachment (receipt, voucher, invoice, photo, PDF)
+ */
+export interface ExpenseAttachment {
+  id: string;
+  name: string;
+  url: string; // Data URL or remote URL
+  fileType: string; // e.g. 'application/pdf' | 'image/png' | 'image/jpeg' | 'image/webp'
+  fileSize: number; // size in bytes
+  uploadedAt: string;
+}
+
+/**
  * Separate expense item for a specific purpose fund
  */
 export interface SpecialFundExpense {
@@ -316,10 +330,12 @@ export interface SpecialFundExpense {
   description?: string;
   location?: string;
   receiptUrl?: string;
+  attachments?: ExpenseAttachment[]; // Multiple receipts / vouchers / invoices (PDF, PNG, JPG, WebP)
   note?: string;
   notes?: string;
   isIntegratedWithMainFund?: boolean;
   linkedMainExpenseId?: string;
+  linkedActivityId?: string;
   createdAt?: string;
   updatedAt?: string;
 }

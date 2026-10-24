@@ -206,6 +206,9 @@ export const AdminPage: React.FC = () => {
   };
   const [editingActivity, setEditingActivity] = useState<
     | (Partial<Activity> & {
+        activityExpenseMode?: 'none' | 'main' | 'special' | 'both';
+        selectedMainExpenseIds?: string[];
+        selectedSpecialExpenses?: Array<{ fundId: string; expenseId: string }>;
         isFundLinked?: boolean;
         fundLinkMode?: 'existing' | 'new';
         newExpenseTitle?: string;
@@ -652,44 +655,61 @@ export const AdminPage: React.FC = () => {
     const outcomesVal = editingActivity.outcomes ? getMulti(editingActivity.outcomes) : undefined;
 
     const actId = editingActivity.id || `act-${Date.now()}`;
-    let finalLinkedExpenseId: string | undefined = undefined;
+    const mode = editingActivity.activityExpenseMode || (editingActivity.isFundLinked ? 'main' : 'none');
 
-    if (editingActivity.isFundLinked) {
-      if (editingActivity.fundLinkMode === 'new' && editingActivity.newExpenseAmount) {
-        const newExpId = `exp-${Date.now()}`;
-        const newExp: ExpenseRecord = {
-          id: newExpId,
-          date: editingActivity.newExpenseDate || editingActivity.date || new Date().toISOString().split('T')[0],
-          amount: Number(editingActivity.newExpenseAmount),
-          title: editingActivity.newExpenseTitle || titleStr,
-          category: editingActivity.newExpenseCategory || editingActivity.category || 'অন্যান্য',
+    let finalMainExpenseIds: string[] = [];
+    let finalSpecialExpenses: Array<{ fundId: string; expenseId: string }> = [];
+
+    if (mode === 'main' || mode === 'both') {
+      finalMainExpenseIds = Array.isArray(editingActivity.selectedMainExpenseIds)
+        ? [...editingActivity.selectedMainExpenseIds]
+        : [];
+      if (editingActivity.linkedExpenseId && !finalMainExpenseIds.includes(editingActivity.linkedExpenseId)) {
+        finalMainExpenseIds.push(editingActivity.linkedExpenseId);
+      }
+    }
+
+    if (mode === 'special' || mode === 'both') {
+      finalSpecialExpenses = Array.isArray(editingActivity.selectedSpecialExpenses)
+        ? [...editingActivity.selectedSpecialExpenses]
+        : [];
+    }
+
+    // Link target main expenses
+    for (const expId of finalMainExpenseIds) {
+      const targetExp = expenses.find((e) => e.id === expId);
+      if (targetExp && targetExp.linkedActivityId !== actId) {
+        await storageService.saveExpenseAsync({
+          ...targetExp,
           linkedActivityId: actId,
           activityId: actId,
-          isPublic: true,
-          isVerified: true,
-          createdAt: new Date().toISOString(),
-        };
-        const expRes = await storageService.saveExpenseAsync(newExp);
-        if (expRes.success && expRes.data) {
-          setExpenses(expRes.data);
-        }
-        finalLinkedExpenseId = newExpId;
-      } else if (editingActivity.fundLinkMode !== 'new' && editingActivity.linkedExpenseId) {
-        finalLinkedExpenseId = editingActivity.linkedExpenseId;
-        const targetExp = expenses.find((e) => e.id === editingActivity.linkedExpenseId);
-        if (targetExp) {
-          const expRes = await storageService.saveExpenseAsync({
-            ...targetExp,
-            linkedActivityId: actId,
-            activityId: actId,
+        });
+      }
+    }
+
+    // Link target special expenses
+    if (finalSpecialExpenses.length > 0) {
+      const spFunds = storageService.getSpecialFunds();
+      for (const item of finalSpecialExpenses) {
+        const targetFund = spFunds.find((f) => f.id === item.fundId);
+        if (targetFund) {
+          let fundChanged = false;
+          const updatedExpenses = (targetFund.expenses || []).map((exp) => {
+            if (exp.id === item.expenseId && exp.linkedActivityId !== actId) {
+              fundChanged = true;
+              return { ...exp, linkedActivityId: actId };
+            }
+            return exp;
           });
-          if (expRes.success && expRes.data) {
-            setExpenses(expRes.data);
+          if (fundChanged) {
+            storageService.saveSpecialFund({
+              ...targetFund,
+              expenses: updatedExpenses,
+              updatedAt: new Date().toISOString(),
+            });
           }
         }
       }
-    } else {
-      finalLinkedExpenseId = undefined;
     }
 
     const newAct: Activity = {
@@ -712,7 +732,9 @@ export const AdminPage: React.FC = () => {
       images: Array.isArray(editingActivity.images) ? editingActivity.images : [],
       galleryImages: Array.isArray(editingActivity.galleryImages) ? editingActivity.galleryImages : [],
       isPublished: editingActivity.isPublished !== false,
-      linkedExpenseId: finalLinkedExpenseId,
+      linkedExpenseId: finalMainExpenseIds[0] || undefined,
+      linkedExpenseIds: finalMainExpenseIds,
+      linkedSpecialExpenses: finalSpecialExpenses,
       financialRecord: editingActivity.financialRecord || undefined,
       badge: (() => {
         if (!editingActivity.badge) return undefined;
@@ -3154,120 +3176,242 @@ export const AdminPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Link to Fund Expense */}
-                    <div className="p-4 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] space-y-3">
+                    {/* Link to Fund Expenses: Multi-Expense Management (Main Fund and/or Special Purpose Funds) */}
+                    <div className="p-4 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] space-y-4">
                       <div className="flex items-center gap-2">
                         <Wallet className="w-4 h-4 text-[#2D5A41]" />
-                        <label className="font-bold text-[#2D3630]">
-                          ফান্ডের হিসাবের সঙ্গে যুক্ত করুন?
+                        <label className="font-bold text-[#2D3630] text-xs sm:text-sm">
+                          এই কার্যক্রমের খরচ কীভাবে পরিচালনা করবেন?
                         </label>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#2D3630]">
-                          <input
-                            type="radio"
-                            name="linkToFund"
-                            checked={!editingActivity.isFundLinked}
-                            onChange={() => setEditingActivity({ ...editingActivity, isFundLinked: false })}
-                            className="text-[#2D5A41] accent-[#2D5A41]"
-                          />
-                          <span>না, শুধু কার্যক্রম হিসেবে রাখুন</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#2D3630]">
-                          <input
-                            type="radio"
-                            name="linkToFund"
-                            checked={Boolean(editingActivity.isFundLinked)}
-                            onChange={() => setEditingActivity({
-                              ...editingActivity,
-                              isFundLinked: true,
-                              fundLinkMode: editingActivity.fundLinkMode || (editingActivity.linkedExpenseId ? 'existing' : 'existing'),
-                            })}
-                            className="text-[#2D5A41] accent-[#2D5A41]"
-                          />
-                          <span>হ্যাঁ, ফান্ডের খরচের সঙ্গে যুক্ত করুন</span>
-                        </label>
+                      {/* 4 Explicit Choices */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {[
+                          { key: 'none', label: 'শুধু কার্যক্রম হিসেবে রাখুন' },
+                          { key: 'main', label: 'মূল সাধারণ ফান্ডের খরচ যুক্ত করুন' },
+                          { key: 'special', label: 'আলাদা/বিশেষ ফান্ডের খরচ যুক্ত করুন' },
+                          { key: 'both', label: 'সাধারণ ও বিশেষ উভয় ফান্ডের খরচ যুক্ত করুন' },
+                        ].map((opt) => (
+                          <label
+                            key={opt.key}
+                            className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                              (editingActivity.activityExpenseMode || 'none') === opt.key
+                                ? 'bg-white border-[#2D5A41] shadow-2xs font-bold text-[#2D5A41]'
+                                : 'bg-[#FDFCF9] border-[#EBE8E0] text-[#5C665F] hover:bg-white'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="activityExpenseMode"
+                              checked={(editingActivity.activityExpenseMode || 'none') === opt.key}
+                              onChange={() =>
+                                setEditingActivity({
+                                  ...editingActivity,
+                                  activityExpenseMode: opt.key as any,
+                                  isFundLinked: opt.key !== 'none',
+                                })
+                              }
+                              className="accent-[#2D5A41]"
+                            />
+                            <span>{opt.label}</span>
+                          </label>
+                        ))}
                       </div>
 
-                      {/* When Yes is selected */}
-                      {Boolean(editingActivity.isFundLinked) && (
-                        <div className="pt-3 border-t border-[#EBE8E0] space-y-3">
-                          <div className="flex gap-4 text-xs font-medium">
-                            <label className="flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="fundLinkMode"
-                                checked={editingActivity.fundLinkMode !== 'new'}
-                                onChange={() => setEditingActivity({ ...editingActivity, fundLinkMode: 'existing' })}
-                                className="accent-[#2D5A41]"
-                              />
-                              <span>লেজারের বিদ্যমান খরচ নির্বাচন করুন</span>
-                            </label>
-                            <label className="flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="fundLinkMode"
-                                checked={editingActivity.fundLinkMode === 'new'}
-                                onChange={() => setEditingActivity({ ...editingActivity, fundLinkMode: 'new' })}
-                                className="accent-[#2D5A41]"
-                              />
-                              <span>নতুন খরচ তৈরি করে যুক্ত করুন</span>
-                            </label>
+                      {/* SECTION A: MAIN FUND EXPENSES */}
+                      {((editingActivity.activityExpenseMode === 'main') || (editingActivity.activityExpenseMode === 'both')) && (
+                        <div className="p-3.5 bg-white rounded-xl border border-emerald-200/80 space-y-3">
+                          <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
+                            <span className="font-bold text-xs text-[#2D5A41] flex items-center gap-1.5">
+                              <Wallet className="w-3.5 h-3.5" />
+                              <span>মূল সাধারণ ফান্ডের যুক্তকৃত খরচসমূহ</span>
+                            </span>
+                            <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              {(editingActivity.selectedMainExpenseIds || []).length}টি খরচ যুক্ত
+                            </span>
                           </div>
 
-                          {editingActivity.fundLinkMode === 'new' ? (
-                            <div className="p-3 bg-white rounded-lg border border-[#EBE8E0] grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                              <div className="sm:col-span-2">
-                                <label className="block font-bold text-[#2D3630] mb-1">ব্যয়ের খাত ও বিবরণ</label>
-                                <input
-                                  type="text"
-                                  value={editingActivity.newExpenseTitle || (typeof editingActivity.title === 'object' ? editingActivity.title.bn : editingActivity.title || '')}
-                                  onChange={(e) => setEditingActivity({ ...editingActivity, newExpenseTitle: e.target.value })}
-                                  placeholder="যেমন: জরুরি ওষুধ সহায়তা কর্মসূচি ব্যয়"
-                                  className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630]"
-                                />
-                              </div>
-                              <div>
-                                <label className="block font-bold text-[#2D3630] mb-1">ব্যয়ের পরিমাণ (টাকা) *</label>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={editingActivity.newExpenseAmount || ''}
-                                  onChange={(e) => setEditingActivity({ ...editingActivity, newExpenseAmount: Number(e.target.value) })}
-                                  placeholder="যেমন: ১৫০০"
-                                  className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] font-mono"
-                                />
-                              </div>
-                              <div>
-                                <label className="block font-bold text-[#2D3630] mb-1">ব্যয়ের তারিখ</label>
-                                <input
-                                  type="date"
-                                  value={editingActivity.newExpenseDate || editingActivity.date || ''}
-                                  onChange={(e) => setEditingActivity({ ...editingActivity, newExpenseDate: e.target.value })}
-                                  className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630]"
-                                />
-                              </div>
-                            </div>
+                          {/* List of currently linked main fund expenses */}
+                          {(editingActivity.selectedMainExpenseIds || []).length === 0 ? (
+                            <p className="text-xs text-gray-400 italic py-1">
+                              এখনো সাধারণ ফান্ডের কোনো খরচ যুক্ত করা হয়নি।
+                            </p>
                           ) : (
-                            <div>
-                              <label className="block font-bold text-[#2D3630] mb-1">
-                                বিদ্যমান খরচ তালিকা থেকে বাছাই করুন:
-                              </label>
-                              <select
-                                value={editingActivity.linkedExpenseId || ''}
-                                onChange={(e) => setEditingActivity({ ...editingActivity, linkedExpenseId: e.target.value })}
-                                className="w-full px-2.5 py-1.5 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] text-xs"
-                              >
-                                <option value="">-- খরচ নির্বাচন করুন --</option>
-                                {expenses.map((exp) => (
-                                  <option key={exp.id} value={exp.id}>
-                                    {exp.title} (৳{exp.amount.toLocaleString()} - {exp.date})
-                                  </option>
-                                ))}
-                              </select>
+                            <div className="space-y-1.5">
+                              {(editingActivity.selectedMainExpenseIds || []).map((expId) => {
+                                const exp = expenses.find((e) => e.id === expId);
+                                return (
+                                  <div
+                                    key={expId}
+                                    className="flex items-center justify-between p-2 rounded-lg bg-emerald-50/50 border border-emerald-100 text-xs"
+                                  >
+                                    <div className="overflow-hidden">
+                                      <span className="font-bold text-[#2D3630] block truncate">
+                                        {exp ? exp.title : `খরচ #${expId.slice(-4)}`}
+                                      </span>
+                                      <span className="text-[10px] text-gray-500">
+                                        {exp?.date || 'তারিখ নেই'} • ৳{exp ? exp.amount.toLocaleString() : '—'}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setEditingActivity({
+                                          ...editingActivity,
+                                          selectedMainExpenseIds: (editingActivity.selectedMainExpenseIds || []).filter(
+                                            (id) => id !== expId
+                                          ),
+                                        })
+                                      }
+                                      className="text-rose-600 hover:text-rose-800 text-[11px] font-semibold px-2 py-1 rounded hover:bg-rose-50"
+                                      title="শুধু এই কার্যক্রম থেকে সংযোগ বাতিল করুন (মূল ফান্ড থেকে ডিলিট হবে না)"
+                                    >
+                                      সংযোগ বাতিল
+                                    </button>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
+
+                          {/* Link Existing Main Expense Dropdown */}
+                          <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row items-center gap-2">
+                            <select
+                              id="linkMainExpSelect"
+                              className="w-full sm:flex-1 px-2.5 py-1.5 bg-[#FDFCF9] border border-gray-300 rounded-lg text-xs"
+                              defaultValue=""
+                            >
+                              <option value="">-- সাধারণ ফান্ডের বিদ্যমান খরচ নির্বাচন করুন --</option>
+                              {expenses
+                                .filter((e) => !(editingActivity.selectedMainExpenseIds || []).includes(e.id))
+                                .map((e) => (
+                                  <option key={e.id} value={e.id}>
+                                    {e.title} (৳{e.amount.toLocaleString()} - {e.date})
+                                  </option>
+                                ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const sel = document.getElementById('linkMainExpSelect') as HTMLSelectElement;
+                                if (sel && sel.value) {
+                                  const cur = editingActivity.selectedMainExpenseIds || [];
+                                  if (!cur.includes(sel.value)) {
+                                    setEditingActivity({
+                                      ...editingActivity,
+                                      selectedMainExpenseIds: [...cur, sel.value],
+                                    });
+                                  }
+                                  sel.value = '';
+                                }
+                              }}
+                              className="w-full sm:w-auto px-3 py-1.5 bg-[#2D5A41] hover:bg-[#234733] text-white rounded-lg text-xs font-semibold shrink-0"
+                            >
+                              + লিঙ্ক করুন
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SECTION B: SPECIAL PURPOSE FUNDS EXPENSES */}
+                      {((editingActivity.activityExpenseMode === 'special') || (editingActivity.activityExpenseMode === 'both')) && (
+                        <div className="p-3.5 bg-white rounded-xl border border-teal-200/80 space-y-3">
+                          <div className="flex items-center justify-between pb-2 border-b border-teal-100">
+                            <span className="font-bold text-xs text-teal-800 flex items-center gap-1.5">
+                              <Wallet className="w-3.5 h-3.5" />
+                              <span>আলাদা / বিশেষ ফান্ডের যুক্তকৃত খরচসমূহ</span>
+                            </span>
+                            <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                              {(editingActivity.selectedSpecialExpenses || []).length}টি খরচ যুক্ত
+                            </span>
+                          </div>
+
+                          {/* List of currently linked special fund expenses */}
+                          {(editingActivity.selectedSpecialExpenses || []).length === 0 ? (
+                            <p className="text-xs text-gray-400 italic py-1">
+                              এখনো কোনো বিশেষ ফান্ডের খরচ যুক্ত করা হয়নি।
+                            </p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {(editingActivity.selectedSpecialExpenses || []).map((item, idx) => {
+                                const allSpecialFunds = storageService.getSpecialFunds();
+                                const fund = allSpecialFunds.find((f) => f.id === item.fundId);
+                                const exp = fund?.expenses.find((e) => e.id === item.expenseId);
+                                return (
+                                  <div
+                                    key={`${item.fundId}-${item.expenseId}-${idx}`}
+                                    className="flex items-center justify-between p-2 rounded-lg bg-teal-50/50 border border-teal-100 text-xs"
+                                  >
+                                    <div className="overflow-hidden">
+                                      <span className="font-bold text-teal-950 block truncate">
+                                        {exp ? exp.title : `বিশেষ ব্যয় #${item.expenseId.slice(-4)}`}
+                                      </span>
+                                      <span className="text-[10px] text-gray-500">
+                                        তহবিল: <strong className="text-teal-900">{fund?.name || 'অজ্ঞাত তহবিল'}</strong> • ৳{exp ? exp.amount.toLocaleString() : '—'}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setEditingActivity({
+                                          ...editingActivity,
+                                          selectedSpecialExpenses: (editingActivity.selectedSpecialExpenses || []).filter(
+                                            (s) => !(s.fundId === item.fundId && s.expenseId === item.expenseId)
+                                          ),
+                                        })
+                                      }
+                                      className="text-rose-600 hover:text-rose-800 text-[11px] font-semibold px-2 py-1 rounded hover:bg-rose-50"
+                                      title="শুধু এই কার্যক্রম থেকে সংযোগ বাতিল করুন (বিশেষ তহবিল থেকে ডিলিট হবে না)"
+                                    >
+                                      সংযোগ বাতিল
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Link Existing Special Expense Dropdown */}
+                          <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row items-center gap-2">
+                            <select
+                              id="linkSpecialExpSelect"
+                              className="w-full sm:flex-1 px-2.5 py-1.5 bg-[#FDFCF9] border border-gray-300 rounded-lg text-xs"
+                              defaultValue=""
+                            >
+                              <option value="">-- বিশেষ ফান্ডের বিদ্যমান খরচ নির্বাচন করুন --</option>
+                              {storageService.getSpecialFunds().flatMap((f) =>
+                                (f.expenses || []).map((e) => (
+                                  <option key={`${f.id}:::${e.id}`} value={`${f.id}:::${e.id}`}>
+                                    [{f.name}] {e.title} (৳{e.amount.toLocaleString()} - {e.date || ''})
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const sel = document.getElementById('linkSpecialExpSelect') as HTMLSelectElement;
+                                if (sel && sel.value) {
+                                  const [fundId, expenseId] = sel.value.split(':::');
+                                  if (fundId && expenseId) {
+                                    const cur = editingActivity.selectedSpecialExpenses || [];
+                                    const exists = cur.some((s) => s.fundId === fundId && s.expenseId === expenseId);
+                                    if (!exists) {
+                                      setEditingActivity({
+                                        ...editingActivity,
+                                        selectedSpecialExpenses: [...cur, { fundId, expenseId }],
+                                      });
+                                    }
+                                  }
+                                  sel.value = '';
+                                }
+                              }}
+                              className="w-full sm:w-auto px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold shrink-0"
+                            >
+                              + লিঙ্ক করুন
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -3359,13 +3503,25 @@ export const AdminPage: React.FC = () => {
                       <button
                         onClick={() => {
                           const linkedExp = expenses.find((e) => e.linkedActivityId === act.id || e.activityId === act.id);
+                          const mainIds = (act.linkedExpenseIds && act.linkedExpenseIds.length > 0)
+                            ? act.linkedExpenseIds
+                            : (act.linkedExpenseId ? [act.linkedExpenseId] : (linkedExp ? [linkedExp.id] : []));
+                          const spExps = act.linkedSpecialExpenses || [];
+                          let mode: 'none' | 'main' | 'special' | 'both' = 'none';
+                          if (mainIds.length > 0 && spExps.length > 0) mode = 'both';
+                          else if (mainIds.length > 0) mode = 'main';
+                          else if (spExps.length > 0) mode = 'special';
+
                           setEditingActivity({
                             ...act,
                             showOnMediaPage: Boolean(act.showOnMediaPage),
                             showShortSummaryInDetail: Boolean(act.showShortSummaryInDetail),
-                            isFundLinked: Boolean(act.linkedExpenseId || linkedExp),
+                            activityExpenseMode: mode,
+                            selectedMainExpenseIds: mainIds,
+                            selectedSpecialExpenses: spExps,
+                            isFundLinked: mode !== 'none',
                             fundLinkMode: 'existing',
-                            linkedExpenseId: act.linkedExpenseId || linkedExp?.id || '',
+                            linkedExpenseId: mainIds[0] || '',
                           });
                         }}
                         className="p-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] hover:text-[#2D5A41] hover:bg-[#F7F5F0]"

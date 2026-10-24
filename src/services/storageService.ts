@@ -868,11 +868,19 @@ export const storageService = {
   },
 
   // Humanitarian Assistance Expenses Ledger
-  getExpenses(): ExpenseRecord[] {
+  getExpenses(year?: string | number): ExpenseRecord[] {
     const list = getLocalItem<ExpenseRecord[]>(KEYS.EXPENSES, initialExpenses);
-    return list
+    const normalized = list
       .map((e) => normalizeExpense(e))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    if (!year) return normalized;
+    const yearStr = String(year).trim();
+    return normalized.filter((e) => {
+      if (e.year && String(e.year).trim() === yearStr) return true;
+      if (e.date && e.date.startsWith(yearStr)) return true;
+      return false;
+    });
   },
 
   saveExpense(expense: ExpenseRecord, skipRemoteSync = false): ExpenseRecord[] {

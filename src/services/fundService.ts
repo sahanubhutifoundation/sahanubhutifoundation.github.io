@@ -254,7 +254,12 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
         else if (col.includes('total') && !col.includes('year') && !col.includes('monthly')) colMap.total = cIdx;
 
         MONTH_KEYS.forEach((m) => {
-          if (col === m.toLowerCase() || col.endsWith(' ' + m.toLowerCase())) {
+          const bnMonth = MONTH_NAMES_BN[m]?.toLowerCase();
+          if (
+            col === m.toLowerCase() ||
+            col.endsWith(' ' + m.toLowerCase()) ||
+            (bnMonth && (col === bnMonth || col.includes(bnMonth)))
+          ) {
             colMap[m] = cIdx;
           }
         });
@@ -369,8 +374,23 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     // 6. Member Row
     const nameCell = colMap.name !== undefined ? rawRow[colMap.name]?.trim() : '';
     const noCell = colMap.no !== undefined ? rawRow[colMap.no]?.trim() : '';
+    const lowerName = nameCell.toLowerCase();
+    const isSummaryRow =
+      lowerName.includes('total') ||
+      lowerName.includes('সর্বমোট') ||
+      lowerName.includes('মোট') ||
+      lowerName.includes('খরচ') ||
+      lowerName.includes('ব্যয়') ||
+      lowerName.includes('মওজুদ') ||
+      lowerName.includes('অবশিষ্ট') ||
+      lowerName.includes('স্থিতি') ||
+      lowerName.includes('balance') ||
+      lowerName.includes('received') ||
+      lowerName.includes('গ্র্যান্ড');
+
     const isMemberRow =
       nameCell &&
+      !isSummaryRow &&
       (parseNumber(noCell) > 0 || (rawRow[colMap.commitment] && parseNumber(rawRow[colMap.commitment]) > 0));
 
     if (isMemberRow) {
@@ -442,9 +462,9 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
 
   // Authoritative Expense Ledger Reconciliation
   // 1. Google Sheet summary cost (e.g. 4,950) is retained as sheetSummaryCost
-  // 2. Database expenses ledger provides audited granular expenses
+  // 2. Database expenses ledger provides audited granular expenses for THIS SPECIFIC YEAR
   const config = storageService.getConfig();
-  const dbExpenses = storageService.getExpenses();
+  const dbExpenses = storageService.getExpenses(targetYearKey);
 
   // Calculate fund-deducted expenses (only deducting when deductionMode !== 'separate' && deductionMode !== 'display_only')
   const fundDeductedExpenses = dbExpenses.filter(
@@ -648,7 +668,7 @@ export function getCachedFundData(year?: string): FundData | null {
       if (year && data.year && data.year !== year) {
         return null;
       }
-      const dbExpenses = storageService.getExpenses();
+      const dbExpenses = storageService.getExpenses(year);
       const fundDeductedExpenses = dbExpenses.filter(
         (e) => e.deductionMode !== 'separate' && e.deductionMode !== 'display_only'
       );
@@ -701,7 +721,7 @@ export async function fetchFundData(
     );
     const otherMonthlyTotal = eligibleTotalToAdd;
     const allSpecialFunds = storageService.getSpecialFunds(selectedYear);
-    const dbExpenses = storageService.getExpenses();
+    const dbExpenses = storageService.getExpenses(selectedYear);
 
     return {
       totalFund: otherMonthlyTotal,
@@ -738,7 +758,7 @@ export async function fetchFundData(
       ? `${baseGvizUrl}${baseGvizUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`
       : baseGvizUrl;
 
-  const dbExpenses = storageService.getExpenses();
+  const dbExpenses = storageService.getExpenses(selectedYear);
 
   if (!exportUrl && !gvizUrl) {
     return {

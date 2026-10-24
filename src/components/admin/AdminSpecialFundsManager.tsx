@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SpecialFundRecord, SpecialFundDonation, SpecialFundExpense, SpecialFundStatus } from '../../types';
+import { SpecialFundRecord, SpecialFundDonation, SpecialFundExpense, SpecialFundStatus, ExpenseAttachment } from '../../types';
 import { storageService } from '../../services/storageService';
 import {
   Layers,
@@ -21,7 +21,12 @@ import {
   FileText,
   AlertTriangle,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Upload,
+  Paperclip,
+  Eye,
+  ExternalLink,
+  Image as ImageIcon
 } from 'lucide-react';
 
 interface AdminSpecialFundsManagerProps {
@@ -68,6 +73,13 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
   const [expenseDate, setExpenseDate] = useState('');
   const [expenseCategory, setExpenseCategory] = useState('ইফতার সামগ্রী');
   const [expenseReceiptUrl, setExpenseReceiptUrl] = useState('');
+  const [expenseAttachments, setExpenseAttachments] = useState<ExpenseAttachment[]>([]);
+  const [isProcessingFiles, setIsProcessingFiles] = useState(false);
+  const [viewingAttachments, setViewingAttachments] = useState<{
+    expenseTitle: string;
+    attachments: ExpenseAttachment[];
+    expenseId: string;
+  } | null>(null);
 
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -232,6 +244,126 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
     refreshFunds();
   };
 
+  // Handle file uploads for expense attachments (PNG, JPG, WebP, PDF up to 5MB)
+  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>, targetExpenseId?: string) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsProcessingFiles(true);
+    setErrorMsg('');
+    const newAttachments: ExpenseAttachment[] = [];
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf'];
+    const maxSizeBytes = 5 * 1024 * 1024; // 5MB
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!allowedTypes.includes(file.type)) {
+        setErrorMsg(`"${file.name}" গ্রহণযোগ্য ফরম্যাট নয়। শুধুমাত্র PNG, JPG, WebP বা PDF আপলোড করুন।`);
+        continue;
+      }
+      if (file.size > maxSizeBytes) {
+        setErrorMsg(`"${file.name}" ফাইলের সাইজ ৫MB এর চেয়ে বড়। অনুগ্রহ করে ছোট সাইজের ফাইল দিন।`);
+        continue;
+      }
+
+      try {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        newAttachments.push({
+          id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: file.name,
+          url: dataUrl,
+          fileType: file.type,
+          fileSize: file.size,
+          uploadedAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('File reading failed:', err);
+      }
+    }
+
+    if (targetExpenseId && activeFundId) {
+      // Adding directly to an existing expense
+      const currentFund = funds.find((f) => f.id === activeFundId);
+      if (currentFund) {
+        const updatedExpenses = (currentFund.expenses || []).map((exp) => {
+          if (exp.id === targetExpenseId) {
+            const existingAtts = exp.attachments || [];
+            return {
+              ...exp,
+              attachments: [...existingAtts, ...newAttachments],
+            };
+          }
+          return exp;
+        });
+
+        const updatedFund = {
+          ...currentFund,
+          expenses: updatedExpenses,
+          updatedAt: new Date().toISOString(),
+        };
+        storageService.saveSpecialFund(updatedFund);
+        refreshFunds();
+
+        // Update modal state if open
+        if (viewingAttachments && viewingAttachments.expenseId === targetExpenseId) {
+          setViewingAttachments({
+            ...viewingAttachments,
+            attachments: [...viewingAttachments.attachments, ...newAttachments],
+          });
+        }
+        setSuccessMsg(`${newAttachments.length}টি প্রমাণপত্র সফলভাবে যুক্ত হয়েছে।`);
+        setTimeout(() => setSuccessMsg(''), 3000);
+      }
+    } else {
+      // Adding to new expense form
+      setExpenseAttachments((prev) => [...prev, ...newAttachments]);
+    }
+
+    setIsProcessingFiles(false);
+    e.target.value = '';
+  };
+
+  const handleRemoveAttachmentFromNewExpense = (attId: string) => {
+    setExpenseAttachments((prev) => prev.filter((a) => a.id !== attId));
+  };
+
+  const handleDeleteAttachmentFromExistingExpense = (expenseId: string, attId: string) => {
+    if (!activeFundId) return;
+    const currentFund = funds.find((f) => f.id === activeFundId);
+    if (!currentFund) return;
+
+    const updatedExpenses = (currentFund.expenses || []).map((exp) => {
+      if (exp.id === expenseId) {
+        return {
+          ...exp,
+          attachments: (exp.attachments || []).filter((a) => a.id !== attId),
+        };
+      }
+      return exp;
+    });
+
+    const updatedFund = {
+      ...currentFund,
+      expenses: updatedExpenses,
+      updatedAt: new Date().toISOString(),
+    };
+    storageService.saveSpecialFund(updatedFund);
+    refreshFunds();
+
+    if (viewingAttachments && viewingAttachments.expenseId === expenseId) {
+      setViewingAttachments({
+        ...viewingAttachments,
+        attachments: viewingAttachments.attachments.filter((a) => a.id !== attId),
+      });
+    }
+  };
+
   // Add Expense to active fund
   const handleSaveExpense = () => {
     if (!activeFundId || activeFundId === 'new') return;
@@ -255,6 +387,7 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
       date: expenseDate || new Date().toISOString().slice(0, 10),
       category: expenseCategory.trim(),
       receiptUrl: expenseReceiptUrl.trim() || undefined,
+      attachments: expenseAttachments.length > 0 ? expenseAttachments : undefined,
     };
 
     const updatedFund: SpecialFundRecord = {
@@ -270,6 +403,7 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
     setExpenseDate('');
     setExpenseCategory('ইফতার সামগ্রী');
     setExpenseReceiptUrl('');
+    setExpenseAttachments([]);
     refreshFunds();
     setSuccessMsg('ব্যয়ের খাত সফলভাবে যোগ করা হয়েছে।');
     setTimeout(() => setSuccessMsg(''), 3000);
@@ -967,21 +1101,93 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
                     />
                   </div>
 
-                  <div className="sm:col-span-2">
-                    <label className="block font-semibold text-slate-700 mb-1">ভাউচার / রসিদ ছবি লিংক (ঐচ্ছিক)</label>
-                    <input
-                      type="url"
-                      value={expenseReceiptUrl}
-                      onChange={(e) => setExpenseReceiptUrl(e.target.value)}
-                      placeholder="https://... (ভাউচার বা ক্যাশ মেমোর ছবির লিংক)"
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
-                    />
+                  {/* Document & Receipt Attachments (PNG, JPG, WebP, PDF up to 5MB) */}
+                  <div className="sm:col-span-2 md:col-span-3 p-3 bg-white rounded-xl border border-rose-200/80 space-y-2">
+                    <label className="block font-bold text-slate-800 text-xs">
+                      খরচের রসিদ/প্রমাণপত্র (ঐচ্ছিক)
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      ভাউচার, ক্যাশ মেমো, রসিদ বা বিলের ছবি বা পিডিএফ আপলোড করুন (PNG, JPG, WebP, PDF — সর্বোচ্চ ৫MB)
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-800 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-2xs">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>ফাইল বাছাই করুন</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/png,image/jpeg,image/webp,application/pdf"
+                          onChange={(e) => handleAttachmentUpload(e)}
+                          className="hidden"
+                          disabled={isProcessingFiles}
+                        />
+                      </label>
+                      {isProcessingFiles && (
+                        <span className="text-xs text-slate-500 italic">প্রসেসিং হচ্ছে...</span>
+                      )}
+                    </div>
+
+                    {/* Previews of currently selected attachments */}
+                    {expenseAttachments.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-2 border-t border-slate-100">
+                        {expenseAttachments.map((att) => (
+                          <div
+                            key={att.id}
+                            className="flex items-center justify-between p-2 rounded-lg bg-rose-50/60 border border-rose-200 text-xs"
+                          >
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              {att.fileType.startsWith('image/') ? (
+                                <img
+                                  src={att.url}
+                                  alt=""
+                                  className="w-7 h-7 object-cover rounded shrink-0 border border-rose-200"
+                                />
+                              ) : (
+                                <FileText className="w-5 h-5 text-rose-700 shrink-0" />
+                              )}
+                              <div className="overflow-hidden">
+                                <span className="font-semibold text-slate-800 block truncate max-w-[130px]" title={att.name}>
+                                  {att.name}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-mono">
+                                  {(att.fileSize / 1024).toFixed(0)} KB
+                                </span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAttachmentFromNewExpense(att.id)}
+                              className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                              title="মুছুন"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Optional Web Link */}
+                    <div className="pt-2">
+                      <span className="text-[11px] text-slate-500 block mb-1">অথবা ওয়েব লিংক দিন (ঐচ্ছিক):</span>
+                      <input
+                        type="url"
+                        value={expenseReceiptUrl}
+                        onChange={(e) => setExpenseReceiptUrl(e.target.value)}
+                        placeholder="https://... (ভাউচার বা ক্যাশ মেমোর লিংক)"
+                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-rose-200">
                   <button
-                    onClick={() => setIsAddingExpense(false)}
+                    onClick={() => {
+                      setIsAddingExpense(false);
+                      setExpenseAttachments([]);
+                    }}
                     className="px-3 py-1.5 border border-slate-300 text-slate-700 rounded-lg text-xs"
                   >
                     বাতিল
@@ -1005,6 +1211,7 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
                     <th className="py-2.5 px-3">ব্যয়ের খাত</th>
                     <th className="py-2.5 px-3">ক্যাটাগরি</th>
                     <th className="py-2.5 px-3">তারিখ</th>
+                    <th className="py-2.5 px-3">প্রমাণপত্র / রসিদ</th>
                     <th className="py-2.5 px-3 text-right">পরিমাণ (৳)</th>
                     <th className="py-2.5 px-3 text-center">মুছুন</th>
                   </tr>
@@ -1012,39 +1219,85 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
                 <tbody className="divide-y divide-slate-100">
                   {(activeFund.expenses || []).length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-6 text-center text-slate-400">
+                      <td colSpan={7} className="py-6 text-center text-slate-400">
                         এখনো কোনো ব্যয়ের রেকর্ড নেই।
                       </td>
                     </tr>
                   ) : (
-                    (activeFund.expenses || []).map((exp, idx) => (
-                      <tr key={exp.id || idx} className="hover:bg-slate-50/70">
-                        <td className="py-2.5 px-3 text-slate-400 font-mono">{idx + 1}</td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-900">
-                          {exp.title}
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-500">
-                          <span className="px-2 py-0.5 bg-slate-100 rounded text-[11px]">
-                            {exp.category}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-500">
-                          {exp.date || '—'}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700">
-                          ৳ {exp.amount}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <button
-                            onClick={() => handleDeleteExpense(exp.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded"
-                            title="মুছুন"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    (activeFund.expenses || []).map((exp, idx) => {
+                      const attCount = (exp.attachments || []).length;
+                      return (
+                        <tr key={exp.id || idx} className="hover:bg-slate-50/70">
+                          <td className="py-2.5 px-3 text-slate-400 font-mono">{idx + 1}</td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-900">
+                            {exp.title}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500">
+                            <span className="px-2 py-0.5 bg-slate-100 rounded text-[11px]">
+                              {exp.category}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500">
+                            {exp.date || '—'}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            {attCount > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setViewingAttachments({
+                                    expenseTitle: exp.title,
+                                    attachments: exp.attachments || [],
+                                    expenseId: exp.id,
+                                  })
+                                }
+                                className="inline-flex items-center gap-1.5 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-md border border-rose-200 text-[11px] font-semibold transition-colors"
+                              >
+                                <Paperclip className="w-3 h-3 text-rose-700" />
+                                <span>{attCount}টি প্রমাণপত্র</span>
+                              </button>
+                            ) : exp.receiptUrl ? (
+                              <a
+                                href={exp.receiptUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] text-blue-700 hover:underline"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>রসিদ লিংক</span>
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setViewingAttachments({
+                                    expenseTitle: exp.title,
+                                    attachments: [],
+                                    expenseId: exp.id,
+                                  })
+                                }
+                                className="text-[11px] text-slate-400 hover:text-rose-700 flex items-center gap-1"
+                              >
+                                <Plus className="w-3 h-3" />
+                                <span>যুক্ত করুন</span>
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700">
+                            ৳ {exp.amount}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <button
+                              onClick={() => handleDeleteExpense(exp.id)}
+                              className="p-1 text-slate-400 hover:text-rose-600 rounded"
+                              title="মুছুন"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1101,6 +1354,140 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>নিশ্চিত করে তহবিলটি ডাটাবেজে সংরক্ষণ করুন</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Attachment Manager Modal for Existing Expense */}
+      {viewingAttachments && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <Paperclip className="w-5 h-5 text-rose-700" />
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                  খরচের প্রমাণপত্র ও রসিদ: {viewingAttachments.expenseTitle}
+                </h3>
+              </div>
+              <button
+                onClick={() => setViewingAttachments(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* List of attachments */}
+            {viewingAttachments.attachments.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 space-y-2 border-2 border-dashed border-slate-200 rounded-xl">
+                <FileText className="w-8 h-8 mx-auto text-slate-300" />
+                <p className="text-xs">এখনো কোনো রসিদ বা ভাউচার আপলোড করা হয়নি।</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {viewingAttachments.attachments.map((att) => (
+                  <div
+                    key={att.id}
+                    className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 flex flex-col justify-between space-y-2 text-xs"
+                  >
+                    <div className="flex items-start gap-2.5 overflow-hidden">
+                      {att.fileType.startsWith('image/') ? (
+                        <a
+                          href={att.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0"
+                          title="বড় করে দেখতে ক্লিক করুন"
+                        >
+                          <img
+                            src={att.url}
+                            alt=""
+                            className="w-12 h-12 object-cover rounded-lg border border-slate-200 hover:opacity-90 transition-opacity"
+                          />
+                        </a>
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
+                          <FileText className="w-6 h-6 text-rose-700" />
+                        </div>
+                      )}
+                      <div className="overflow-hidden flex-1">
+                        <span className="font-bold text-slate-900 block truncate" title={att.name}>
+                          {att.name}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono block">
+                          {(att.fileSize / 1024).toFixed(0)} KB • {att.fileType.includes('pdf') ? 'PDF ডকুমেন্ট' : 'ছবি'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">
+                          {new Date(att.uploadedAt).toLocaleDateString('bn-BD')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/80">
+                      <a
+                        href={att.url}
+                        download={att.name}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700 hover:underline"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>দেখুন / ডাউনলোড</span>
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDeleteAttachmentFromExistingExpense(
+                            viewingAttachments.expenseId,
+                            att.id
+                          )
+                        }
+                        className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold inline-flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>মুছুন</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Quick Upload More */}
+            <div className="p-4 rounded-xl bg-rose-50/60 border border-rose-200/80 space-y-2">
+              <span className="text-xs font-bold text-rose-900 block">
+                + এই ব্যয়ের জন্য নতুন রসিদ/প্রমাণপত্র যোগ করুন
+              </span>
+              <p className="text-[11px] text-slate-500">
+                ভাউচার বা ক্যাশ মেমো সিলেক্ট করুন (PNG, JPG, WebP, PDF — সর্বোচ্চ ৫MB)
+              </p>
+              <div className="flex items-center gap-2 pt-1">
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-semibold cursor-pointer shadow-xs">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>ফাইল আপলোড করুন</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/png,image/jpeg,image/webp,application/pdf"
+                    onChange={(e) => handleAttachmentUpload(e, viewingAttachments.expenseId)}
+                    className="hidden"
+                    disabled={isProcessingFiles}
+                  />
+                </label>
+                {isProcessingFiles && (
+                  <span className="text-xs text-slate-500 italic">প্রসেসিং হচ্ছে...</span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setViewingAttachments(null)}
+                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-50"
+              >
+                সম্পন্ন
               </button>
             </div>
           </div>

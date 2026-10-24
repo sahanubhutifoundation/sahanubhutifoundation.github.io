@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { FoundationConfig, Member, FundMemberRecord, YearlyFundSource } from '../../types';
 import { DonationReceiptCard, ReceiptData } from './DonationReceiptCard';
 import { downloadReceiptElement, downloadReceiptsZip } from '../../utils/receiptDownload';
+import { getDeterministicReceiptNumber } from '../../utils/receiptNumbering';
 import { toBengaliNumeral, BENGALI_MONTH_NAMES, ORDERED_MONTH_KEYS } from '../../utils/bengaliWords';
 import {
   FileText,
@@ -210,12 +211,17 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
       periodLabel = `${firstMonthBn} – ${lastMonthBn} ${toBengaliNumeral(selectedYear)} (${toBengaliNumeral(selectedMonths.length)} মাস)`;
     }
 
-    const memberCode = currentMember.serial
-      ? String(currentMember.serial).padStart(3, '0')
-      : (currentMember.id || '001').slice(-3);
-    const monthCode = selectedMonths.length === 1 ? selectedMonths[0].toUpperCase() : `${selectedMonths[0]}-${selectedMonths[selectedMonths.length - 1]}`.toUpperCase();
     const prefix = config.donationReceiptSettings?.receiptPrefix || 'SF-MR';
-    const receiptNumber = `${prefix}-${selectedYear}-${memberCode}-${monthCode}`;
+    const isConsolidated = selectedMonths.length > 1;
+    const memberSerialOrCode = currentMember.serial ? currentMember.serial : (currentMember.id || '001').slice(-3);
+    const receiptNumber = getDeterministicReceiptNumber(
+      prefix,
+      selectedYear,
+      memberSerialOrCode,
+      currentMember.id,
+      selectedMonths,
+      isConsolidated
+    );
 
     const todayBn = new Intl.DateTimeFormat('bn-BD', {
       day: 'numeric',
@@ -609,14 +615,22 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
         {multiMonthMode === 'separate' && currentMember && selectedMonths.length > 1 && (
           <div
             ref={batchContainerRef}
-            style={{ position: 'absolute', top: -99999, left: -99999, width: '680px' }}
+            className="fixed -left-[5000px] top-0 pointer-events-none opacity-0 overflow-hidden"
+            style={{ width: '680px' }}
             aria-hidden="true"
           >
             {selectedMonths.map((m) => {
               const monthBn = BENGALI_MONTH_NAMES[m] || m;
-              const memberCode = currentMember.serial ? String(currentMember.serial).padStart(3, '0') : '001';
               const prefix = config.donationReceiptSettings?.receiptPrefix || 'SF-MR';
-              const receiptNo = `${prefix}-${selectedYear}-${memberCode}-${m.toUpperCase()}`;
+              const memberSerialOrCode = currentMember.serial ? currentMember.serial : (currentMember.id || '001').slice(-3);
+              const receiptNo = getDeterministicReceiptNumber(
+                prefix,
+                selectedYear,
+                memberSerialOrCode,
+                currentMember.id,
+                [m],
+                false
+              );
               const singleData: ReceiptData = {
                 receiptNumber: receiptNo,
                 issueDate: new Intl.DateTimeFormat('bn-BD', {
@@ -632,11 +646,12 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
               };
 
               return (
-                <DonationReceiptCard
-                  key={m}
-                  receipt={singleData}
-                  config={config}
-                />
+                <div key={m} className="mb-4">
+                  <DonationReceiptCard
+                    receipt={singleData}
+                    config={config}
+                  />
+                </div>
               );
             })}
           </div>

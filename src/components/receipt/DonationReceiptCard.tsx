@@ -76,13 +76,13 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
       {/* Background Watermark */}
       {visibility.showWatermark && isWatermarkEnabled && (
         <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.045] select-none z-0"
+          className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.04] select-none z-0"
           aria-hidden="true"
         >
           <img
             src={logoSrc}
             alt=""
-            className="w-72 h-72 object-contain filter grayscale"
+            className="w-72 h-72 object-contain"
             crossOrigin="anonymous"
           />
         </div>

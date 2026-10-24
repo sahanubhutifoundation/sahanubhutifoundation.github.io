@@ -35,23 +35,46 @@ export const ActivityDetailPage: React.FC = () => {
   const [categories, setCategories] = useState<ActivityCategoryItem[]>([]);
   const [copied, setCopied] = useState(false);
 
-  const linkedExpenses = useMemo(() => {
+  const linkedMainExpenses = useMemo(() => {
     if (!activity) return [];
     const actUuid = getActivityUuid(activity);
+    const mainIds = activity.linkedExpenseIds || [];
     return storageService.getExpenses().filter(
-      (e) => (
+      (e) =>
         e.activityId === actUuid ||
         e.linkedActivityId === actUuid ||
         e.activityId === activity.id ||
         e.linkedActivityId === activity.id ||
+        mainIds.includes(e.id) ||
         (activity.linkedExpenseId && e.id === activity.linkedExpenseId)
-      )
     );
   }, [activity]);
 
+  const linkedSpecialExpenses = useMemo(() => {
+    if (!activity) return [];
+    const actUuid = getActivityUuid(activity);
+    const spLinks = activity.linkedSpecialExpenses || [];
+    const allFunds = storageService.getSpecialFunds();
+    const result: Array<{ fund: any; expense: any }> = [];
+
+    allFunds.forEach((f) => {
+      (f.expenses || []).forEach((e) => {
+        const matchesLink = spLinks.some((l) => l.fundId === f.id && l.expenseId === e.id);
+        const matchesActId = e.linkedActivityId === activity.id || e.linkedActivityId === actUuid;
+        if (matchesLink || matchesActId) {
+          result.push({ fund: f, expense: e });
+        }
+      });
+    });
+
+    return result;
+  }, [activity]);
+
   const totalExpenseAmount = useMemo(() => {
-    return linkedExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-  }, [linkedExpenses]);
+    const mainTotal = linkedMainExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const spTotal = linkedSpecialExpenses.reduce((sum, item) => sum + (Number(item.expense.amount) || 0), 0);
+    return mainTotal + spTotal;
+  }, [linkedMainExpenses, linkedSpecialExpenses]);
 
   useEffect(() => {
     setCategories(storageService.getActivityCategories());
@@ -181,7 +204,7 @@ export const ActivityDetailPage: React.FC = () => {
             )}
 
             {/* Price / Verified Amount Badge - ONLY shown when real canonical linked expense exists */}
-            {linkedExpenses.length > 0 && totalExpenseAmount > 0 && (
+            {(linkedMainExpenses.length > 0 || linkedSpecialExpenses.length > 0) && totalExpenseAmount > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/70 text-xs font-bold shadow-3xs">
                 <span>{t('expenseAmountLabel') || (language === 'ar' ? 'المبلغ المنفق:' : language === 'en' ? 'Amount Spent:' : 'ব্যয়িত অর্থ:')}</span>
                 <span className="font-mono">
@@ -301,9 +324,9 @@ export const ActivityDetailPage: React.FC = () => {
         </article>
 
         {/* Financial Transparency Link / Record if linked */}
-        {(linkedExpenses.length > 0 || activity.financialRecord || activity.linkedExpenseId) && (
-          <div className="p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-3xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[#EBE8E0]">
+        {(linkedMainExpenses.length > 0 || linkedSpecialExpenses.length > 0 || activity.financialRecord || activity.linkedExpenseId) && (
+          <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-3xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#EBE8E0]">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-[#E8EFEA] text-[#2D5A41] shrink-0">
                   <Wallet className="w-5 h-5" />
@@ -318,45 +341,58 @@ export const ActivityDetailPage: React.FC = () => {
                 </div>
               </div>
 
-              {(() => {
-                const targetExpenseId = activity.linkedExpenseId || (linkedExpenses.length > 0 ? linkedExpenses[0].id : '');
-                return targetExpenseId ? (
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                {totalExpenseAmount > 0 && (
+                  <div className="px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold font-mono">
+                    মোট খরচ: ৳{language === 'bn' ? toBengaliDigits(totalExpenseAmount) : totalExpenseAmount.toLocaleString()}
+                  </div>
+                )}
+                {linkedMainExpenses.length > 0 ? (
                   <Link
-                    to={`/fund?expenseId=${targetExpenseId}#expense-${targetExpenseId}`}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-bold shadow-sm transition-all shrink-0 self-start sm:self-auto group"
+                    to={`/fund?expenseId=${linkedMainExpenses[0].id}#expense-${linkedMainExpenses[0].id}`}
+                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-bold shadow-xs transition-all shrink-0 group"
                   >
-                    <Wallet className="w-4 h-4 text-emerald-200" />
-                    <span>{language === 'ar' ? 'عرض تفاصيل مصروفات النشاط' : language === 'en' ? 'View Activity Expense Details' : 'কার্যক্রমের খরচের বিস্তারিত দেখুন'}</span>
+                    <span>{language === 'ar' ? 'عرض تفاصيل المصروفات' : language === 'en' ? 'View Expense Ledger' : 'খরচের হিসাব দেখুন'}</span>
                     <ExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </Link>
                 ) : (
                   <Link
-                    to={location.state?.selectedYear ? `/fund?year=${location.state.selectedYear}` : '/fund'}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-[#2D5A41] text-[#2D5A41] hover:bg-[#E8EFEA] text-xs font-bold transition-colors shrink-0 self-start sm:self-auto"
+                    to="/fund"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#2D5A41] text-[#2D5A41] hover:bg-[#E8EFEA] text-xs font-bold transition-colors shrink-0"
                   >
                     <span>{t('viewFundStatement')}</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </Link>
-                );
-              })()}
+                )}
+              </div>
             </div>
 
-            {linkedExpenses.length > 0 && (
+            {/* Group 1: Main Foundation Fund Expenses */}
+            {linkedMainExpenses.length > 0 && (
               <div className="space-y-2">
-                <span className="text-[11px] font-bold text-[#5C665F]">{t('canonicalLedgerRecords')}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-[#2D5A41] flex items-center gap-1">
+                    <Wallet className="w-3 h-3" />
+                    <span>মূল সাধারণ ফান্ডের ব্যয়সমূহ ({linkedMainExpenses.length}টি)</span>
+                  </span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {linkedExpenses.map((exp) => (
+                  {linkedMainExpenses.map((exp) => (
                     <Link
                       key={exp.id}
                       to={`/fund?expenseId=${exp.id}#expense-${exp.id}`}
                       className="p-3 rounded-xl bg-[#F7F5F0] hover:bg-[#E8EFEA] border border-[#EBE8E0] hover:border-[#2D5A41]/40 flex items-center justify-between text-xs transition-colors group"
                       title="ফান্ডে বিস্তারিত দেখুন"
                     >
-                      <div>
-                        <span className="font-bold text-[#2D3630] group-hover:text-[#2D5A41] block">{getLocalizedValue(exp.title, language)}</span>
-                        <span className="text-[10px] text-[#7A877E]">{language === 'bn' ? toBengaliDigits(exp.date) : exp.date}</span>
+                      <div className="overflow-hidden">
+                        <span className="font-bold text-[#2D3630] group-hover:text-[#2D5A41] block truncate">
+                          {getLocalizedValue(exp.title, language)}
+                        </span>
+                        <span className="text-[10px] text-[#7A877E]">
+                          {language === 'bn' ? toBengaliDigits(exp.date) : exp.date} {exp.category ? `• ${exp.category}` : ''}
+                        </span>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <span className="font-mono font-bold text-rose-600 bg-white px-2 py-0.5 rounded-md border border-[#EBE8E0] block">
                           -৳ {language === 'bn' ? toBengaliDigits(Number(exp.amount)) : Number(exp.amount).toLocaleString()}
                         </span>
@@ -367,6 +403,61 @@ export const ActivityDetailPage: React.FC = () => {
                       </div>
                     </Link>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Group 2: Special Purpose Funds Expenses */}
+            {linkedSpecialExpenses.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-teal-800 flex items-center gap-1">
+                    <Wallet className="w-3 h-3" />
+                    <span>আলাদা / বিশেষ ফান্ডের ব্যয়সমূহ ({linkedSpecialExpenses.length}টি)</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {linkedSpecialExpenses.map((item, idx) => {
+                    const attCount = (item.expense.attachments || []).length;
+                    return (
+                      <Link
+                        key={`${item.fund.id}-${item.expense.id}-${idx}`}
+                        to={`/fund?tab=special&fundId=${item.fund.id}`}
+                        className="p-3 rounded-xl bg-teal-50/40 hover:bg-teal-50/80 border border-teal-200/80 hover:border-teal-400 flex items-center justify-between text-xs transition-colors group"
+                        title="বিশেষ তহবিলে দেখুন"
+                      >
+                        <div className="overflow-hidden">
+                          <span className="font-bold text-teal-950 group-hover:text-teal-800 block truncate">
+                            {item.expense.title}
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <span className="text-[10px] text-teal-700 bg-teal-100/70 px-1.5 py-0.2 rounded font-medium">
+                              {item.fund.name}
+                            </span>
+                            {item.expense.date && (
+                              <span className="text-[10px] text-gray-500">
+                                {language === 'bn' ? toBengaliDigits(item.expense.date) : item.expense.date}
+                              </span>
+                            )}
+                            {attCount > 0 && (
+                              <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                                📎 {attCount}টি রসিদ
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-mono font-bold text-teal-900 bg-white px-2 py-0.5 rounded-md border border-teal-200 block">
+                            -৳ {language === 'bn' ? toBengaliDigits(Number(item.expense.amount)) : Number(item.expense.amount).toLocaleString()}
+                          </span>
+                          <span className="text-[10px] text-teal-700 font-semibold flex items-center justify-end gap-0.5 mt-1">
+                            <span>তহবিলে দেখুন</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </span>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             )}
