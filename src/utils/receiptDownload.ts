@@ -53,9 +53,149 @@ export async function imageToDataUrl(url: string): Promise<string> {
 }
 
 /**
+ * Accurately parses number or percentage strings (e.g. "50%", "0.5", "180deg")
+ */
+function parseColorNumber(val: string, max: number = 1): number {
+  const trimmed = val.trim();
+  if (trimmed.endsWith('%')) {
+    return (parseFloat(trimmed) / 100) * max;
+  }
+  return parseFloat(trimmed);
+}
+
+/**
+ * Converts Oklab coordinates (L, a, b) to standard sRGB rgb() / rgba() string
+ */
+function oklabToRgb(L: number, a: number, b: number, alpha: number = 1): string {
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+
+  const l = l_ * l_ * l_;
+  const m = m_ * m_ * m_;
+  const s = s_ * s_ * s_;
+
+  const r = +4.0767434036 * l - 3.3077115913 * m + 0.2309699292 * s;
+  const g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+  const bl = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+
+  const toSRGB = (c: number) => {
+    const clamped = Math.max(0, Math.min(1, c));
+    return clamped <= 0.0031308 ? 12.92 * clamped : 1.055 * Math.pow(clamped, 1 / 2.4) - 0.055;
+  };
+
+  const R = Math.round(toSRGB(r) * 255);
+  const G = Math.round(toSRGB(g) * 255);
+  const B = Math.round(toSRGB(bl) * 255);
+  const A = Math.round(Math.max(0, Math.min(1, alpha)) * 1000) / 1000;
+
+  if (A < 1) {
+    return `rgba(${R}, ${G}, ${B}, ${A})`;
+  }
+  return `rgb(${R}, ${G}, ${B})`;
+}
+
+/**
+ * Converts Oklch coordinates (L, C, H) to standard sRGB rgb() / rgba() string
+ */
+function oklchToRgb(L: number, C: number, H: number, alpha: number = 1): string {
+  const hRad = (H * Math.PI) / 180;
+  const a = C * Math.cos(hRad);
+  const b = C * Math.sin(hRad);
+  return oklabToRgb(L, a, b, alpha);
+}
+
+/**
+ * Normalizes all oklab(...) and oklch(...) occurrences in any CSS value (colors, borders, gradients, shadows)
+ */
+export function convertOklabAndOklchInString(input: string): string {
+  if (!input || (!input.includes('oklab') && !input.includes('oklch'))) {
+    return input;
+  }
+
+  return input.replace(/\b(oklab|oklch)\(([^)]+)\)/gi, (match, type, content) => {
+    try {
+      let parts = content.trim();
+      let alpha = 1;
+      if (parts.includes('/')) {
+        const splitSlash = parts.split('/');
+        parts = splitSlash[0].trim();
+        alpha = parseColorNumber(splitSlash[1].trim(), 1);
+      }
+      const rawTokens = parts.split(/[\s,]+/).filter(Boolean);
+      if (rawTokens.length < 3) return match;
+
+      const L = parseColorNumber(rawTokens[0], 1);
+      if (type.toLowerCase() === 'oklab') {
+        const a = parseColorNumber(rawTokens[1], 0.4);
+        const b = parseColorNumber(rawTokens[2], 0.4);
+        return oklabToRgb(L, a, b, alpha);
+      } else {
+        const C = parseColorNumber(rawTokens[1], 0.4);
+        const hStr = rawTokens[2].trim();
+        let H = parseFloat(hStr);
+        if (hStr.endsWith('turn')) H = H * 360;
+        else if (hStr.endsWith('rad')) H = (H * 180) / Math.PI;
+        else if (hStr.endsWith('grad')) H = (H * 360) / 400;
+        return oklchToRgb(L, C, H, alpha);
+      }
+    } catch {
+      return match;
+    }
+  });
+}
+
+/**
+ * Traverses an element and all descendants, converting any computed or inline
+ * oklab/oklch colors to browser-supported rgb()/rgba() styles.
+ */
+export function normalizeColorsInElementTree(root: HTMLElement): void {
+  if (!root) return;
+  const win = root.ownerDocument?.defaultView || (typeof window !== 'undefined' ? window : null);
+  if (!win) return;
+
+  const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
+  const colorProps = [
+    'color',
+    'background-color',
+    'border-top-color',
+    'border-right-color',
+    'border-bottom-color',
+    'border-left-color',
+    'outline-color',
+    'box-shadow',
+    'text-shadow',
+    'fill',
+    'stroke',
+    'stop-color',
+    'background-image',
+  ];
+
+  for (const el of elements) {
+    if (!el || !el.style) continue;
+    try {
+      const computed = win.getComputedStyle(el);
+      for (const prop of colorProps) {
+        const val = computed.getPropertyValue(prop);
+        if (val && (val.includes('oklab') || val.includes('oklch'))) {
+          const converted = convertOklabAndOklchInString(val);
+          el.style.setProperty(prop, converted, 'important');
+        }
+      }
+      if (el.style.cssText && (el.style.cssText.includes('oklab') || el.style.cssText.includes('oklch'))) {
+        el.style.cssText = convertOklabAndOklchInString(el.style.cssText);
+      }
+    } catch (err) {
+      console.warn('Error normalizing colors for receipt element:', err);
+    }
+  }
+}
+
+/**
  * Prepares an offscreen element clone for high-fidelity canvas rasterization:
  * - Awaits web fonts (document.fonts.ready)
  * - Inlines all images as data URLs
+ * - Normalizes oklab/oklch colors to standard rgb/rgba
  * - Keeps opacity: 1 and visibility: visible so html2canvas renders all pixels
  * - Places offscreen at z-index: -9999 so user does not see flickering
  */
@@ -109,6 +249,9 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
   sandbox.appendChild(clone);
   document.body.appendChild(sandbox);
 
+  // 5. Convert any computed oklab/oklch colors in the cloned tree to standard rgb/rgba
+  normalizeColorsInElementTree(clone);
+
   // Short tick for DOM layout calculation
   await new Promise((r) => setTimeout(r, 80));
 
@@ -130,7 +273,7 @@ export interface DownloadReceiptOptions {
 
 /**
  * Captures an HTML element and triggers a direct browser download.
- * Guaranteed not to taint canvas or crash on scaled/hidden containers.
+ * Guaranteed not to taint canvas or crash on unsupported oklab/oklch colors.
  */
 export async function downloadReceiptElement({
   element,
@@ -155,6 +298,9 @@ export async function downloadReceiptElement({
       height: renderedHeight,
       windowWidth: 680,
       windowHeight: renderedHeight,
+      onclone: (_clonedDoc, clonedEl) => {
+        normalizeColorsInElementTree(clonedEl);
+      },
     });
 
     const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
@@ -232,6 +378,9 @@ export async function downloadReceiptsZip(
         height: renderedHeight,
         windowWidth: 680,
         windowHeight: renderedHeight,
+        onclone: (_clonedDoc, clonedEl) => {
+          normalizeColorsInElementTree(clonedEl);
+        },
       });
 
       const mimeType = item.format === 'jpeg' ? 'image/jpeg' : 'image/png';

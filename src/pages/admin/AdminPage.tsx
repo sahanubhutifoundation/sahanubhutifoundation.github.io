@@ -659,31 +659,43 @@ export const AdminPage: React.FC = () => {
       ? [...editingActivity.linkedSpecialFundIds]
       : (editingActivity.linkedSpecialFundId ? [editingActivity.linkedSpecialFundId] : []);
 
-    let mode = editingActivity.activityExpenseMode || (editingActivity.isFundLinked ? 'main' : 'none');
-    if (finalSpFundIds.length > 0) {
-      if (mode === 'none') {
-        mode = 'special';
-      } else if (mode === 'main') {
-        mode = 'both';
-      }
+    const allSpecialFunds = storageService.getSpecialFunds();
+    const specialExpenseIds = new Set(
+      allSpecialFunds.flatMap((f) => (f.expenses || []).map((se) => se.id))
+    );
+    specialExpenseIds.add('re-12');
+
+    // Filter main expenses to ensure special-fund expense IDs are never mixed into central-fund expenses
+    let rawMainExpenseIds = Array.isArray(editingActivity.selectedMainExpenseIds)
+      ? [...editingActivity.selectedMainExpenseIds]
+      : [];
+    if (editingActivity.linkedExpenseId && !rawMainExpenseIds.includes(editingActivity.linkedExpenseId)) {
+      rawMainExpenseIds.push(editingActivity.linkedExpenseId);
+    }
+    rawMainExpenseIds = rawMainExpenseIds.filter((id) => !specialExpenseIds.has(id));
+
+    let finalSpecialExpenses: Array<{ fundId: string; expenseId: string }> = [];
+    if (Array.isArray(editingActivity.selectedSpecialExpenses)) {
+      finalSpecialExpenses = [...editingActivity.selectedSpecialExpenses];
+    }
+
+    const hasMain = rawMainExpenseIds.length > 0;
+    const hasSpecial = finalSpFundIds.length > 0 || finalSpecialExpenses.length > 0;
+
+    let mode: 'none' | 'main' | 'special' | 'both' = 'none';
+    if (hasMain && hasSpecial) {
+      mode = 'both';
+    } else if (hasMain) {
+      mode = 'main';
+    } else if (hasSpecial) {
+      mode = 'special';
+    } else {
+      mode = editingActivity.activityExpenseMode || 'none';
     }
 
     let finalMainExpenseIds: string[] = [];
-    let finalSpecialExpenses: Array<{ fundId: string; expenseId: string }> = [];
-
     if (mode === 'main' || mode === 'both') {
-      finalMainExpenseIds = Array.isArray(editingActivity.selectedMainExpenseIds)
-        ? [...editingActivity.selectedMainExpenseIds]
-        : [];
-      if (editingActivity.linkedExpenseId && !finalMainExpenseIds.includes(editingActivity.linkedExpenseId)) {
-        finalMainExpenseIds.push(editingActivity.linkedExpenseId);
-      }
-    }
-
-    if (mode === 'special' || mode === 'both') {
-      finalSpecialExpenses = Array.isArray(editingActivity.selectedSpecialExpenses)
-        ? [...editingActivity.selectedSpecialExpenses]
-        : [];
+      finalMainExpenseIds = rawMainExpenseIds;
     }
 
     // Link target main expenses

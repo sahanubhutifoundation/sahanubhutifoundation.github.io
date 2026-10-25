@@ -483,17 +483,35 @@ export const storageService = {
   getActivities(): Activity[] {
     const list = getLocalItem<Activity[]>(KEYS.ACTIVITIES, initialActivities);
     return list.map((act) => {
-      if (act.description?.bn?.includes('১,২০০ টাকা')) {
-        return {
-          ...act,
+      let cleanLinkedExpenseId = act.linkedExpenseId;
+      let cleanLinkedExpenseIds = act.linkedExpenseIds;
+      if (cleanLinkedExpenseId === 're-12') {
+        cleanLinkedExpenseId = undefined;
+      }
+      if (cleanLinkedExpenseIds && cleanLinkedExpenseIds.includes('re-12')) {
+        cleanLinkedExpenseIds = cleanLinkedExpenseIds.filter((id) => id !== 're-12');
+        if (cleanLinkedExpenseIds.length === 0) cleanLinkedExpenseIds = undefined;
+      }
+      if (act.activityExpenseMode === 'special') {
+        cleanLinkedExpenseId = undefined;
+        cleanLinkedExpenseIds = undefined;
+      }
+      let cleaned: Activity = {
+        ...act,
+        linkedExpenseId: cleanLinkedExpenseId,
+        linkedExpenseIds: cleanLinkedExpenseIds,
+      };
+      if (cleaned.description?.bn?.includes('১,২০০ টাকা')) {
+        cleaned = {
+          ...cleaned,
           description: {
-            bn: act.description.bn.replace('তহবিল থেকে ১,২০০ টাকা ব্যয় করে একজন অসুস্থ ও প্রয়োজনীয় ব্যক্তির এক মাসের জন্য অত্যাবশ্যকীয় ব্যবস্থাপত্র অনুযায়ী ওষুধ সরবরাহ করা হয়েছে।', 'একজন অসুস্থ ও প্রয়োজনীয় ব্যক্তির এক মাসের জন্য অত্যাবশ্যকীয় ব্যবস্থাপত্র অনুযায়ী জরুরি ওষুধ সহায়তা সফলভাবে সরবরাহ করা হয়েছে।'),
-            en: act.description.en?.replace('1,200 BDT was disbursed from the fund to supply a full month of essential prescription medicines for an ailing individual in need.', 'essential prescription medicines were supplied for a full month to an ailing individual in need.') || '',
-            ar: act.description.ar?.replace('تم صرف مبلغ 1,200 تاكا من رصيد الصندوق لتوفير الأدوية الأساسية لشخص مريض لمدة شهر كامل.', 'تم توفير الأدوية الأساسية لشخص مريض لمدة شهر كامل.') || '',
+            bn: cleaned.description.bn.replace('তহবিল থেকে ১,২০০ টাকা ব্যয় করে একজন অসুস্থ ও প্রয়োজনীয় ব্যক্তির এক মাসের জন্য অত্যাবশ্যকীয় ব্যবস্থাপত্র অনুযায়ী ওষুধ সরবরাহ করা হয়েছে।', 'একজন অসুস্থ ও প্রয়োজনীয় ব্যক্তির এক মাসের জন্য অত্যাবশ্যকীয় ব্যবস্থাপত্র অনুযায়ী জরুরি ওষুধ সহায়তা সফলভাবে সরবরাহ করা হয়েছে।'),
+            en: cleaned.description.en?.replace('1,200 BDT was disbursed from the fund to supply a full month of essential prescription medicines for an ailing individual in need.', 'essential prescription medicines were supplied for a full month to an ailing individual in need.') || '',
+            ar: cleaned.description.ar?.replace('تم صرف مبلغ 1,200 تاكا من رصيد الصندوق لتوفير الأدوية الأساسية لشخص مريض لمدة شهر كامل.', 'تم توفير الأدوية الأساسية لشخص مريض لمدة شهر كامل.') || '',
           },
         };
       }
-      return act;
+      return cleaned;
     });
   },
 
@@ -504,6 +522,18 @@ export const storageService = {
     const finalSpIds = (activity.linkedSpecialFundIds && activity.linkedSpecialFundIds.length > 0)
       ? activity.linkedSpecialFundIds
       : (activity.linkedSpecialFundId ? [activity.linkedSpecialFundId] : []);
+
+    let cleanLinkedExpenseId = activity.linkedExpenseId;
+    let cleanLinkedExpenseIds = activity.linkedExpenseIds;
+    if (cleanLinkedExpenseId === 're-12') cleanLinkedExpenseId = undefined;
+    if (cleanLinkedExpenseIds && cleanLinkedExpenseIds.includes('re-12')) {
+      cleanLinkedExpenseIds = cleanLinkedExpenseIds.filter((id) => id !== 're-12');
+      if (cleanLinkedExpenseIds.length === 0) cleanLinkedExpenseIds = undefined;
+    }
+    if (activity.activityExpenseMode === 'special') {
+      cleanLinkedExpenseId = undefined;
+      cleanLinkedExpenseIds = undefined;
+    }
 
     // Strict separation: never copy fullDescription into shortSummary or vice versa
     const cleanedActivity: Activity = {
@@ -517,6 +547,8 @@ export const storageService = {
       linkedSpecialFundId: activity.linkedSpecialFundId || (finalSpIds[0] || undefined),
       linkedSpecialFundIds: finalSpIds.length > 0 ? finalSpIds : undefined,
       activityExpenseMode: activity.activityExpenseMode || (finalSpIds.length > 0 ? 'special' : undefined),
+      linkedExpenseId: cleanLinkedExpenseId,
+      linkedExpenseIds: cleanLinkedExpenseIds,
     };
 
     let updated: Activity[];
@@ -878,6 +910,7 @@ export const storageService = {
   getExpenses(year?: string | number): ExpenseRecord[] {
     const list = getLocalItem<ExpenseRecord[]>(KEYS.EXPENSES, initialExpenses);
     const normalized = list
+      .filter((e) => e && e.id !== 're-12' && (e.fundingSource as string) !== 'special_fund')
       .map((e) => normalizeExpense(e))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -1258,6 +1291,18 @@ export const storageService = {
       ? activity.linkedSpecialFundIds
       : (activity.linkedSpecialFundId ? [activity.linkedSpecialFundId] : []);
 
+    let cleanLinkedExpenseId = activity.linkedExpenseId;
+    let cleanLinkedExpenseIds = activity.linkedExpenseIds;
+    if (cleanLinkedExpenseId === 're-12') cleanLinkedExpenseId = undefined;
+    if (cleanLinkedExpenseIds && cleanLinkedExpenseIds.includes('re-12')) {
+      cleanLinkedExpenseIds = cleanLinkedExpenseIds.filter((id) => id !== 're-12');
+      if (cleanLinkedExpenseIds.length === 0) cleanLinkedExpenseIds = undefined;
+    }
+    if (activity.activityExpenseMode === 'special') {
+      cleanLinkedExpenseId = undefined;
+      cleanLinkedExpenseIds = undefined;
+    }
+
     const cleanedActivity: Activity = {
       ...activity,
       showOnMediaPage: Boolean(activity.showOnMediaPage),
@@ -1269,6 +1314,8 @@ export const storageService = {
       linkedSpecialFundId: activity.linkedSpecialFundId || (finalSpIds[0] || undefined),
       linkedSpecialFundIds: finalSpIds.length > 0 ? finalSpIds : undefined,
       activityExpenseMode: activity.activityExpenseMode || (finalSpIds.length > 0 ? 'special' : undefined),
+      linkedExpenseId: cleanLinkedExpenseId,
+      linkedExpenseIds: cleanLinkedExpenseIds,
     };
 
     if (supabaseService.isAvailable()) {

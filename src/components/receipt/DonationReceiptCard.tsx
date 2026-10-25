@@ -71,6 +71,7 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
         boxSizing: 'border-box',
         backgroundColor: '#ffffff',
         color: '#062817',
+        borderColor: '#1e6b4d',
       }}
     >
       {/* Background Watermark */}
@@ -89,7 +90,12 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
       )}
 
       {/* Decorative inner frame */}
-      <div className="relative z-10 border border-emerald-900/20 rounded-lg p-5 bg-gradient-to-b from-emerald-50/20 via-white to-emerald-50/30">
+      <div
+        className="relative z-10 border border-emerald-900/20 rounded-lg p-5 bg-gradient-to-b from-emerald-50/20 via-white to-emerald-50/30"
+        style={{
+          borderColor: 'rgba(6, 40, 23, 0.2)',
+        }}
+      >
         
         {/* Header Section */}
         <div className="border-b-2 border-emerald-800/30 pb-4 mb-4">

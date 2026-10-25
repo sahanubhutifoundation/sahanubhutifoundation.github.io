@@ -37,17 +37,44 @@ export const ActivityDetailPage: React.FC = () => {
 
   const linkedMainExpenses = useMemo(() => {
     if (!activity) return [];
+    // If the activity is set to exclusively special-fund expense mode, do not render central-fund expenses
+    if (activity.activityExpenseMode === 'special') return [];
+
     const actUuid = getActivityUuid(activity);
-    const mainIds = activity.linkedExpenseIds || [];
-    return storageService.getExpenses().filter(
-      (e) =>
-        e.activityId === actUuid ||
-        e.linkedActivityId === actUuid ||
-        e.activityId === activity.id ||
-        e.linkedActivityId === activity.id ||
-        mainIds.includes(e.id) ||
-        (activity.linkedExpenseId && e.id === activity.linkedExpenseId)
+    const mainIds = (activity.linkedExpenseIds || []).filter(Boolean);
+
+    // Retrieve all special fund expense IDs to guarantee special fund records are never displayed as central expenses
+    const allSpecialFunds = storageService.getSpecialFunds();
+    const specialExpenseIds = new Set(
+      allSpecialFunds.flatMap((f) => (f.expenses || []).map((se) => se.id))
     );
+    specialExpenseIds.add('re-12');
+
+    return storageService.getExpenses().filter((e) => {
+      // Must not be a special-fund expense
+      if (specialExpenseIds.has(e.id)) return false;
+      if ((e.fundingSource as string) === 'special_fund') return false;
+
+      const matchesExplicitMainId = mainIds.includes(e.id);
+      const matchesSingleLinked = Boolean(
+        activity.linkedExpenseId &&
+        e.id === activity.linkedExpenseId &&
+        !specialExpenseIds.has(activity.linkedExpenseId)
+      );
+      const matchesActivityId = Boolean(
+        (e.activityId && (e.activityId === actUuid || e.activityId === activity.id)) ||
+        (e.linkedActivityId && (e.linkedActivityId === actUuid || e.linkedActivityId === activity.id))
+      );
+
+      // Verify that the expense mode allows central fund expenses ('main', 'both', or unset default)
+      const isAllowedByMode =
+        !activity.activityExpenseMode ||
+        activity.activityExpenseMode === 'main' ||
+        activity.activityExpenseMode === 'both';
+      if (!isAllowedByMode) return false;
+
+      return matchesExplicitMainId || matchesSingleLinked || matchesActivityId;
+    });
   }, [activity]);
 
   const linkedSpecialExpenses = useMemo(() => {
