@@ -501,6 +501,10 @@ export const storageService = {
     const list = this.getActivities();
     const existingIndex = list.findIndex((a) => String(a.id).trim() === String(activity.id).trim());
     
+    const finalSpIds = (activity.linkedSpecialFundIds && activity.linkedSpecialFundIds.length > 0)
+      ? activity.linkedSpecialFundIds
+      : (activity.linkedSpecialFundId ? [activity.linkedSpecialFundId] : []);
+
     // Strict separation: never copy fullDescription into shortSummary or vice versa
     const cleanedActivity: Activity = {
       ...activity,
@@ -510,6 +514,9 @@ export const storageService = {
       shortSummary: activity.shortSummary || activity.summary || { bn: '', en: '', ar: '' },
       description: activity.description || activity.fullDescription || { bn: '', en: '', ar: '' },
       fullDescription: activity.fullDescription || activity.description || { bn: '', en: '', ar: '' },
+      linkedSpecialFundId: activity.linkedSpecialFundId || (finalSpIds[0] || undefined),
+      linkedSpecialFundIds: finalSpIds.length > 0 ? finalSpIds : undefined,
+      activityExpenseMode: activity.activityExpenseMode || (finalSpIds.length > 0 ? 'special' : undefined),
     };
 
     let updated: Activity[];
@@ -1247,6 +1254,10 @@ export const storageService = {
   },
 
   async saveActivityAsync(activity: Activity): Promise<OperationResult<Activity[]>> {
+    const finalSpIds = (activity.linkedSpecialFundIds && activity.linkedSpecialFundIds.length > 0)
+      ? activity.linkedSpecialFundIds
+      : (activity.linkedSpecialFundId ? [activity.linkedSpecialFundId] : []);
+
     const cleanedActivity: Activity = {
       ...activity,
       showOnMediaPage: Boolean(activity.showOnMediaPage),
@@ -1255,6 +1266,9 @@ export const storageService = {
       shortSummary: activity.shortSummary || activity.summary || { bn: '', en: '', ar: '' },
       description: activity.description || activity.fullDescription || { bn: '', en: '', ar: '' },
       fullDescription: activity.fullDescription || activity.description || { bn: '', en: '', ar: '' },
+      linkedSpecialFundId: activity.linkedSpecialFundId || (finalSpIds[0] || undefined),
+      linkedSpecialFundIds: finalSpIds.length > 0 ? finalSpIds : undefined,
+      activityExpenseMode: activity.activityExpenseMode || (finalSpIds.length > 0 ? 'special' : undefined),
     };
 
     if (supabaseService.isAvailable()) {
@@ -1267,7 +1281,8 @@ export const storageService = {
           details: res.details,
         };
       }
-      const updated = this.saveActivity(res.data || cleanedActivity);
+      const toSave = res.data ? { ...cleanedActivity, ...res.data } : cleanedActivity;
+      const updated = this.saveActivity(toSave);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('sf_data_updated'));
       }
@@ -1549,7 +1564,27 @@ export const storageService = {
       // 4. Activities
       const cloudActivities = await supabaseService.fetchActivities();
       if (cloudActivities && cloudActivities.length > 0) {
-        setLocalItem(KEYS.ACTIVITIES, cloudActivities);
+        const localActivities = getLocalItem<Activity[]>(KEYS.ACTIVITIES, initialActivities);
+        const mergedActivities = cloudActivities.map((cloudAct) => {
+          const localMatch = localActivities.find((la) => String(la.id).trim() === String(cloudAct.id).trim());
+          if (!localMatch) return cloudAct;
+          return {
+            ...cloudAct,
+            linkedSpecialFundId: cloudAct.linkedSpecialFundId || localMatch.linkedSpecialFundId,
+            linkedSpecialFundIds: (cloudAct.linkedSpecialFundIds && cloudAct.linkedSpecialFundIds.length > 0)
+              ? cloudAct.linkedSpecialFundIds
+              : localMatch.linkedSpecialFundIds,
+            activityExpenseMode: cloudAct.activityExpenseMode || localMatch.activityExpenseMode,
+            linkedExpenseId: cloudAct.linkedExpenseId || localMatch.linkedExpenseId,
+            linkedExpenseIds: (cloudAct.linkedExpenseIds && cloudAct.linkedExpenseIds.length > 0)
+              ? cloudAct.linkedExpenseIds
+              : localMatch.linkedExpenseIds,
+            linkedSpecialExpenses: (cloudAct.linkedSpecialExpenses && cloudAct.linkedSpecialExpenses.length > 0)
+              ? cloudAct.linkedSpecialExpenses
+              : localMatch.linkedSpecialExpenses,
+          };
+        });
+        setLocalItem(KEYS.ACTIVITIES, mergedActivities);
         synced.push('activities');
       }
 

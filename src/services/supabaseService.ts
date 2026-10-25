@@ -1117,6 +1117,14 @@ export const supabaseService = {
         images: Array.isArray(row.images) ? row.images : [],
         galleryImages: Array.isArray(row.gallery_images) ? row.gallery_images : [],
         isPublished: row.is_published !== false,
+        linkedExpenseId: row.linked_expense_id || undefined,
+        linkedExpenseIds: Array.isArray(row.linked_expense_ids) ? row.linked_expense_ids : (row.linked_expense_id ? [row.linked_expense_id] : []),
+        linkedSpecialExpenses: Array.isArray(row.linked_special_expenses) ? row.linked_special_expenses : [],
+        linkedSpecialFundId: row.linked_special_fund_id || undefined,
+        linkedSpecialFundIds: Array.isArray(row.linked_special_fund_ids)
+          ? row.linked_special_fund_ids
+          : (row.linked_special_fund_id ? [row.linked_special_fund_id] : []),
+        activityExpenseMode: row.activity_expense_mode || (row.linked_special_fund_id ? 'special' : undefined),
         createdAt: row.created_at || new Date().toISOString(),
       }));
     } catch {
@@ -1151,6 +1159,12 @@ export const supabaseService = {
         show_on_media_page: Boolean(a.showOnMediaPage),
         show_short_summary_in_detail: Boolean(a.showShortSummaryInDetail),
         is_published: a.isPublished !== false,
+        linked_expense_id: a.linkedExpenseId || null,
+        linked_expense_ids: a.linkedExpenseIds || [],
+        linked_special_expenses: a.linkedSpecialExpenses || [],
+        linked_special_fund_id: a.linkedSpecialFundId || (a.linkedSpecialFundIds && a.linkedSpecialFundIds[0]) || null,
+        linked_special_fund_ids: a.linkedSpecialFundIds && a.linkedSpecialFundIds.length > 0 ? a.linkedSpecialFundIds : (a.linkedSpecialFundId ? [a.linkedSpecialFundId] : []),
+        activity_expense_mode: a.activityExpenseMode || 'none',
         created_at: a.createdAt || now,
         updated_at: now,
       };
@@ -1183,7 +1197,7 @@ export const supabaseService = {
         };
       }
 
-      // Schema mismatch progressive fallback for optional secondary columns (e.g. cover_image, gallery_images)
+      // Schema mismatch progressive fallback for optional secondary columns (e.g. cover_image, gallery_images, linked funds)
       // Never silently strip canonical columns
       while (error && (error.message?.includes('column') || error.code === 'PGRST204' || (error as any).code === '42703')) {
         const errMsg = error.message.toLowerCase();
@@ -1191,6 +1205,30 @@ export const supabaseService = {
           break;
         }
         let stripped = false;
+        if (errMsg.includes('linked_special_fund_id') && 'linked_special_fund_id' in payload) {
+          delete payload.linked_special_fund_id;
+          stripped = true;
+        }
+        if (errMsg.includes('linked_special_fund_ids') && 'linked_special_fund_ids' in payload) {
+          delete payload.linked_special_fund_ids;
+          stripped = true;
+        }
+        if (errMsg.includes('activity_expense_mode') && 'activity_expense_mode' in payload) {
+          delete payload.activity_expense_mode;
+          stripped = true;
+        }
+        if (errMsg.includes('linked_expense_id') && 'linked_expense_id' in payload) {
+          delete payload.linked_expense_id;
+          stripped = true;
+        }
+        if (errMsg.includes('linked_expense_ids') && 'linked_expense_ids' in payload) {
+          delete payload.linked_expense_ids;
+          stripped = true;
+        }
+        if (errMsg.includes('linked_special_expenses') && 'linked_special_expenses' in payload) {
+          delete payload.linked_special_expenses;
+          stripped = true;
+        }
         if (errMsg.includes('cover_image') && 'cover_image' in payload) {
           delete payload.cover_image;
           stripped = true;
@@ -1284,6 +1322,7 @@ export const supabaseService = {
       }
 
       const verifiedActivity: Activity = {
+        ...a,
         id: verified.id,
         slug: verified.slug || verified.id,
         title: typeof verified.title === 'object' && verified.title !== null
@@ -1318,9 +1357,17 @@ export const supabaseService = {
         date: verified.date,
         category: verified.category || 'humanitarian',
         coverImage: verified.cover_image || verified.image || undefined,
-        images: Array.isArray(verified.images) ? verified.images : [],
-        galleryImages: Array.isArray(verified.gallery_images) ? verified.gallery_images : [],
+        images: Array.isArray(verified.images) ? verified.images : (a.images || []),
+        galleryImages: Array.isArray(verified.gallery_images) ? verified.gallery_images : (a.galleryImages || []),
         isPublished: verified.is_published !== false,
+        linkedSpecialFundId: verified.linked_special_fund_id || a.linkedSpecialFundId || (a.linkedSpecialFundIds && a.linkedSpecialFundIds[0]) || undefined,
+        linkedSpecialFundIds: Array.isArray(verified.linked_special_fund_ids) && verified.linked_special_fund_ids.length > 0
+          ? verified.linked_special_fund_ids
+          : (a.linkedSpecialFundIds && a.linkedSpecialFundIds.length > 0 ? a.linkedSpecialFundIds : (a.linkedSpecialFundId ? [a.linkedSpecialFundId] : [])),
+        activityExpenseMode: verified.activity_expense_mode || a.activityExpenseMode || (a.linkedSpecialFundId || (a.linkedSpecialFundIds && a.linkedSpecialFundIds.length > 0) ? 'special' : undefined),
+        linkedExpenseId: verified.linked_expense_id || a.linkedExpenseId || undefined,
+        linkedExpenseIds: Array.isArray(verified.linked_expense_ids) ? verified.linked_expense_ids : a.linkedExpenseIds,
+        linkedSpecialExpenses: Array.isArray(verified.linked_special_expenses) ? verified.linked_special_expenses : a.linkedSpecialExpenses,
         createdAt: verified.created_at || now,
         updatedAt: verified.updated_at || now,
       };

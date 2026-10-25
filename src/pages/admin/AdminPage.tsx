@@ -655,7 +655,18 @@ export const AdminPage: React.FC = () => {
     const outcomesVal = editingActivity.outcomes ? getMulti(editingActivity.outcomes) : undefined;
 
     const actId = editingActivity.id || `act-${Date.now()}`;
-    const mode = editingActivity.activityExpenseMode || (editingActivity.isFundLinked ? 'main' : 'none');
+    const finalSpFundIds = Array.isArray(editingActivity.linkedSpecialFundIds)
+      ? [...editingActivity.linkedSpecialFundIds]
+      : (editingActivity.linkedSpecialFundId ? [editingActivity.linkedSpecialFundId] : []);
+
+    let mode = editingActivity.activityExpenseMode || (editingActivity.isFundLinked ? 'main' : 'none');
+    if (finalSpFundIds.length > 0) {
+      if (mode === 'none') {
+        mode = 'special';
+      } else if (mode === 'main') {
+        mode = 'both';
+      }
+    }
 
     let finalMainExpenseIds: string[] = [];
     let finalSpecialExpenses: Array<{ fundId: string; expenseId: string }> = [];
@@ -712,10 +723,6 @@ export const AdminPage: React.FC = () => {
       }
     }
 
-    const finalSpFundIds = Array.isArray(editingActivity.linkedSpecialFundIds)
-      ? [...editingActivity.linkedSpecialFundIds]
-      : (editingActivity.linkedSpecialFundId ? [editingActivity.linkedSpecialFundId] : []);
-
     const newAct: Activity = {
       id: actId,
       slug: editingActivity.slug || titleStr.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `activity-${Date.now()}`,
@@ -737,8 +744,8 @@ export const AdminPage: React.FC = () => {
       galleryImages: Array.isArray(editingActivity.galleryImages) ? editingActivity.galleryImages : [],
       isPublished: editingActivity.isPublished !== false,
       activityExpenseMode: mode,
-      linkedSpecialFundId: (mode === 'special' || mode === 'both') ? (finalSpFundIds[0] || undefined) : undefined,
-      linkedSpecialFundIds: (mode === 'special' || mode === 'both') && finalSpFundIds.length > 0 ? finalSpFundIds : undefined,
+      linkedSpecialFundId: finalSpFundIds[0] || undefined,
+      linkedSpecialFundIds: finalSpFundIds.length > 0 ? finalSpFundIds : undefined,
       linkedExpenseId: finalMainExpenseIds[0] || undefined,
       linkedExpenseIds: finalMainExpenseIds,
       linkedSpecialExpenses: finalSpecialExpenses,
@@ -3429,8 +3436,12 @@ export const AdminPage: React.FC = () => {
                                     const curIds = editingActivity.linkedSpecialFundIds || (editingActivity.linkedSpecialFundId ? [editingActivity.linkedSpecialFundId] : []);
                                     if (!curIds.includes(fundId)) {
                                       const newIds = [...curIds, fundId];
+                                      const currentMode = editingActivity.activityExpenseMode;
+                                      const nextMode = (currentMode === 'main' || (editingActivity.selectedMainExpenseIds && editingActivity.selectedMainExpenseIds.length > 0)) ? 'both' : 'special';
                                       setEditingActivity({
                                         ...editingActivity,
+                                        activityExpenseMode: nextMode,
+                                        isFundLinked: true,
                                         linkedSpecialFundId: newIds[0],
                                         linkedSpecialFundIds: newIds,
                                       });

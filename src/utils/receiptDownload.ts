@@ -3,32 +3,35 @@ import JSZip from 'jszip';
 
 /**
  * Converts an image URL into a base64 Data URL to prevent HTML5 canvas CORS tainting.
- * If fetch or CORS fails, provides an inline fallback SVG to ensure export never crashes.
+ * Automatically substitutes raster PNG for SVG logo to ensure pristine rendering.
  */
 export async function imageToDataUrl(url: string): Promise<string> {
   if (!url) return '';
-  if (url.startsWith('data:')) return url;
+  if (url.startsWith('data:image/png') || url.startsWith('data:image/jpeg')) return url;
+
+  // Prefer pre-rasterized high-res PNG for the foundation logo to guarantee non-tainted canvas
+  const resolvedUrl = url.includes('logo.svg') ? '/assets/logo.png' : url;
 
   try {
-    const response = await fetch(url, { mode: 'cors' });
+    const response = await fetch(resolvedUrl, { mode: 'cors' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const blob = await response.blob();
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(url);
+      reader.onerror = () => resolve(resolvedUrl);
       reader.readAsDataURL(blob);
     });
   } catch (err) {
-    // If cross-origin fetch is blocked, fallback to transparent 1x1 png or try direct image load via canvas
+    // If fetch fails, try image-to-canvas conversion
     return new Promise((resolve) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         try {
           const c = document.createElement('canvas');
-          c.width = img.naturalWidth || 100;
-          c.height = img.naturalHeight || 100;
+          c.width = img.naturalWidth || 200;
+          c.height = img.naturalHeight || 200;
           const ctx = c.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0);
@@ -38,23 +41,23 @@ export async function imageToDataUrl(url: string): Promise<string> {
         } catch (e) {
           // ignore
         }
-        resolve(url);
+        resolve(resolvedUrl);
       };
       img.onerror = () => {
-        // Return 1x1 transparent png data url so canvas rendering proceeds without taint
+        // Transparent fallback pixel so canvas export never fails
         resolve('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=');
       };
-      img.src = url;
+      img.src = resolvedUrl;
     });
   }
 }
 
 /**
- * Pre-processes an HTML element clone for reliable canvas rasterization:
+ * Prepares an offscreen element clone for high-fidelity canvas rasterization:
  * - Awaits web fonts (document.fonts.ready)
- * - Converts all <img> tags to inline base64 data URLs
- * - Removes problematic CSS filters (like filter: grayscale)
- * - Mounts inside an unscaled, fixed off-screen sandbox
+ * - Inlines all images as data URLs
+ * - Keeps opacity: 1 and visibility: visible so html2canvas renders all pixels
+ * - Places offscreen at z-index: -9999 so user does not see flickering
  */
 async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
   clone: HTMLElement;
@@ -70,15 +73,15 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
     }
   }
 
-  // 2. Create sandbox container
+  // 2. Create offscreen container with OPACITY 1 (opacity: 0 makes html2canvas render blank!)
   const sandbox = document.createElement('div');
   sandbox.style.position = 'fixed';
   sandbox.style.left = '0';
   sandbox.style.top = '0';
   sandbox.style.zIndex = '-9999';
   sandbox.style.width = '680px';
-  sandbox.style.minHeight = '400px';
-  sandbox.style.opacity = '0';
+  sandbox.style.opacity = '1';
+  sandbox.style.visibility = 'visible';
   sandbox.style.pointerEvents = 'none';
   sandbox.style.transform = 'none';
   sandbox.style.backgroundColor = '#ffffff';
@@ -95,7 +98,6 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
   const images = Array.from(clone.querySelectorAll('img'));
   await Promise.all(
     images.map(async (img) => {
-      // Remove any CSS filters that break html2canvas
       img.style.filter = 'none';
       if (img.src) {
         const dataUrl = await imageToDataUrl(img.src);
@@ -107,8 +109,8 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
   sandbox.appendChild(clone);
   document.body.appendChild(sandbox);
 
-  // Allow short tick for layout calculation
-  await new Promise((r) => setTimeout(r, 60));
+  // Short tick for DOM layout calculation
+  await new Promise((r) => setTimeout(r, 80));
 
   const cleanup = () => {
     if (document.body.contains(sandbox)) {
@@ -134,42 +136,65 @@ export async function downloadReceiptElement({
   element,
   filename,
   format,
-  quality = 0.96,
+  quality = 0.98,
 }: DownloadReceiptOptions): Promise<void> {
   const { clone, cleanup } = await prepareElementInSandbox(element);
 
   try {
+    const renderedHeight = clone.offsetHeight || clone.scrollHeight || 750;
+
     const canvas = await html2canvas(clone, {
       scale: 2.5, // 2.5x high-res rendering for print-level sharpness
       useCORS: true,
-      allowTaint: false,
+      allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
       scrollX: 0,
       scrollY: 0,
       width: 680,
+      height: renderedHeight,
+      windowWidth: 680,
+      windowHeight: renderedHeight,
     });
 
     const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
     const ext = format === 'jpeg' ? 'jpg' : 'png';
 
-    // Export via Blob for browser safety and memory stability
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob((b) => resolve(b), mimeType, quality)
-    );
+    // Export via Blob with fallback to dataURL
+    let blob: Blob | null = null;
+    try {
+      blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), mimeType, quality)
+      );
+    } catch (e) {
+      // toBlob failed, will fallback to dataURL below
+    }
 
     if (!blob) {
-      throw new Error('Canvas toBlob returned null');
+      const dataUrl = canvas.toDataURL(mimeType, quality);
+      const res = await fetch(dataUrl);
+      blob = await res.blob();
+    }
+
+    if (!blob || blob.size === 0) {
+      throw new Error('Canvas export produced empty blob');
     }
 
     const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.download = `${filename}.${ext}`;
     link.href = objectUrl;
+    link.target = '_self';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+
+    // Keep object URL alive for 60 seconds so browser download is not cancelled prematurely
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(objectUrl);
+      } catch {}
+    }, 60000);
   } finally {
     cleanup();
   }
@@ -193,23 +218,39 @@ export async function downloadReceiptsZip(
   for (const item of items) {
     const { clone, cleanup } = await prepareElementInSandbox(item.element);
     try {
+      const renderedHeight = clone.offsetHeight || clone.scrollHeight || 750;
+
       const canvas = await html2canvas(clone, {
         scale: 2.5,
         useCORS: true,
-        allowTaint: false,
+        allowTaint: true,
         backgroundColor: '#ffffff',
         logging: false,
+        scrollX: 0,
+        scrollY: 0,
         width: 680,
+        height: renderedHeight,
+        windowWidth: 680,
+        windowHeight: renderedHeight,
       });
 
       const mimeType = item.format === 'jpeg' ? 'image/jpeg' : 'image/png';
       const ext = item.format === 'jpeg' ? 'jpg' : 'png';
 
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob((b) => resolve(b), mimeType, 0.95)
-      );
+      let blob: Blob | null = null;
+      try {
+        blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob((b) => resolve(b), mimeType, 0.95)
+        );
+      } catch {}
 
-      if (blob) {
+      if (!blob) {
+        const dataUrl = canvas.toDataURL(mimeType, 0.95);
+        const res = await fetch(dataUrl);
+        blob = await res.blob();
+      }
+
+      if (blob && blob.size > 0) {
         const arrayBuffer = await blob.arrayBuffer();
         zip.file(`${item.filename}.${ext}`, arrayBuffer);
       }
@@ -223,8 +264,14 @@ export async function downloadReceiptsZip(
   const link = document.createElement('a');
   link.href = objectUrl;
   link.download = `${zipFilename}.zip`;
+  link.target = '_self';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+
+  setTimeout(() => {
+    try {
+      URL.revokeObjectURL(objectUrl);
+    } catch {}
+  }, 60000);
 }

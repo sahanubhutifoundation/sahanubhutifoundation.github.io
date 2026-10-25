@@ -50,7 +50,7 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
   const signatureLabel = labels.signatureLabel || 'আদায়কারী / অনুমোদিত স্বাক্ষর';
   const disclaimerText = labels.disclaimerText || 'এটি একটি কম্পিউটার জেনারেটেড ডিজিটাল রসিদ।';
 
-  const logoSrc = config.logoUrl || '/assets/logo.svg';
+  const logoSrc = config.logoUrl || '/assets/logo.png';
 
   const monthNamesBn = receipt.months
     .map((m) => BENGALI_MONTH_NAMES[m] || m)

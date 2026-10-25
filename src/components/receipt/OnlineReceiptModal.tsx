@@ -48,6 +48,7 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
   const [multiMonthMode, setMultiMonthMode] = useState<'single' | 'separate'>('single');
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const previewCardRef = useRef<HTMLDivElement>(null);
   const batchContainerRef = useRef<HTMLDivElement>(null);
@@ -246,6 +247,7 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
     try {
       setIsDownloading(true);
       setDownloadSuccess(null);
+      setDownloadError(null);
       const filename = `Sahanubhuti_Receipt_${previewReceiptData.receiptNumber}`;
       await downloadReceiptElement({
         element: previewCardRef.current,
@@ -254,10 +256,10 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
         quality: 0.98,
       });
       setDownloadSuccess(`রসিদ (${format.toUpperCase()}) সফলভাবে ডাউনলোড হয়েছে!`);
-      setTimeout(() => setDownloadSuccess(null), 4000);
-    } catch (err) {
+      setTimeout(() => setDownloadSuccess(null), 5000);
+    } catch (err: any) {
       console.error('Receipt download error:', err);
-      alert('রসিদ তৈরিতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+      setDownloadError(err?.message ? `রসিদ তৈরিতে সমস্যা হয়েছে: ${err.message}` : 'রসিদ তৈরিতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
     } finally {
       setIsDownloading(false);
     }
@@ -269,6 +271,7 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
     try {
       setIsDownloading(true);
       setDownloadSuccess(null);
+      setDownloadError(null);
 
       const items = Array.from(batchContainerRef.current.children).map((el, idx) => {
         const monthKey = selectedMonths[idx] || `month-${idx + 1}`;
@@ -287,10 +290,10 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
 
       await downloadReceiptsZip(items, zipName);
       setDownloadSuccess(`সব মাসের (${selectedMonths.length}টি) রসিদ জিপ ফাইলে ডাউনলোড হয়েছে!`);
-      setTimeout(() => setDownloadSuccess(null), 4000);
-    } catch (err) {
+      setTimeout(() => setDownloadSuccess(null), 5000);
+    } catch (err: any) {
       console.error('Batch download error:', err);
-      alert('ব্যাচ রসিদ ডাউনলোডে সমস্যা হয়েছে।');
+      setDownloadError(err?.message ? `ব্যাচ রসিদ ডাউনলোডে সমস্যা হয়েছে: ${err.message}` : 'ব্যাচ রসিদ ডাউনলোডে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
     } finally {
       setIsDownloading(false);
     }
@@ -524,6 +527,13 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
                 <div className="p-2.5 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-900 text-xs font-semibold flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-700" />
                   <span>{downloadSuccess}</span>
+                </div>
+              )}
+
+              {downloadError && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                  <span>{downloadError}</span>
                 </div>
               )}
 
