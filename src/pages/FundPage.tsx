@@ -202,10 +202,15 @@ export const FundPage: React.FC = () => {
         const activeYearSource = sources.find((s) => s.year === selectedYear);
         
         // Exact target URL & GID configured specifically for this year
-        const targetUrl = activeYearSource?.url?.trim() || '';
+        let targetUrl = activeYearSource?.url?.trim() || '';
         const explicitGid = activeYearSource?.gid?.trim();
 
-        // If this year has no configured URL, return clean not_found state
+        // If this year has no configured URL, fallback to foundation's master fundSourceUrl
+        if (!targetUrl && freshConfig.fundSourceUrl) {
+          targetUrl = freshConfig.fundSourceUrl.trim();
+        }
+
+        // If still no URL, return clean not_found state
         if (!targetUrl) {
           const res = await fetchFundData('', isManual, selectedYear);
           setFundData(res);
@@ -424,7 +429,7 @@ export const FundPage: React.FC = () => {
 
     if (searchTerm.trim()) {
       const q = searchTerm.trim().toLowerCase();
-      list = list.filter((m) => m.name.toLowerCase().includes(q));
+      list = list.filter((m) => (m.name || '').toLowerCase().includes(q));
     }
 
     if (memberFilter === 'complete') {
@@ -678,6 +683,43 @@ export const FundPage: React.FC = () => {
                 {fundData.errorMessage || t('sourceUnavailableDefaultErr')}
               </p>
             </div>
+
+            {fundData.diagnostics && (
+              <div className="text-left text-xs bg-[#F7F5F0] border border-[#EBE8E0] rounded-xl p-4 max-w-xl mx-auto space-y-2">
+                <div className="font-bold text-[#2D3630] border-b border-[#EBE8E0] pb-1.5 flex items-center justify-between">
+                  <span>স্প্রেডশিট ডায়াগনস্টিক রিপোর্ট ({fundData.diagnostics.selectedYear})</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${fundData.diagnostics.requestSucceeded ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                    {fundData.diagnostics.requestSucceeded ? 'কানেকশন সফল' : 'কানেকশন ব্যর্থ'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-[#5C665F]">
+                  <div>
+                    <span className="font-semibold block text-[#2D3630]">মোট রো সংখ্যা:</span>
+                    <span>{fundData.diagnostics.rowCount} টি</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold block text-[#2D3630]">শনাক্তকৃত ফরম্যাট:</span>
+                    <span className="capitalize">{fundData.diagnostics.detectedType}</span>
+                  </div>
+                </div>
+                {fundData.diagnostics.missingFields && fundData.diagnostics.missingFields.length > 0 && (
+                  <div className="text-[11px]">
+                    <span className="font-semibold block text-amber-800">অনুপস্থিত কলাম বা সমস্যা:</span>
+                    <ul className="list-disc list-inside text-rose-700 space-y-0.5">
+                      {fundData.diagnostics.missingFields.map((f, i) => (
+                        <li key={i}>{f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {fundData.diagnostics.note && (
+                  <p className="text-[11px] text-[#7A877E] italic pt-1 border-t border-[#EBE8E0]">
+                    পরামর্শ: {fundData.diagnostics.note}
+                  </p>
+                )}
+              </div>
+            )}
+
             {currentSource?.url && (
               <div className="text-[11px] text-[#5C665F] font-mono bg-[#F7F5F0] p-2.5 rounded-xl max-w-md mx-auto truncate border border-[#EBE8E0]">
                 {t('configuredSourceLabel')} {currentSource.url}
@@ -1007,9 +1049,10 @@ export const FundPage: React.FC = () => {
                   <tbody className="divide-y divide-[#EBE8E0]">
                     {filteredMembers.map((member) => {
                       const isFullyPaid = member.paidCount >= 12;
-                      const resolved = resolveContributionMemberName(member.name);
-                      const matchedMemberId = resolved.memberId || memberNameMap.get(member.name.trim().toLowerCase())?.id;
-                      const displayName = resolved.displayName || member.name;
+                      const safeName = (member.name || '').trim();
+                      const resolved = resolveContributionMemberName(safeName);
+                      const matchedMemberId = resolved.memberId || (safeName ? memberNameMap.get(safeName.toLowerCase())?.id : undefined);
+                      const displayName = resolved.displayName || safeName || 'সদস্য';
 
                       return (
                         <tr key={member.serial} className="hover:bg-[#FDFCF9] transition-colors">
@@ -1034,7 +1077,7 @@ export const FundPage: React.FC = () => {
                             ৳ {formatLocalizedAmount(member.commitment, language)}
                           </td>
                           {MONTH_KEYS.map((m) => {
-                            const isPaid = member.months[m] === 'paid';
+                            const isPaid = member.months && member.months[m] === 'paid';
                             const mName = getLocalizedMonthName(m, language);
                             return (
                               <td key={m} className="py-3 px-2 text-center">

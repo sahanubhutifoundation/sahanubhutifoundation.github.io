@@ -164,6 +164,9 @@ export interface Activity {
   linkedExpenseId?: string;
   linkedExpenseIds?: string[]; // Multiple main-fund expense IDs
   linkedSpecialExpenses?: Array<{ fundId: string; expenseId: string }>; // Multiple special-fund expense references
+  linkedSpecialFundId?: string; // Stable ID of whole linked special fund
+  linkedSpecialFundIds?: string[]; // Multiple whole special fund IDs
+  activityExpenseMode?: 'none' | 'main' | 'special' | 'both';
   financialRecord?: ActivityFinancialRecord;
   order?: number;
   purpose?: MultilingualText;
@@ -446,6 +449,19 @@ export interface FundMemberRecord {
   paidCount: number;
 }
 
+export interface FundDiagnostics {
+  selectedYear?: string;
+  sourceUrl?: string;
+  requestSucceeded: boolean;
+  rowCount: number;
+  headerRowIndex: number;
+  identifiedHeaders: string[];
+  missingFields: string[];
+  detectedType: 'matrix' | 'ledger' | 'unrecognized';
+  rawSnippet?: string[];
+  note?: string;
+}
+
 export interface FundData {
   totalFund: number;
   amountReceived: number;
@@ -466,6 +482,7 @@ export interface FundData {
   sourceType: 'google_sheet' | 'api' | 'manual';
   status: 'live' | 'fallback' | 'error' | 'not_found';
   errorMessage?: string;
+  diagnostics?: FundDiagnostics;
   expenseRatio?: number;
   safetyRatio?: number;
   year?: string;

@@ -70,6 +70,17 @@ export const ActivityDetailPage: React.FC = () => {
     return result;
   }, [activity]);
 
+  const linkedSpecialFunds = useMemo(() => {
+    if (!activity) return [];
+    const allFunds = storageService.getSpecialFunds();
+    const targetIds = [
+      ...(activity.linkedSpecialFundIds || []),
+      ...(activity.linkedSpecialFundId ? [activity.linkedSpecialFundId] : []),
+    ];
+    const uniqueIds = Array.from(new Set(targetIds.filter(Boolean)));
+    return allFunds.filter((f) => uniqueIds.includes(f.id));
+  }, [activity]);
+
   const totalExpenseAmount = useMemo(() => {
     const mainTotal = linkedMainExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     const spTotal = linkedSpecialExpenses.reduce((sum, item) => sum + (Number(item.expense.amount) || 0), 0);
@@ -324,7 +335,7 @@ export const ActivityDetailPage: React.FC = () => {
         </article>
 
         {/* Financial Transparency Link / Record if linked */}
-        {(linkedMainExpenses.length > 0 || linkedSpecialExpenses.length > 0 || activity.financialRecord || activity.linkedExpenseId) && (
+        {(linkedMainExpenses.length > 0 || linkedSpecialExpenses.length > 0 || linkedSpecialFunds.length > 0 || activity.financialRecord || activity.linkedExpenseId) && (
           <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-3xs space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#EBE8E0]">
               <div className="flex items-center gap-3">
@@ -366,6 +377,89 @@ export const ActivityDetailPage: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Linked Whole Special Funds Card */}
+            {linkedSpecialFunds.length > 0 && (
+              <div className="space-y-4 pt-1">
+                {linkedSpecialFunds.map((fund) => {
+                  const totalCol = (fund.donations || []).reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
+                  const totalExp = (fund.expenses || []).reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+                  const bal = totalCol - totalExp;
+                  const isPositive = bal >= 0;
+
+                  return (
+                    <div
+                      key={fund.id}
+                      className="rounded-2xl border border-teal-200/90 bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white p-5 sm:p-6 shadow-md overflow-hidden relative"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-500/20 text-teal-300 border border-teal-400/30">
+                            {language === 'bn' ? 'সম্পূর্ণ বিশেষ তহবিল সংযুক্ত' : 'Linked Special Fund'}
+                          </span>
+                          {(fund.year || fund.eventDate) && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/10 text-white/80 border border-white/15">
+                              {fund.year || fund.eventDate}
+                            </span>
+                          )}
+                        </div>
+
+                        {fund.status && (
+                          <span className="text-[11px] font-semibold text-emerald-400">
+                            {fund.status === 'completed'
+                              ? (language === 'bn' ? '✓ সম্পন্ন' : 'Completed')
+                              : (language === 'bn' ? '● চলমান' : 'Active')}
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="text-base sm:text-lg font-bold font-serif text-white mb-1.5">
+                        {fund.name}
+                      </h3>
+
+                      {fund.description && (
+                        <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-4 line-clamp-2">
+                          {fund.description}
+                        </p>
+                      )}
+
+                      {/* Stat Counters */}
+                      <div className="grid grid-cols-3 gap-2.5 p-3 rounded-xl bg-white/10 backdrop-blur-xs border border-white/10 mb-4 text-center">
+                        <div>
+                          <span className="block text-[10px] text-teal-200 font-medium">মোট সংগ্রহ</span>
+                          <span className="text-xs sm:text-sm font-bold font-mono text-white">
+                            ৳ {language === 'bn' ? toBengaliDigits(totalCol) : totalCol.toLocaleString()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] text-rose-200 font-medium">মোট ব্যয়</span>
+                          <span className="text-xs sm:text-sm font-bold font-mono text-rose-200">
+                            ৳ {language === 'bn' ? toBengaliDigits(totalExp) : totalExp.toLocaleString()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] text-emerald-200 font-medium">বর্তমান স্থিতি</span>
+                          <span className={`text-xs sm:text-sm font-bold font-mono ${isPositive ? 'text-emerald-300' : 'text-rose-300'}`}>
+                            ৳ {language === 'bn' ? toBengaliDigits(bal) : bal.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Prominent Action Button */}
+                      <div className="flex justify-end">
+                        <Link
+                          to={`/fund?tab=special&fundId=${fund.id}#special-fund-${fund.id}`}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow group"
+                        >
+                          <span>{language === 'bn' ? 'এই বিশেষ ফান্ডের সম্পূর্ণ হিসাব দেখুন' : 'View Full Special Fund Accounts'}</span>
+                          <ExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Group 1: Main Foundation Fund Expenses */}
             {linkedMainExpenses.length > 0 && (

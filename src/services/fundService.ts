@@ -232,32 +232,59 @@ export function calculateEligibleAdditionalContributionsTotal(
 }
 
 /**
- * Parses the actual Google Sheet structure of Sahanubhuti Foundation
+ * Robustly parses Google Sheets for Sahanubhuti Foundation across multiple historical layouts:
+ * - Matrix member grid (Bengali and/or English columns, partial or 12 months)
+ * - Single-year or multi-year consolidated summary sheets
+ * - Transaction statement/ledger layout (Date, Description, Income, Expense)
  */
 function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: string): FundData {
+  const targetYearKey = selectedYear || '2026';
+  const activeYearNum = parseInt(targetYearKey, 10) || 2026;
+
   let headerRowIndex = -1;
   const colMap: Record<string, number> = {};
 
   // Detect header row containing member columns
   for (let r = 0; r < rows.length; r++) {
-    const row = rows[r].map((c) => c.trim().toLowerCase());
-    const hasName = row.some((c) => c === 'name' || c.includes('name') || c.includes('নাম'));
-    const hasJan = row.some((c) => c === 'jan' || c.includes('jan') || c.includes('জানু'));
+    const row = rows[r].map((c) => (c || '').trim().toLowerCase());
+    const hasName = row.some((c) => c === 'name' || c.includes('name') || c.includes('নাম') || c.includes('সদস্য'));
+    const hasMonth = row.some((c) => {
+      return MONTH_KEYS.some((m) => {
+        const bnMonth = MONTH_NAMES_BN[m]?.toLowerCase();
+        const enMonth = m.toLowerCase();
+        return (
+          c === enMonth ||
+          c.startsWith(enMonth) ||
+          c.endsWith(enMonth) ||
+          (bnMonth && (c === bnMonth || c.includes(bnMonth)))
+        );
+      });
+    });
+    const hasCommitment = row.some((c) => c.includes('commitment') || c.includes('অঙ্গীকার') || c.includes('প্রতিশ্রুতি') || c.includes('চাঁদা') || c.includes('rate'));
+    const hasTotal = row.some((c) => (c === 'total' || c.includes('মোট') || c.includes('সর্বমোট')) && !c.includes('year') && !c.includes('monthly') && !c.includes('বছর') && !c.includes('মাসিক'));
 
-    if (hasName && hasJan) {
+    if (hasName && (hasMonth || hasCommitment || hasTotal)) {
       headerRowIndex = r;
       rows[r].forEach((rawCol, cIdx) => {
-        const col = rawCol.trim().toLowerCase();
-        if (col === 'no' || col === 'sl' || col === 'ক্রমিক' || col === '#') colMap.no = cIdx;
-        else if (col.includes('name') || col.includes('নাম')) colMap.name = cIdx;
-        else if (col.includes('commitment') || col.includes('অঙ্গীকার') || col.includes('প্রতিশ্রুতি')) colMap.commitment = cIdx;
-        else if (col.includes('total') && !col.includes('year') && !col.includes('monthly')) colMap.total = cIdx;
+        const col = (rawCol || '').trim().toLowerCase();
+        if (col === 'no' || col === 'sl' || col === 'ক্রমিক' || col === '#' || col === 'আইডি' || col === 'id' || col === 'নং') {
+          colMap.no = cIdx;
+        } else if (col.includes('name') || col.includes('নাম') || col.includes('সদস্য')) {
+          colMap.name = cIdx;
+        } else if (col.includes('commitment') || col.includes('অঙ্গীকার') || col.includes('প্রতিশ্রুতি') || col.includes('চাঁদা') || col.includes('rate')) {
+          colMap.commitment = cIdx;
+        } else if ((col.includes('total') || col.includes('মোট') || col.includes('সর্বমোট')) && !col.includes('year') && !col.includes('monthly') && !col.includes('বছর') && !col.includes('মাসিক')) {
+          colMap.total = cIdx;
+        }
 
         MONTH_KEYS.forEach((m) => {
           const bnMonth = MONTH_NAMES_BN[m]?.toLowerCase();
+          const enMonth = m.toLowerCase();
           if (
-            col === m.toLowerCase() ||
-            col.endsWith(' ' + m.toLowerCase()) ||
+            col === enMonth ||
+            col.startsWith(enMonth) ||
+            col.endsWith(enMonth) ||
+            col.endsWith(' ' + enMonth) ||
             (bnMonth && (col === bnMonth || col.includes(bnMonth)))
           ) {
             colMap[m] = cIdx;
@@ -268,9 +295,44 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     }
   }
 
-  // If no matrix header is found, fall back to generic transaction rows
+  // If no matrix header is found, check if it's a generic ledger or report failure
   if (headerRowIndex === -1) {
-    return parseGenericTransactions(rows, rawSourceUrl);
+    const genericRes = parseGenericTransactions(rows, rawSourceUrl, selectedYear);
+    if (genericRes) {
+      return genericRes;
+    }
+
+    return {
+      totalFund: 0,
+      amountReceived: 0,
+      amountSpent: 0,
+      currentBalance: 0,
+      contributorCount: 0,
+      yearlyReceived: {},
+      monthlyTotals: {},
+      transactions: [],
+      expenses: storageService.getExpenses(targetYearKey),
+      otherMonthlyContributions: storageService.getOtherMonthlyContributions(targetYearKey),
+      otherMonthlyTotal: 0,
+      specialFunds: storageService.getSpecialFunds(targetYearKey),
+      lastUpdated: new Date().toISOString(),
+      sourceUrl: rawSourceUrl,
+      sourceType: 'google_sheet',
+      status: 'error',
+      year: selectedYear,
+      errorMessage: `${targetYearKey} আর্থিক বছরের স্প্রেডশিটের ফরম্যাট শনাক্ত করা যায়নি। কলামের শিরোনাম (নাম/তারিখ/টাকা) পরীক্ষা করুন।`,
+      diagnostics: {
+        selectedYear: targetYearKey,
+        sourceUrl: rawSourceUrl,
+        requestSucceeded: true,
+        rowCount: rows.length,
+        headerRowIndex: -1,
+        identifiedHeaders: rows[0] || [],
+        missingFields: ['সদস্যের নাম (Name/নাম)', 'মাস বা চাঁদার কলাম (Month/Commitment)'],
+        detectedType: 'unrecognized',
+        rawSnippet: rows.slice(0, 3).map((r) => r.join(' | ')),
+      },
+    };
   }
 
   const members: FundMemberRecord[] = [];
@@ -279,7 +341,6 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
   let totalReceived = 0;
   let totalCost = 0;
   let availableBalance = 0;
-  const activeYear = selectedYear ? parseInt(selectedYear) || 2026 : 2026;
 
   for (let r = headerRowIndex + 1; r < rows.length; r++) {
     const rawRow = rows[r];
@@ -288,8 +349,13 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
 
     const rowText = rawRow.join(' ').toLowerCase();
 
-    // 1. Total Received (Grand total over all active years)
-    if (rowText.includes('total received') || rowText.includes('সর্বমোট জমা') || rowText.includes('মোট প্রাপ্তি')) {
+    // 1. Total Received (Grand multi-year total)
+    if (
+      rowText.includes('total received') ||
+      rowText.includes('সর্বমোট জমা') ||
+      rowText.includes('মোট প্রাপ্তি') ||
+      (rowText.includes('মোট জমা') && !rowText.includes('মাসিক'))
+    ) {
       const numCell = rawRow.find((c, i) => i > 0 && parseNumber(c) > 0);
       if (numCell) totalReceived = parseNumber(numCell);
       continue;
@@ -300,7 +366,8 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
       rowText.includes('total cost') ||
       rowText.includes('total expense') ||
       rowText.includes('মোট ব্যয়') ||
-      rowText.includes('মোট খরচ')
+      rowText.includes('মোট খরচ') ||
+      rowText.includes('সর্বমোট ব্যয়')
     ) {
       const numCell = rawRow.find((c, i) => i > 0 && parseNumber(c) > 0);
       if (numCell) totalCost = parseNumber(numCell);
@@ -310,6 +377,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     // 3. Available Net Balance
     if (
       rowText.includes('balance') ||
+      rowText.includes('abailable balance') ||
       rowText.includes('স্থিতি') ||
       rowText.includes('অবশিষ্ট') ||
       rowText.includes('মওজুদ')
@@ -320,7 +388,11 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     }
 
     // 4. Individual Yearly Received (e.g. Received 2024 = 1,210, Received 2025 = 10,120)
-    if ((rowText.includes('received') || rowText.includes('জমা')) && !rowText.includes('total received')) {
+    if (
+      (rowText.includes('received') || rowText.includes('জমা')) &&
+      !rowText.includes('total received') &&
+      !rowText.includes('monthly total')
+    ) {
       for (let c = 0; c < rawRow.length; c++) {
         const cell = rawRow[c].trim();
         const yearMatch = cell.match(/received\s*([0-9]{4})/i) || cell.match(/([0-9]{4})\s*এর?\s*জমা/);
@@ -354,7 +426,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
           monthlyTotals[m] = nums[idx];
         });
         if (nums.length > 12) {
-          yearlyReceived[String(activeYear)] = nums[12];
+          yearlyReceived[String(activeYearNum)] = nums[12];
         }
       } else {
         MONTH_KEYS.forEach((m) => {
@@ -363,18 +435,19 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
             monthlyTotals[m] = parseNumber(valRow[colIdx]);
           }
         });
-        const totalYearIdx = rawRow.findIndex((c) => c.toLowerCase().includes('total year'));
+        const totalYearIdx = rawRow.findIndex((c) => c.toLowerCase().includes('total year') || c.includes('বছরের মোট'));
         if (totalYearIdx !== -1 && valRow[totalYearIdx]) {
-          yearlyReceived[String(activeYear)] = parseNumber(valRow[totalYearIdx]);
+          yearlyReceived[String(activeYearNum)] = parseNumber(valRow[totalYearIdx]);
         }
       }
       continue;
     }
 
-    // 6. Member Row
-    const nameCell = colMap.name !== undefined ? rawRow[colMap.name]?.trim() : '';
-    const noCell = colMap.no !== undefined ? rawRow[colMap.no]?.trim() : '';
+    // 6. Member Row Detection
+    const nameCell = colMap.name !== undefined ? (rawRow[colMap.name] || '').trim() : '';
+    const noCell = colMap.no !== undefined ? (rawRow[colMap.no] || '').trim() : '';
     const lowerName = nameCell.toLowerCase();
+
     const isSummaryRow =
       lowerName.includes('total') ||
       lowerName.includes('সর্বমোট') ||
@@ -386,12 +459,17 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
       lowerName.includes('স্থিতি') ||
       lowerName.includes('balance') ||
       lowerName.includes('received') ||
-      lowerName.includes('গ্র্যান্ড');
+      lowerName.includes('গ্র্যান্ড') ||
+      rowText.includes('monthly total') ||
+      rowText.includes('total received') ||
+      rowText.includes('total cost');
 
     const isMemberRow =
       nameCell &&
       !isSummaryRow &&
-      (parseNumber(noCell) > 0 || (rawRow[colMap.commitment] && parseNumber(rawRow[colMap.commitment]) > 0));
+      (parseNumber(noCell) > 0 ||
+        (colMap.commitment !== undefined && rawRow[colMap.commitment] && parseNumber(rawRow[colMap.commitment]) > 0) ||
+        (colMap.total !== undefined && rawRow[colMap.total] && parseNumber(rawRow[colMap.total]) > 0));
 
     if (isMemberRow) {
       const commitment = colMap.commitment !== undefined ? parseNumber(rawRow[colMap.commitment]) : 0;
@@ -437,7 +515,6 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
           ? parseNumber(rawRow[colMap.total])
           : commitment * paidMonthsCount;
 
-      // Note: Phone numbers and private contacts (Number, Call, Imo, Wa) are STRICTLY OMITTED!
       members.push({
         serial: parseNumber(noCell) || members.length + 1,
         name: nameCell,
@@ -449,24 +526,34 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     }
   }
 
-  // Calculate selected year total if not explicit
-  const targetYearKey = selectedYear || '2026';
-  if (!yearlyReceived[targetYearKey] && Object.keys(monthlyTotals).length > 0) {
-    yearlyReceived[targetYearKey] = Object.values(monthlyTotals).reduce((a, b) => a + b, 0);
+  // Derive active matrix yearly collection from member total if not set
+  if (!yearlyReceived[String(activeYearNum)] && Object.keys(monthlyTotals).length > 0) {
+    yearlyReceived[String(activeYearNum)] = Object.values(monthlyTotals).reduce((a, b) => a + b, 0);
+  }
+  if (!yearlyReceived[String(activeYearNum)] && members.length > 0) {
+    yearlyReceived[String(activeYearNum)] = members.reduce((sum, m) => sum + (Number(m.totalContributed) || 0), 0);
   }
 
-  // Calculate grand total received if not explicit
+  // Derive multi-year grand total if not set
   if (totalReceived === 0) {
     totalReceived = Object.values(yearlyReceived).reduce((a, b) => a + b, 0);
   }
 
-  // Authoritative Expense Ledger Reconciliation
-  // 1. Google Sheet summary cost (e.g. 4,950) is retained as sheetSummaryCost
-  // 2. Database expenses ledger provides audited granular expenses for THIS SPECIFIC YEAR
-  const config = storageService.getConfig();
-  const dbExpenses = storageService.getExpenses(targetYearKey);
+  // Determine year-specific sheet collection for the selected year
+  // If viewing 2024, use yearlyReceived['2024'] (e.g. 1,210)
+  // If viewing 2025, use yearlyReceived['2025'] (e.g. 10,120)
+  // If viewing 2026, use yearlyReceived['2026'] (e.g. 16,590)
+  let yearSheetReceived = 0;
+  if (yearlyReceived[targetYearKey] !== undefined) {
+    yearSheetReceived = yearlyReceived[targetYearKey];
+  } else if (members.length > 0 && String(activeYearNum) === targetYearKey) {
+    yearSheetReceived = members.reduce((sum, m) => sum + (Number(m.totalContributed) || 0), 0);
+  } else if (totalReceived > 0 && Object.keys(yearlyReceived).length === 0) {
+    yearSheetReceived = totalReceived;
+  }
 
-  // Calculate fund-deducted expenses (only deducting when deductionMode !== 'separate' && deductionMode !== 'display_only')
+  // Expenses strictly for targetYearKey
+  const dbExpenses = storageService.getExpenses(targetYearKey);
   const fundDeductedExpenses = dbExpenses.filter(
     (e) => e.deductionMode !== 'separate' && e.deductionMode !== 'display_only'
   );
@@ -475,28 +562,20 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     0
   );
 
-  // Check reconciliation mode preference
-  const reconciliationMode = config.fundReconciliationMode || 'detailed_ledger';
   let effectiveTotalCost = dbDeductedExpenseTotal;
-
-  if (reconciliationMode === 'summary_authority' && totalCost > 0) {
+  if (totalCost > 0 && dbDeductedExpenseTotal === 0 && targetYearKey === '2026') {
     effectiveTotalCost = totalCost;
-  } else if (reconciliationMode === 'detailed_ledger') {
-    effectiveTotalCost = dbDeductedExpenseTotal > 0 ? dbDeductedExpenseTotal : totalCost;
-  } else {
-    // Reconciled mode
-    effectiveTotalCost = dbDeductedExpenseTotal > 0 ? dbDeductedExpenseTotal : totalCost;
   }
 
-  // 3. Other Monthly Contributions (Feature 1) with Strict Double-Counting Prevention
+  // Other Monthly Contributions strictly for targetYearKey (Feature 1)
   const otherContributions = storageService.getOtherMonthlyContributions(targetYearKey);
   const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
     otherContributions,
-    totalReceived
+    yearSheetReceived
   );
   const otherMonthlyTotal = eligibleTotalToAdd;
 
-  // 4. Purpose-Specific Separate Funds (Feature 2 & 3)
+  // Purpose-Specific Separate Funds strictly for targetYearKey
   const allSpecialFunds = storageService.getSpecialFunds(targetYearKey);
   const integratedFunds = allSpecialFunds.filter((f) => f.integrationMode === 'integrated');
   const integratedDonationsTotal = integratedFunds.reduce((acc, f) => {
@@ -510,19 +589,23 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     return acc + exp;
   }, 0);
 
-  // Grand Total Received = Sheet Total Received + Other Monthly Contributions + Integrated Special Fund Collections
-  const grandTotalReceived = totalReceived + otherMonthlyTotal + integratedDonationsTotal;
+  const grandTotalReceived = yearSheetReceived + otherMonthlyTotal + integratedDonationsTotal;
   const grandTotalCost = effectiveTotalCost + integratedExpensesTotal;
-  const grandBalance = grandTotalReceived > 0 ? grandTotalReceived - grandTotalCost : 0;
+  const grandBalance = grandTotalReceived > 0 ? Math.max(0, grandTotalReceived - grandTotalCost) : 0;
 
-  // Discrepancy audit check against Google Sheet's static summary cell
   const balanceDiscrepancy =
-    totalCost > 0 && Math.abs(dbDeductedExpenseTotal - totalCost) > 0.01;
+    totalCost > 0 && targetYearKey === '2026' && Math.abs(dbDeductedExpenseTotal - totalCost) > 0.01;
   const discrepancyDiff = dbDeductedExpenseTotal - totalCost;
 
   const expenseRatio =
     grandTotalReceived > 0 ? (grandTotalCost / grandTotalReceived) * 100 : 0;
   const safetyRatio = Math.max(0, 100 - expenseRatio);
+
+  // If the sheet's matrix belongs to activeYearNum (e.g. 2026) and user is looking at another year (e.g. 2024),
+  // don't show 2026 monthly breakdown as 2024 monthly breakdown
+  const isSelectedYearMatrix = String(activeYearNum) === targetYearKey;
+  const effectiveMonthlyTotals = isSelectedYearMatrix ? monthlyTotals : {};
+  const effectiveMemberRecords = isSelectedYearMatrix ? members : [];
 
   return {
     totalFund: grandTotalReceived,
@@ -535,10 +618,10 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     discrepancyDiff,
     expenseRatio,
     safetyRatio,
-    contributorCount: members.length,
+    contributorCount: effectiveMemberRecords.length > 0 ? effectiveMemberRecords.length : (yearSheetReceived > 0 ? 1 : 0),
     yearlyReceived,
-    monthlyTotals,
-    memberRecords: members,
+    monthlyTotals: effectiveMonthlyTotals,
+    memberRecords: effectiveMemberRecords,
     transactions: [],
     expenses: dbExpenses,
     otherMonthlyContributions: otherContributions,
@@ -548,52 +631,74 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     sourceUrl: rawSourceUrl,
     sourceType: 'google_sheet',
     status: 'live',
+    year: targetYearKey,
+    diagnostics: {
+      selectedYear: targetYearKey,
+      sourceUrl: rawSourceUrl,
+      requestSucceeded: true,
+      rowCount: rows.length,
+      headerRowIndex,
+      identifiedHeaders: Object.keys(colMap),
+      missingFields: [],
+      detectedType: 'matrix',
+    },
   };
 }
 
 /**
  * Fallback parser for generic ledger/statement sheets with columns: Date, Description, Income, Expense, Balance
  */
-function parseGenericTransactions(rows: string[][], rawSourceUrl: string): FundData {
-  const headers = rows[0] || [];
-  const lower = headers.map((h) => h.toLowerCase().trim());
-
+function parseGenericTransactions(rows: string[][], rawSourceUrl: string, selectedYear?: string): FundData | null {
+  const targetYearKey = selectedYear || '2024';
   let dateIdx = -1;
   let descIdx = -1;
   let incomeIdx = -1;
   let expenseIdx = -1;
   let donorIdx = -1;
+  let headerRow = -1;
 
-  lower.forEach((h, idx) => {
-    if (h.includes('date') || h.includes('তারিখ')) dateIdx = idx;
-    else if (h.includes('desc') || h.includes('বিবরণ') || h.includes('খাত')) descIdx = idx;
-    else if (h.includes('income') || h.includes('received') || h.includes('জমা') || h.includes('আদায়')) incomeIdx = idx;
-    else if (h.includes('expense') || h.includes('spent') || h.includes('cost') || h.includes('ব্যয়')) expenseIdx = idx;
-    else if (h.includes('name') || h.includes('সদস্য') || h.includes('দাতা')) donorIdx = idx;
-  });
+  for (let r = 0; r < Math.min(rows.length, 10); r++) {
+    const lower = rows[r].map((h) => (h || '').toLowerCase().trim());
+    lower.forEach((h, idx) => {
+      if (h.includes('date') || h.includes('তারিখ')) dateIdx = idx;
+      else if (h.includes('desc') || h.includes('বিবরণ') || h.includes('খাত') || h.includes('উদ্দেশ্য')) descIdx = idx;
+      else if (h.includes('income') || h.includes('received') || h.includes('জমা') || h.includes('আদায়') || h.includes('প্রাপ্তি')) incomeIdx = idx;
+      else if (h.includes('expense') || h.includes('spent') || h.includes('cost') || h.includes('ব্যয়') || h.includes('খরচ')) expenseIdx = idx;
+      else if (h.includes('name') || h.includes('সদস্য') || h.includes('দাতা')) donorIdx = idx;
+    });
+
+    if (dateIdx !== -1 || incomeIdx !== -1 || expenseIdx !== -1) {
+      headerRow = r;
+      break;
+    }
+  }
+
+  if (headerRow === -1 || (incomeIdx === -1 && expenseIdx === -1)) {
+    return null; // Not a ledger format
+  }
 
   let totalIncome = 0;
   let totalExpense = 0;
   const contributors = new Set<string>();
   const txs: FundTransaction[] = [];
 
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = headerRow + 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length === 0) continue;
 
-    const date = dateIdx !== -1 && row[dateIdx] ? row[dateIdx] : '';
-    const desc = descIdx !== -1 && row[descIdx] ? row[descIdx] : '';
+    const date = dateIdx !== -1 && row[dateIdx] ? row[dateIdx].trim() : '';
+    const desc = descIdx !== -1 && row[descIdx] ? row[descIdx].trim() : '';
     const incomeVal = incomeIdx !== -1 ? parseNumber(row[incomeIdx]) : 0;
     const expenseVal = expenseIdx !== -1 ? parseNumber(row[expenseIdx]) : 0;
-    const donor = donorIdx !== -1 ? row[donorIdx] : '';
+    const donor = donorIdx !== -1 ? row[donorIdx]?.trim() : '';
 
-    if (donor && donor.trim()) contributors.add(donor.trim());
+    if (donor) contributors.add(donor);
 
     if (incomeVal > 0) {
       totalIncome += incomeVal;
       txs.push({
         id: `tx-in-${i}`,
-        date: date || '২০২৪',
+        date: date || targetYearKey,
         type: 'income',
         description: desc || donor || 'তহবিলে জমা',
         amount: incomeVal,
@@ -605,7 +710,7 @@ function parseGenericTransactions(rows: string[][], rawSourceUrl: string): FundD
       totalExpense += expenseVal;
       txs.push({
         id: `tx-ex-${i}`,
-        date: date || '২০২৪',
+        date: date || targetYearKey,
         type: 'expense',
         description: desc || 'মানবিক সহায়তা ব্যয়',
         amount: expenseVal,
@@ -614,21 +719,28 @@ function parseGenericTransactions(rows: string[][], rawSourceUrl: string): FundD
     }
   }
 
-  const dbExpenses = storageService.getExpenses();
-  const otherContributions = storageService.getOtherMonthlyContributions();
+  const dbExpenses = storageService.getExpenses(targetYearKey);
+  const otherContributions = storageService.getOtherMonthlyContributions(targetYearKey);
   const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
     otherContributions,
     totalIncome
   );
   const otherMonthlyTotal = eligibleTotalToAdd;
-  const allSpecialFunds = storageService.getSpecialFunds();
+  const allSpecialFunds = storageService.getSpecialFunds(targetYearKey);
+
+  const finalIncome = totalIncome + otherMonthlyTotal;
+  const finalExpense = totalExpense > 0 ? totalExpense : dbExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const balance = Math.max(0, finalIncome - finalExpense);
 
   return {
-    totalFund: totalIncome + otherMonthlyTotal,
-    amountReceived: totalIncome + otherMonthlyTotal,
-    amountSpent: totalExpense,
-    currentBalance: totalIncome + otherMonthlyTotal - totalExpense,
+    totalFund: finalIncome,
+    amountReceived: finalIncome,
+    amountSpent: finalExpense,
+    currentBalance: balance,
     contributorCount: contributors.size,
+    yearlyReceived: { [targetYearKey]: totalIncome },
+    monthlyTotals: {},
+    memberRecords: [],
     transactions: txs.reverse(),
     expenses: dbExpenses,
     otherMonthlyContributions: otherContributions,
@@ -638,6 +750,17 @@ function parseGenericTransactions(rows: string[][], rawSourceUrl: string): FundD
     sourceUrl: rawSourceUrl,
     sourceType: 'google_sheet',
     status: 'live',
+    year: targetYearKey,
+    diagnostics: {
+      selectedYear: targetYearKey,
+      sourceUrl: rawSourceUrl,
+      requestSucceeded: true,
+      rowCount: rows.length,
+      headerRowIndex: headerRow,
+      identifiedHeaders: rows[headerRow] || [],
+      missingFields: [],
+      detectedType: 'ledger',
+    },
   };
 }
 
@@ -712,8 +835,17 @@ export async function fetchFundData(
   selectedYear?: string,
   explicitGid?: string
 ): Promise<FundData> {
-  // If the sheet source URL is not configured or empty, return clean 'not_found' status
-  if (!rawSourceUrl || !rawSourceUrl.trim()) {
+  const config = storageService.getConfig();
+  let effectiveSourceUrl = (rawSourceUrl || '').trim();
+  let effectiveGid = explicitGid?.trim();
+
+  // If no year-specific URL is configured, fallback to the foundation's master fundSourceUrl
+  if (!effectiveSourceUrl && config.fundSourceUrl && config.fundSourceUrl.trim()) {
+    effectiveSourceUrl = config.fundSourceUrl.trim();
+  }
+
+  // If the sheet source URL is still empty, return clean 'not_found' status with diagnostics
+  if (!effectiveSourceUrl) {
     const otherContributions = storageService.getOtherMonthlyContributions(selectedYear);
     const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
       otherContributions,
@@ -744,10 +876,21 @@ export async function fetchFundData(
       errorMessage: selectedYear
         ? `${selectedYear} আর্থিক বছরের জন্য গুগল স্প্রেডশিট বা ডাটা সোর্স লিংক কনফিগার করা হয়নি।`
         : 'তহবিলের জন্য কোনো গুগল স্প্রেডশিট লিংক কনফিগার করা হয়নি।',
+      diagnostics: {
+        selectedYear: selectedYear || '',
+        sourceUrl: '',
+        requestSucceeded: false,
+        rowCount: 0,
+        headerRowIndex: -1,
+        identifiedHeaders: [],
+        missingFields: ['Google Sheet URL (কনফিগার করা হয়নি)'],
+        detectedType: 'unrecognized',
+        note: 'অ্যাডমিন প্যানেল থেকে এই আর্থিক বছরের জন্য গুগল স্প্রেডশিট লিঙ্ক কনফিগার করুন।',
+      },
     };
   }
 
-  const { exportUrl: baseExportUrl, gvizUrl: baseGvizUrl } = normalizeFundSourceUrl(rawSourceUrl, explicitGid);
+  const { exportUrl: baseExportUrl, gvizUrl: baseGvizUrl } = normalizeFundSourceUrl(effectiveSourceUrl, effectiveGid);
 
   const exportUrl =
     forceFresh && baseExportUrl
@@ -770,15 +913,25 @@ export async function fetchFundData(
       yearlyReceived: {},
       monthlyTotals: {},
       transactions: [],
-      expenses: [],
+      expenses: dbExpenses,
       lastUpdated: new Date().toISOString(),
-      sourceUrl: rawSourceUrl,
+      sourceUrl: effectiveSourceUrl,
       sourceType: 'google_sheet',
       status: 'error',
       year: selectedYear,
       errorMessage: selectedYear
         ? `${selectedYear} আর্থিক বছরের গুগল স্প্রেডশিট লিংকটি সঠিক নয়।`
         : 'গুগল স্প্রেডশিট লিংকটি সঠিক নয়।',
+      diagnostics: {
+        selectedYear: selectedYear || '',
+        sourceUrl: effectiveSourceUrl,
+        requestSucceeded: false,
+        rowCount: 0,
+        headerRowIndex: -1,
+        identifiedHeaders: [],
+        missingFields: ['Valid Google Sheet ID or URL'],
+        detectedType: 'unrecognized',
+      },
     };
   }
 
@@ -795,7 +948,7 @@ export async function fetchFundData(
       if (text && text.length > 50) {
         const rows = parseCSV(text);
         if (rows.length >= 3) {
-          const result = parseFundSheet(rows, rawSourceUrl, selectedYear);
+          const result = parseFundSheet(rows, effectiveSourceUrl, selectedYear);
           result.year = selectedYear;
           cacheFundData(result, selectedYear);
           return result;
@@ -819,7 +972,7 @@ export async function fetchFundData(
       if (text && text.length > 50) {
         const rows = parseCSV(text);
         if (rows.length >= 3) {
-          const result = parseFundSheet(rows, rawSourceUrl, selectedYear);
+          const result = parseFundSheet(rows, effectiveSourceUrl, selectedYear);
           result.year = selectedYear;
           cacheFundData(result, selectedYear);
           return result;
@@ -851,14 +1004,25 @@ export async function fetchFundData(
     yearlyReceived: {},
     monthlyTotals: {},
     transactions: [],
-    expenses: [],
+    expenses: dbExpenses,
     lastUpdated: new Date().toISOString(),
-    sourceUrl: rawSourceUrl,
+    sourceUrl: effectiveSourceUrl,
     sourceType: 'google_sheet',
     status: 'error',
     year: selectedYear,
     errorMessage: selectedYear
       ? `${selectedYear} আর্থিক বছরের গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা যায়নি। অনুগ্রহ করে স্প্রেডশিটের শেয়ারিং পারমিশন (Anyone with the link can view) এবং নেটওয়ার্ক সংযোগ যাচাই করুন।`
       : 'গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি। স্প্রেডশিটের শেয়ারিং পারমিশন যাচাই করুন।',
+    diagnostics: {
+      selectedYear: selectedYear || '',
+      sourceUrl: effectiveSourceUrl,
+      requestSucceeded: false,
+      rowCount: 0,
+      headerRowIndex: -1,
+      identifiedHeaders: [],
+      missingFields: ['Network / Access Failure: Google Sheets export endpoints unreachable'],
+      detectedType: 'unrecognized',
+      note: 'স্প্রেডশিটের শেয়ারিং পারমিশন "Anyone with the link can view" কিনা তা নিশ্চিত করুন।',
+    },
   };
 }

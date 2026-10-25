@@ -712,6 +712,10 @@ export const AdminPage: React.FC = () => {
       }
     }
 
+    const finalSpFundIds = Array.isArray(editingActivity.linkedSpecialFundIds)
+      ? [...editingActivity.linkedSpecialFundIds]
+      : (editingActivity.linkedSpecialFundId ? [editingActivity.linkedSpecialFundId] : []);
+
     const newAct: Activity = {
       id: actId,
       slug: editingActivity.slug || titleStr.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || `activity-${Date.now()}`,
@@ -732,6 +736,9 @@ export const AdminPage: React.FC = () => {
       images: Array.isArray(editingActivity.images) ? editingActivity.images : [],
       galleryImages: Array.isArray(editingActivity.galleryImages) ? editingActivity.galleryImages : [],
       isPublished: editingActivity.isPublished !== false,
+      activityExpenseMode: mode,
+      linkedSpecialFundId: (mode === 'special' || mode === 'both') ? (finalSpFundIds[0] || undefined) : undefined,
+      linkedSpecialFundIds: (mode === 'special' || mode === 'both') && finalSpFundIds.length > 0 ? finalSpFundIds : undefined,
       linkedExpenseId: finalMainExpenseIds[0] || undefined,
       linkedExpenseIds: finalMainExpenseIds,
       linkedSpecialExpenses: finalSpecialExpenses,
@@ -3190,8 +3197,8 @@ export const AdminPage: React.FC = () => {
                         {[
                           { key: 'none', label: 'শুধু কার্যক্রম হিসেবে রাখুন' },
                           { key: 'main', label: 'মূল সাধারণ ফান্ডের খরচ যুক্ত করুন' },
-                          { key: 'special', label: 'আলাদা/বিশেষ ফান্ডের খরচ যুক্ত করুন' },
-                          { key: 'both', label: 'সাধারণ ও বিশেষ উভয় ফান্ডের খরচ যুক্ত করুন' },
+                          { key: 'special', label: 'পুরো বিশেষ ফান্ড যুক্ত করুন' },
+                          { key: 'both', label: 'মূল সাধারণ ফান্ড ও বিশেষ ফান্ড উভয় যুক্ত করুন' },
                         ].map((opt) => (
                           <label
                             key={opt.key}
@@ -3314,103 +3321,227 @@ export const AdminPage: React.FC = () => {
                         </div>
                       )}
 
-                      {/* SECTION B: SPECIAL PURPOSE FUNDS EXPENSES */}
+                      {/* SECTION B: SPECIAL PURPOSE FUNDS & WHOLE SPECIAL FUND LINKING */}
                       {((editingActivity.activityExpenseMode === 'special') || (editingActivity.activityExpenseMode === 'both')) && (
-                        <div className="p-3.5 bg-white rounded-xl border border-teal-200/80 space-y-3">
-                          <div className="flex items-center justify-between pb-2 border-b border-teal-100">
-                            <span className="font-bold text-xs text-teal-800 flex items-center gap-1.5">
-                              <Wallet className="w-3.5 h-3.5" />
-                              <span>আলাদা / বিশেষ ফান্ডের যুক্তকৃত খরচসমূহ</span>
-                            </span>
-                            <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
-                              {(editingActivity.selectedSpecialExpenses || []).length}টি খরচ যুক্ত
-                            </span>
-                          </div>
-
-                          {/* List of currently linked special fund expenses */}
-                          {(editingActivity.selectedSpecialExpenses || []).length === 0 ? (
-                            <p className="text-xs text-gray-400 italic py-1">
-                              এখনো কোনো বিশেষ ফান্ডের খরচ যুক্ত করা হয়নি।
-                            </p>
-                          ) : (
-                            <div className="space-y-1.5">
-                              {(editingActivity.selectedSpecialExpenses || []).map((item, idx) => {
-                                const allSpecialFunds = storageService.getSpecialFunds();
-                                const fund = allSpecialFunds.find((f) => f.id === item.fundId);
-                                const exp = fund?.expenses.find((e) => e.id === item.expenseId);
-                                return (
-                                  <div
-                                    key={`${item.fundId}-${item.expenseId}-${idx}`}
-                                    className="flex items-center justify-between p-2 rounded-lg bg-teal-50/50 border border-teal-100 text-xs"
-                                  >
-                                    <div className="overflow-hidden">
-                                      <span className="font-bold text-teal-950 block truncate">
-                                        {exp ? exp.title : `বিশেষ ব্যয় #${item.expenseId.slice(-4)}`}
-                                      </span>
-                                      <span className="text-[10px] text-gray-500">
-                                        তহবিল: <strong className="text-teal-900">{fund?.name || 'অজ্ঞাত তহবিল'}</strong> • ৳{exp ? exp.amount.toLocaleString() : '—'}
-                                      </span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setEditingActivity({
-                                          ...editingActivity,
-                                          selectedSpecialExpenses: (editingActivity.selectedSpecialExpenses || []).filter(
-                                            (s) => !(s.fundId === item.fundId && s.expenseId === item.expenseId)
-                                          ),
-                                        })
-                                      }
-                                      className="text-rose-600 hover:text-rose-800 text-[11px] font-semibold px-2 py-1 rounded hover:bg-rose-50"
-                                      title="শুধু এই কার্যক্রম থেকে সংযোগ বাতিল করুন (বিশেষ তহবিল থেকে ডিলিট হবে না)"
-                                    >
-                                      সংযোগ বাতিল
-                                    </button>
-                                  </div>
-                                );
-                              })}
+                        <div className="p-3.5 bg-white rounded-xl border border-teal-200/80 space-y-4">
+                          {/* Part 1: Whole Special Fund Linking */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-teal-100">
+                              <span className="font-bold text-xs text-teal-800 flex items-center gap-1.5">
+                                <Wallet className="w-3.5 h-3.5" />
+                                <span>পুরো বিশেষ ফান্ড যুক্তকরণ (Whole Special Fund)</span>
+                              </span>
+                              <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                                {(editingActivity.linkedSpecialFundIds || (editingActivity.linkedSpecialFundId ? [editingActivity.linkedSpecialFundId] : [])).length}টি সম্পূর্ণ তহবিল যুক্ত
+                              </span>
                             </div>
-                          )}
 
-                          {/* Link Existing Special Expense Dropdown */}
-                          <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row items-center gap-2">
-                            <select
-                              id="linkSpecialExpSelect"
-                              className="w-full sm:flex-1 px-2.5 py-1.5 bg-[#FDFCF9] border border-gray-300 rounded-lg text-xs"
-                              defaultValue=""
-                            >
-                              <option value="">-- বিশেষ ফান্ডের বিদ্যমান খরচ নির্বাচন করুন --</option>
-                              {storageService.getSpecialFunds().flatMap((f) =>
-                                (f.expenses || []).map((e) => (
-                                  <option key={`${f.id}:::${e.id}`} value={`${f.id}:::${e.id}`}>
-                                    [{f.name}] {e.title} (৳{e.amount.toLocaleString()} - {e.date || ''})
+                            {/* Linked whole funds list */}
+                            {(() => {
+                              const spFundIds = editingActivity.linkedSpecialFundIds || (editingActivity.linkedSpecialFundId ? [editingActivity.linkedSpecialFundId] : []);
+                              const allFunds = storageService.getSpecialFunds();
+                              const linkedFunds = allFunds.filter((f) => spFundIds.includes(f.id));
+
+                              if (linkedFunds.length === 0) {
+                                return (
+                                  <p className="text-xs text-gray-400 italic py-1">
+                                    এখনো কোনো সম্পূর্ণ বিশেষ ফান্ড যুক্ত করা হয়নি। নিচের ড্রপডাউন থেকে নির্বাচন করে যুক্ত করুন।
+                                  </p>
+                                );
+                              }
+
+                              return (
+                                <div className="space-y-2">
+                                  {linkedFunds.map((fund) => {
+                                    const totalCol = (fund.donations || []).reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
+                                    const totalExp = (fund.expenses || []).reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+                                    const bal = totalCol - totalExp;
+
+                                    return (
+                                      <div
+                                        key={fund.id}
+                                        className="p-3 rounded-xl bg-teal-50/60 border border-teal-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                                      >
+                                        <div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-bold text-teal-950 text-sm">
+                                              {fund.name}
+                                            </span>
+                                            {(fund.year || fund.eventDate) && (
+                                              <span className="px-2 py-0.5 bg-teal-100 text-teal-800 rounded text-[10px] font-bold">
+                                                {fund.year || fund.eventDate}
+                                              </span>
+                                            )}
+                                          </div>
+                                          {fund.description && (
+                                            <p className="text-[11px] text-slate-600 line-clamp-1 mt-0.5">
+                                              {fund.description}
+                                            </p>
+                                          )}
+                                          <div className="flex items-center gap-3 text-[10px] text-slate-700 font-mono mt-1">
+                                            <span>সংগ্রহ: <strong>৳{totalCol.toLocaleString()}</strong></span>
+                                            <span>ব্যয়: <strong>৳{totalExp.toLocaleString()}</strong></span>
+                                            <span>স্থিতি: <strong className={bal >= 0 ? 'text-emerald-700' : 'text-rose-700'}>৳{bal.toLocaleString()}</strong></span>
+                                          </div>
+                                        </div>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const updatedIds = spFundIds.filter((id) => id !== fund.id);
+                                            setEditingActivity({
+                                              ...editingActivity,
+                                              linkedSpecialFundId: updatedIds[0] || '',
+                                              linkedSpecialFundIds: updatedIds,
+                                            });
+                                          }}
+                                          className="text-rose-600 hover:text-rose-800 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 self-start sm:self-center shrink-0"
+                                        >
+                                          সংযোগ বাতিল
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+
+                            {/* Dropdown to link a whole special fund */}
+                            <div className="pt-2 border-t border-teal-100 flex flex-col sm:flex-row items-center gap-2">
+                              <select
+                                id="linkWholeSpecialFundSelect"
+                                className="w-full sm:flex-1 px-2.5 py-1.5 bg-[#FDFCF9] border border-gray-300 rounded-lg text-xs"
+                                defaultValue=""
+                              >
+                                <option value="">-- একটি সম্পূর্ণ বিশেষ তহবিল নির্বাচন করুন --</option>
+                                {storageService.getSpecialFunds().map((f) => (
+                                  <option key={f.id} value={f.id}>
+                                    {f.name} ({f.year || 'বিশেষ কর্মসূচি'})
                                   </option>
-                                ))
-                              )}
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const sel = document.getElementById('linkSpecialExpSelect') as HTMLSelectElement;
-                                if (sel && sel.value) {
-                                  const [fundId, expenseId] = sel.value.split(':::');
-                                  if (fundId && expenseId) {
-                                    const cur = editingActivity.selectedSpecialExpenses || [];
-                                    const exists = cur.some((s) => s.fundId === fundId && s.expenseId === expenseId);
-                                    if (!exists) {
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const sel = document.getElementById('linkWholeSpecialFundSelect') as HTMLSelectElement;
+                                  if (sel && sel.value) {
+                                    const fundId = sel.value;
+                                    const curIds = editingActivity.linkedSpecialFundIds || (editingActivity.linkedSpecialFundId ? [editingActivity.linkedSpecialFundId] : []);
+                                    if (!curIds.includes(fundId)) {
+                                      const newIds = [...curIds, fundId];
                                       setEditingActivity({
                                         ...editingActivity,
-                                        selectedSpecialExpenses: [...cur, { fundId, expenseId }],
+                                        linkedSpecialFundId: newIds[0],
+                                        linkedSpecialFundIds: newIds,
                                       });
                                     }
+                                    sel.value = '';
                                   }
-                                  sel.value = '';
-                                }
-                              }}
-                              className="w-full sm:w-auto px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold shrink-0"
-                            >
-                              + লিঙ্ক করুন
-                            </button>
+                                }}
+                                className="w-full sm:w-auto px-3.5 py-1.5 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold shrink-0"
+                              >
+                                পুরো ফান্ড যুক্ত করুন
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Part 2: Granular special expenses (optional) */}
+                          <div className="pt-3 border-t border-teal-100/80 space-y-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-teal-100">
+                              <span className="font-bold text-xs text-teal-800 flex items-center gap-1.5">
+                                <Wallet className="w-3.5 h-3.5" />
+                                <span>আলাদা / বিশেষ ফান্ডের নির্দিষ্ট খরচসমূহ (ঐচ্ছিক)</span>
+                              </span>
+                              <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                                {(editingActivity.selectedSpecialExpenses || []).length}টি খরচ যুক্ত
+                              </span>
+                            </div>
+
+                            {/* List of currently linked special fund expenses */}
+                            {(editingActivity.selectedSpecialExpenses || []).length === 0 ? (
+                              <p className="text-xs text-gray-400 italic py-1">
+                                এখনো কোনো নির্দিষ্ট বিশেষ ব্যয় আলাদাভাবে যুক্ত করা হয়নি।
+                              </p>
+                            ) : (
+                              <div className="space-y-1.5">
+                                {(editingActivity.selectedSpecialExpenses || []).map((item, idx) => {
+                                  const allSpecialFunds = storageService.getSpecialFunds();
+                                  const fund = allSpecialFunds.find((f) => f.id === item.fundId);
+                                  const exp = fund?.expenses.find((e) => e.id === item.expenseId);
+                                  return (
+                                    <div
+                                      key={`${item.fundId}-${item.expenseId}-${idx}`}
+                                      className="flex items-center justify-between p-2 rounded-lg bg-teal-50/50 border border-teal-100 text-xs"
+                                    >
+                                      <div className="overflow-hidden">
+                                        <span className="font-bold text-teal-950 block truncate">
+                                          {exp ? exp.title : `বিশেষ ব্যয় #${item.expenseId.slice(-4)}`}
+                                        </span>
+                                        <span className="text-[10px] text-gray-500">
+                                          তহবিল: <strong className="text-teal-900">{fund?.name || 'অজ্ঞাত তহবিল'}</strong> • ৳{exp ? exp.amount.toLocaleString() : '—'}
+                                        </span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setEditingActivity({
+                                            ...editingActivity,
+                                            selectedSpecialExpenses: (editingActivity.selectedSpecialExpenses || []).filter(
+                                              (s) => !(s.fundId === item.fundId && s.expenseId === item.expenseId)
+                                            ),
+                                          })
+                                        }
+                                        className="text-rose-600 hover:text-rose-800 text-[11px] font-semibold px-2 py-1 rounded hover:bg-rose-50"
+                                        title="শুধু এই কার্যক্রম থেকে সংযোগ বাতিল করুন (বিশেষ তহবিল থেকে ডিলিট হবে না)"
+                                      >
+                                        সংযোগ বাতিল
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* Link Existing Special Expense Dropdown */}
+                            <div className="pt-2 border-t border-gray-100 flex flex-col sm:flex-row items-center gap-2">
+                              <select
+                                id="linkSpecialExpSelect"
+                                className="w-full sm:flex-1 px-2.5 py-1.5 bg-[#FDFCF9] border border-gray-300 rounded-lg text-xs"
+                                defaultValue=""
+                              >
+                                <option value="">-- বিশেষ ফান্ডের বিদ্যমান খরচ নির্বাচন করুন --</option>
+                                {storageService.getSpecialFunds().flatMap((f) =>
+                                  (f.expenses || []).map((e) => (
+                                    <option key={`${f.id}:::${e.id}`} value={`${f.id}:::${e.id}`}>
+                                      [{f.name}] {e.title} (৳{e.amount.toLocaleString()} - {e.date || ''})
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const sel = document.getElementById('linkSpecialExpSelect') as HTMLSelectElement;
+                                  if (sel && sel.value) {
+                                    const [fundId, expenseId] = sel.value.split(':::');
+                                    if (fundId && expenseId) {
+                                      const cur = editingActivity.selectedSpecialExpenses || [];
+                                      const exists = cur.some((s) => s.fundId === fundId && s.expenseId === expenseId);
+                                      if (!exists) {
+                                        setEditingActivity({
+                                          ...editingActivity,
+                                          selectedSpecialExpenses: [...cur, { fundId, expenseId }],
+                                        });
+                                      }
+                                    }
+                                    sel.value = '';
+                                  }
+                                }}
+                                className="w-full sm:w-auto px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold shrink-0"
+                              >
+                                + লিঙ্ক করুন
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -3507,16 +3638,23 @@ export const AdminPage: React.FC = () => {
                             ? act.linkedExpenseIds
                             : (act.linkedExpenseId ? [act.linkedExpenseId] : (linkedExp ? [linkedExp.id] : []));
                           const spExps = act.linkedSpecialExpenses || [];
-                          let mode: 'none' | 'main' | 'special' | 'both' = 'none';
-                          if (mainIds.length > 0 && spExps.length > 0) mode = 'both';
-                          else if (mainIds.length > 0) mode = 'main';
-                          else if (spExps.length > 0) mode = 'special';
+                          const spFundIds = (act.linkedSpecialFundIds && act.linkedSpecialFundIds.length > 0)
+                            ? act.linkedSpecialFundIds
+                            : (act.linkedSpecialFundId ? [act.linkedSpecialFundId] : []);
+                          let mode: 'none' | 'main' | 'special' | 'both' = act.activityExpenseMode || 'none';
+                          if (!act.activityExpenseMode) {
+                            if (mainIds.length > 0 && (spExps.length > 0 || spFundIds.length > 0)) mode = 'both';
+                            else if (mainIds.length > 0) mode = 'main';
+                            else if (spExps.length > 0 || spFundIds.length > 0) mode = 'special';
+                          }
 
                           setEditingActivity({
                             ...act,
                             showOnMediaPage: Boolean(act.showOnMediaPage),
                             showShortSummaryInDetail: Boolean(act.showShortSummaryInDetail),
                             activityExpenseMode: mode,
+                            linkedSpecialFundId: spFundIds[0] || '',
+                            linkedSpecialFundIds: spFundIds,
                             selectedMainExpenseIds: mainIds,
                             selectedSpecialExpenses: spExps,
                             isFundLinked: mode !== 'none',
@@ -4439,7 +4577,7 @@ export const AdminPage: React.FC = () => {
 
           {fundSubTab === 'other_contributions' && (
             <AdminOtherContributionsManager
-              selectedYear="2026"
+              selectedYear="all"
               onDataChanged={() => {
                 showToast('অন্যান্য মাসিক অনুদানের তথ্য হালনাগাদ করা হয়েছে!');
                 loadAllData();

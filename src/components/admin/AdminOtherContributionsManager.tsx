@@ -28,9 +28,16 @@ export const AdminOtherContributionsManager: React.FC<AdminOtherContributionsMan
   onDataChanged,
   selectedYear,
 }) => {
+  const [activeYearFilter, setActiveYearFilter] = useState<string>(selectedYear || 'all');
   const [contributions, setContributions] = useState<OtherMonthlyContribution[]>(() =>
-    storageService.getOtherMonthlyContributions(selectedYear)
+    storageService.getOtherMonthlyContributions(selectedYear || 'all')
   );
+
+  React.useEffect(() => {
+    if (selectedYear && selectedYear !== activeYearFilter) {
+      setActiveYearFilter(selectedYear);
+    }
+  }, [selectedYear]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -56,10 +63,21 @@ export const AdminOtherContributionsManager: React.FC<AdminOtherContributionsMan
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
 
-  const refreshList = () => {
-    const list = storageService.getOtherMonthlyContributions(selectedYear);
+  const refreshList = (targetFilter: string = activeYearFilter) => {
+    const list = storageService.getOtherMonthlyContributions(targetFilter);
     setContributions(list);
     if (onDataChanged) onDataChanged();
+  };
+
+  React.useEffect(() => {
+    refreshList(activeYearFilter);
+  }, [activeYearFilter]);
+
+  const handleDateChange = (newDate: string) => {
+    setDate(newDate);
+    if (newDate && newDate.length >= 4) {
+      setYear(newDate.slice(0, 4));
+    }
   };
 
   const resetForm = () => {
@@ -78,13 +96,16 @@ export const AdminOtherContributionsManager: React.FC<AdminOtherContributionsMan
     setIsEditing(true);
     setEditingId(null);
     setAccountingChoice('');
+    const defaultYear = (activeYearFilter !== 'all' && activeYearFilter !== 'unverified') ? activeYearFilter : '2026';
+    setYear(defaultYear);
+    setDate(new Date().toISOString().slice(0, 10));
   };
 
   const handleStartEdit = (item: OtherMonthlyContribution) => {
     setIsEditing(true);
     setEditingId(item.id);
     setMonth(item.month || 'মার্চ');
-    setYear(item.year || selectedYear || '2026');
+    setYear(item.year || (item.date ? item.date.slice(0, 4) : '2026'));
     setDate(item.date || '');
     setAmount(String(item.amount || ''));
     setContributorName(item.contributorName || '');
@@ -136,12 +157,13 @@ export const AdminOtherContributionsManager: React.FC<AdminOtherContributionsMan
 
     const isAlreadyIncluded = accountingChoice === 'already_included';
     const existingItem = editingId ? contributions.find((c) => c.id === editingId) : null;
+    const finalYear = year || (date ? date.slice(0, 4) : (activeYearFilter !== 'all' && activeYearFilter !== 'unverified' ? activeYearFilter : '2026'));
 
     const itemToSave: OtherMonthlyContribution = {
       id: editingId || `other-contrib-${Date.now()}`,
       date,
       month,
-      year: year || selectedYear || '2026',
+      year: finalYear,
       amount: parsedAmount,
       contributorName: isAnonymous ? '' : contributorName.trim(),
       isAnonymous,
@@ -292,6 +314,43 @@ export const AdminOtherContributionsManager: React.FC<AdminOtherContributionsMan
         </div>
       </div>
 
+      {/* Year Filter Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+        <div className="flex items-center gap-1.5 overflow-x-auto text-xs py-0.5">
+          <span className="font-semibold text-slate-500 mr-1 flex items-center gap-1 shrink-0">
+            <Calendar className="w-3.5 h-3.5 text-slate-600" />
+            <span>বছর ফিল্টার:</span>
+          </span>
+          {[
+            { id: 'all', label: 'সকল বছর (All)' },
+            { id: '2026', label: '২০২৬ (চলতি)' },
+            { id: '2025', label: '২০২৫' },
+            { id: '2024', label: '২০২৪' },
+            { id: 'unverified', label: 'যাচাইযোগ্য / তারিখহীন' },
+          ].map((tab) => {
+            const isActive = activeYearFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveYearFilter(tab.id)}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all shrink-0 ${
+                  isActive
+                    ? 'bg-emerald-700 text-white shadow-xs font-semibold'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="text-xs text-slate-500 shrink-0">
+          প্রদর্শিত রেকর্ড: <span className="font-bold text-slate-800">{contributions.length}</span> টি
+        </div>
+      </div>
+
       {/* Messages */}
       {errorMsg && (
         <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center gap-2">
@@ -351,7 +410,7 @@ export const AdminOtherContributionsManager: React.FC<AdminOtherContributionsMan
               <input
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => handleDateChange(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
               />
             </div>

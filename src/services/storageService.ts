@@ -928,16 +928,32 @@ export const storageService = {
     const localList = getLocalItem<OtherMonthlyContribution[]>(KEYS.OTHER_CONTRIBUTIONS, configList);
     const combined = Array.isArray(localList) && localList.length > 0 ? localList : configList;
 
-    const filtered = year ? combined.filter((c) => String(c.year) === String(year)) : combined;
-    return [...filtered].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    if (!year || year === 'all') {
+      return [...combined].sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime());
+    }
+
+    if (year === 'unverified') {
+      return combined.filter((c) => !c.year || !c.date || c.accountingStatus === 'unverified');
+    }
+
+    const yearStr = String(year).trim();
+    const filtered = combined.filter((c) => {
+      if (c.year && String(c.year).trim() === yearStr) return true;
+      if (c.date && c.date.startsWith(yearStr)) return true;
+      return false;
+    });
+    return [...filtered].sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime());
   },
 
   saveOtherMonthlyContribution(item: OtherMonthlyContribution): OtherMonthlyContribution[] {
-    const all = this.getOtherMonthlyContributions();
+    const all = this.getOtherMonthlyContributions('all');
     const id = item.id || `other-contrib-${Date.now()}`;
+    // Preserve transaction date and derive transaction year accurately
+    const derivedYear = item.year || (item.date ? item.date.slice(0, 4) : '2026');
     const cleanItem: OtherMonthlyContribution = {
       ...item,
       id,
+      year: derivedYear,
       amount: Number(item.amount) || 0,
       createdAt: item.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -976,7 +992,7 @@ export const storageService = {
   },
 
   deleteOtherMonthlyContribution(id: string): OtherMonthlyContribution[] {
-    const all = this.getOtherMonthlyContributions();
+    const all = this.getOtherMonthlyContributions('all');
     const updated = all.filter((c) => c.id !== id);
     setLocalItem(KEYS.OTHER_CONTRIBUTIONS, updated);
 

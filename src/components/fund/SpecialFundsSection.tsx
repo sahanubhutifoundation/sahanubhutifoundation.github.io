@@ -39,9 +39,30 @@ export const SpecialFundsSection: React.FC<SpecialFundsSectionProps> = ({
   const [activeTab, setActiveTab] = useState<Record<string, 'donations' | 'expenses' | 'summary'>>({});
   const [receiptModalUrl, setReceiptModalUrl] = useState<string | null>(null);
 
-  // Filter for selected year if specified
+  // Auto-expand and scroll to target fund when navigating from an activity
+  const [requestedFundId, setRequestedFundId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetFundId = urlParams.get('fundId') || urlParams.get('specialFundId') || (window.location.hash ? window.location.hash.replace('#special-fund-', '') : '');
+      if (targetFundId) {
+        setRequestedFundId(targetFundId);
+        setExpandedFundId(targetFundId);
+        const timer = setTimeout(() => {
+          const el = document.getElementById(`special-fund-${targetFundId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    } catch {}
+  }, []);
+
+  // Filter for selected year if specified (preserve targeted fund if requested via link)
   const filtered = selectedYear
-    ? specialFunds.filter((f) => !f.year || f.year === selectedYear)
+    ? specialFunds.filter((f) => (!f.year || f.year === selectedYear) || f.id === requestedFundId)
     : specialFunds;
 
   const formatTaka = (amount: number) => {
@@ -120,6 +141,7 @@ export const SpecialFundsSection: React.FC<SpecialFundsSectionProps> = ({
           return (
             <div
               key={fund.id}
+              id={`special-fund-${fund.id}`}
               className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
             >
               {/* Fund Header Banner */}
