@@ -209,9 +209,13 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
     try {
       await Promise.allSettled([
         document.fonts.load('400 14px "Hind Siliguri"'),
+        document.fonts.load('500 12px "Hind Siliguri"'),
         document.fonts.load('600 14px "Hind Siliguri"'),
         document.fonts.load('700 14px "Hind Siliguri"'),
+        document.fonts.load('700 18px "Hind Siliguri"'),
+        document.fonts.load('800 30px "Hind Siliguri"'),
         document.fonts.load('400 14px "Noto Sans Bengali"'),
+        document.fonts.load('500 12px "Noto Sans Bengali"'),
         document.fonts.load('600 14px "Noto Sans Bengali"'),
         document.fonts.load('700 14px "Noto Sans Bengali"'),
       ]);
@@ -238,7 +242,9 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
   sandbox.style.overflow = 'visible';
   sandbox.style.boxSizing = 'border-box';
   sandbox.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif";
+  sandbox.style.lineHeight = '1.6';
   sandbox.style.setProperty('-webkit-font-smoothing', 'antialiased');
+  sandbox.style.setProperty('text-rendering', 'optimizeLegibility');
 
   // 3. Clone source element with fixed 680px geometry and visible overflow
   const clone = sourceElement.cloneNode(true) as HTMLElement;
@@ -252,6 +258,9 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
   clone.style.boxSizing = 'border-box';
   clone.style.overflow = 'visible';
   clone.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif";
+  clone.style.lineHeight = '1.6';
+  clone.style.setProperty('-webkit-font-smoothing', 'antialiased');
+  clone.style.setProperty('text-rendering', 'optimizeLegibility');
 
   // 4. Preload, inline, and await decoding of all images
   const images = Array.from(clone.querySelectorAll('img'));
@@ -342,6 +351,9 @@ export async function downloadReceiptElement({
         clonedEl.style.overflow = 'visible';
         clonedEl.style.boxSizing = 'border-box';
         clonedEl.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif";
+        clonedEl.style.lineHeight = '1.6';
+        clonedEl.style.setProperty('-webkit-font-smoothing', 'antialiased');
+        clonedEl.style.setProperty('text-rendering', 'optimizeLegibility');
         normalizeColorsInElementTree(clonedEl);
       },
     });
@@ -433,6 +445,9 @@ export async function downloadReceiptsZip(
           clonedEl.style.overflow = 'visible';
           clonedEl.style.boxSizing = 'border-box';
           clonedEl.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif";
+          clonedEl.style.lineHeight = '1.6';
+          clonedEl.style.setProperty('-webkit-font-smoothing', 'antialiased');
+          clonedEl.style.setProperty('text-rendering', 'optimizeLegibility');
           normalizeColorsInElementTree(clonedEl);
         },
       });
