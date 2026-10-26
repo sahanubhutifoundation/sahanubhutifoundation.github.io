@@ -207,6 +207,14 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
   // 1. Wait for web fonts (Bangla Kalpurush, Noto Sans, Hind Siliguri)
   if (typeof document !== 'undefined' && 'fonts' in document) {
     try {
+      await Promise.allSettled([
+        document.fonts.load('400 14px "Hind Siliguri"'),
+        document.fonts.load('600 14px "Hind Siliguri"'),
+        document.fonts.load('700 14px "Hind Siliguri"'),
+        document.fonts.load('400 14px "Noto Sans Bengali"'),
+        document.fonts.load('600 14px "Noto Sans Bengali"'),
+        document.fonts.load('700 14px "Noto Sans Bengali"'),
+      ]);
       await document.fonts.ready;
     } catch (e) {
       // continue
@@ -229,6 +237,8 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
   sandbox.style.backgroundColor = '#ffffff';
   sandbox.style.overflow = 'visible';
   sandbox.style.boxSizing = 'border-box';
+  sandbox.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif";
+  sandbox.style.setProperty('-webkit-font-smoothing', 'antialiased');
 
   // 3. Clone source element with fixed 680px geometry and visible overflow
   const clone = sourceElement.cloneNode(true) as HTMLElement;
@@ -241,6 +251,7 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
   clone.style.minHeight = 'auto';
   clone.style.boxSizing = 'border-box';
   clone.style.overflow = 'visible';
+  clone.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif";
 
   // 4. Preload, inline, and await decoding of all images
   const images = Array.from(clone.querySelectorAll('img'));
@@ -304,9 +315,10 @@ export async function downloadReceiptElement({
   const { clone, cleanup } = await prepareElementInSandbox(element);
 
   try {
-    const naturalHeight = Math.ceil(Math.max(clone.offsetHeight, clone.scrollHeight, 720));
-    // 12px safety buffer to ensure bottom borders, signatures, and descenders are never clipped
-    const targetHeight = naturalHeight + 12;
+    const rect = clone.getBoundingClientRect();
+    const naturalHeight = Math.ceil(Math.max(clone.offsetHeight, clone.scrollHeight, rect.height, 700));
+    // 14px safety buffer to ensure bottom borders, signatures, and descenders are never clipped
+    const targetHeight = naturalHeight + 14;
 
     const canvas = await html2canvas(clone, {
       scale: 2.5, // 2.5x high-res rendering for print-level sharpness
@@ -316,6 +328,8 @@ export async function downloadReceiptElement({
       logging: false,
       scrollX: 0,
       scrollY: 0,
+      x: 0,
+      y: 0,
       width: 680,
       height: targetHeight,
       windowWidth: 680,
@@ -324,8 +338,10 @@ export async function downloadReceiptElement({
         clonedEl.style.width = '680px';
         clonedEl.style.minWidth = '680px';
         clonedEl.style.maxWidth = '680px';
-        clonedEl.style.height = 'auto';
+        clonedEl.style.height = `${targetHeight}px`;
         clonedEl.style.overflow = 'visible';
+        clonedEl.style.boxSizing = 'border-box';
+        clonedEl.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif";
         normalizeColorsInElementTree(clonedEl);
       },
     });
@@ -391,8 +407,9 @@ export async function downloadReceiptsZip(
   for (const item of items) {
     const { clone, cleanup } = await prepareElementInSandbox(item.element);
     try {
-      const naturalHeight = Math.ceil(Math.max(clone.offsetHeight, clone.scrollHeight, 720));
-      const targetHeight = naturalHeight + 12;
+      const rect = clone.getBoundingClientRect();
+      const naturalHeight = Math.ceil(Math.max(clone.offsetHeight, clone.scrollHeight, rect.height, 700));
+      const targetHeight = naturalHeight + 14;
 
       const canvas = await html2canvas(clone, {
         scale: 2.5,
@@ -402,6 +419,8 @@ export async function downloadReceiptsZip(
         logging: false,
         scrollX: 0,
         scrollY: 0,
+        x: 0,
+        y: 0,
         width: 680,
         height: targetHeight,
         windowWidth: 680,
@@ -410,8 +429,10 @@ export async function downloadReceiptsZip(
           clonedEl.style.width = '680px';
           clonedEl.style.minWidth = '680px';
           clonedEl.style.maxWidth = '680px';
-          clonedEl.style.height = 'auto';
+          clonedEl.style.height = `${targetHeight}px`;
           clonedEl.style.overflow = 'visible';
+          clonedEl.style.boxSizing = 'border-box';
+          clonedEl.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif";
           normalizeColorsInElementTree(clonedEl);
         },
       });

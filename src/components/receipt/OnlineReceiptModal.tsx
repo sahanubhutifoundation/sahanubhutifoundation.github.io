@@ -278,8 +278,9 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
         const prefix = config.donationReceiptSettings?.receiptPrefix || 'SF-MR';
         const memberCode = currentMember.serial ? String(currentMember.serial).padStart(3, '0') : '001';
         const filename = `${prefix}_${selectedYear}_${memberCode}_${monthKey}`;
+        const cardEl = (el.querySelector('#printable-donation-receipt') || el.firstElementChild || el) as HTMLElement;
         return {
-          element: el as HTMLElement,
+          element: cardEl,
           filename,
           format,
         };
