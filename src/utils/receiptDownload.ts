@@ -1,5 +1,6 @@
 import html2canvas from 'html2canvas';
 import JSZip from 'jszip';
+import { runReceiptDiagnostics } from './receiptDiagnostics';
 
 /**
  * Converts an image URL into a base64 Data URL to prevent HTML5 canvas CORS tainting.
@@ -321,9 +322,33 @@ export async function downloadReceiptElement({
   format,
   quality = 0.98,
 }: DownloadReceiptOptions): Promise<void> {
+  // Prevent Tailwind CSS preflight (img { display: block }) from breaking html2canvas FontMetrics baseline calculation
+  const patchStyle = document.createElement('style');
+  patchStyle.id = 'html2canvas-fontmetrics-baseline-patch';
+  patchStyle.innerHTML = `
+    /* Prevent Tailwind display:block preflight from breaking html2canvas FontMetrics baseline measurement */
+    img {
+      display: inline !important;
+    }
+  `;
+  document.head.appendChild(patchStyle);
+
   const { clone, cleanup } = await prepareElementInSandbox(element);
 
   try {
+    // Run diagnostics comparing preview vs clone
+    try {
+      const diags = runReceiptDiagnostics(element, clone);
+      const diffs = diags.filter((d) => d.diffs.length > 0);
+      if (diffs.length > 0) {
+        console.warn('[Receipt Export Diagnostics] Detected layout/style discrepancies:', diffs);
+      } else {
+        console.log('[Receipt Export Diagnostics] Preview and export clone DOM styles and dimensions match perfectly (0 discrepancies).');
+      }
+    } catch (diagErr) {
+      console.warn('[Receipt Export Diagnostics] Error running diagnostics:', diagErr);
+    }
+
     const rect = clone.getBoundingClientRect();
     const naturalHeight = Math.ceil(Math.max(clone.offsetHeight, clone.scrollHeight, rect.height, 700));
     // 14px safety buffer to ensure bottom borders, signatures, and descenders are never clipped
@@ -343,7 +368,34 @@ export async function downloadReceiptElement({
       height: targetHeight,
       windowWidth: 680,
       windowHeight: targetHeight,
-      onclone: (_clonedDoc, clonedEl) => {
+      onclone: async (clonedDoc, clonedEl) => {
+        // Prevent Tailwind display:block inside cloned document as well
+        const clonedPatch = clonedDoc.createElement('style');
+        clonedPatch.innerHTML = `
+          img {
+            display: inline !important;
+          }
+        `;
+        clonedDoc.head.appendChild(clonedPatch);
+
+        if ('fonts' in clonedDoc) {
+          try {
+            await Promise.allSettled([
+              clonedDoc.fonts.load('400 14px "Hind Siliguri"'),
+              clonedDoc.fonts.load('500 12px "Hind Siliguri"'),
+              clonedDoc.fonts.load('600 14px "Hind Siliguri"'),
+              clonedDoc.fonts.load('700 14px "Hind Siliguri"'),
+              clonedDoc.fonts.load('700 18px "Hind Siliguri"'),
+              clonedDoc.fonts.load('800 30px "Hind Siliguri"'),
+              clonedDoc.fonts.load('400 14px "Noto Sans Bengali"'),
+              clonedDoc.fonts.load('500 12px "Noto Sans Bengali"'),
+              clonedDoc.fonts.load('600 14px "Noto Sans Bengali"'),
+              clonedDoc.fonts.load('700 14px "Noto Sans Bengali"'),
+            ]);
+            await clonedDoc.fonts.ready;
+          } catch {}
+        }
+
         clonedEl.style.width = '680px';
         clonedEl.style.minWidth = '680px';
         clonedEl.style.maxWidth = '680px';
@@ -397,6 +449,9 @@ export async function downloadReceiptElement({
       } catch {}
     }, 60000);
   } finally {
+    if (document.head.contains(patchStyle)) {
+      document.head.removeChild(patchStyle);
+    }
     cleanup();
   }
 }
@@ -414,66 +469,107 @@ export async function downloadReceiptsZip(
   items: BatchReceiptItem[],
   zipFilename: string
 ): Promise<void> {
+  const patchStyle = document.createElement('style');
+  patchStyle.id = 'html2canvas-fontmetrics-baseline-patch-zip';
+  patchStyle.innerHTML = `
+    img {
+      display: inline !important;
+    }
+  `;
+  document.head.appendChild(patchStyle);
+
   const zip = new JSZip();
 
-  for (const item of items) {
-    const { clone, cleanup } = await prepareElementInSandbox(item.element);
-    try {
-      const rect = clone.getBoundingClientRect();
-      const naturalHeight = Math.ceil(Math.max(clone.offsetHeight, clone.scrollHeight, rect.height, 700));
-      const targetHeight = naturalHeight + 14;
-
-      const canvas = await html2canvas(clone, {
-        scale: 2.5,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        scrollX: 0,
-        scrollY: 0,
-        x: 0,
-        y: 0,
-        width: 680,
-        height: targetHeight,
-        windowWidth: 680,
-        windowHeight: targetHeight,
-        onclone: (_clonedDoc, clonedEl) => {
-          clonedEl.style.width = '680px';
-          clonedEl.style.minWidth = '680px';
-          clonedEl.style.maxWidth = '680px';
-          clonedEl.style.height = `${targetHeight}px`;
-          clonedEl.style.overflow = 'visible';
-          clonedEl.style.boxSizing = 'border-box';
-          clonedEl.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif";
-          clonedEl.style.lineHeight = '1.6';
-          clonedEl.style.setProperty('-webkit-font-smoothing', 'antialiased');
-          clonedEl.style.setProperty('text-rendering', 'optimizeLegibility');
-          normalizeColorsInElementTree(clonedEl);
-        },
-      });
-
-      const mimeType = item.format === 'jpeg' ? 'image/jpeg' : 'image/png';
-      const ext = item.format === 'jpeg' ? 'jpg' : 'png';
-
-      let blob: Blob | null = null;
+  try {
+    for (const item of items) {
+      const { clone, cleanup } = await prepareElementInSandbox(item.element);
       try {
-        blob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob((b) => resolve(b), mimeType, 0.95)
-        );
-      } catch {}
+        const rect = clone.getBoundingClientRect();
+        const naturalHeight = Math.ceil(Math.max(clone.offsetHeight, clone.scrollHeight, rect.height, 700));
+        const targetHeight = naturalHeight + 14;
 
-      if (!blob) {
-        const dataUrl = canvas.toDataURL(mimeType, 0.95);
-        const res = await fetch(dataUrl);
-        blob = await res.blob();
-      }
+        const canvas = await html2canvas(clone, {
+          scale: 2.5,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          x: 0,
+          y: 0,
+          width: 680,
+          height: targetHeight,
+          windowWidth: 680,
+          windowHeight: targetHeight,
+          onclone: async (clonedDoc, clonedEl) => {
+            const clonedPatch = clonedDoc.createElement('style');
+            clonedPatch.innerHTML = `
+              img {
+                display: inline !important;
+              }
+            `;
+            clonedDoc.head.appendChild(clonedPatch);
 
-      if (blob && blob.size > 0) {
-        const arrayBuffer = await blob.arrayBuffer();
-        zip.file(`${item.filename}.${ext}`, arrayBuffer);
+            if ('fonts' in clonedDoc) {
+              try {
+                await Promise.allSettled([
+                  clonedDoc.fonts.load('400 14px "Hind Siliguri"'),
+                  clonedDoc.fonts.load('500 12px "Hind Siliguri"'),
+                  clonedDoc.fonts.load('600 14px "Hind Siliguri"'),
+                  clonedDoc.fonts.load('700 14px "Hind Siliguri"'),
+                  clonedDoc.fonts.load('700 18px "Hind Siliguri"'),
+                  clonedDoc.fonts.load('800 30px "Hind Siliguri"'),
+                  clonedDoc.fonts.load('400 14px "Noto Sans Bengali"'),
+                  clonedDoc.fonts.load('500 12px "Noto Sans Bengali"'),
+                  clonedDoc.fonts.load('600 14px "Noto Sans Bengali"'),
+                  clonedDoc.fonts.load('700 14px "Noto Sans Bengali"'),
+                ]);
+                await clonedDoc.fonts.ready;
+              } catch {}
+            }
+
+            clonedEl.style.width = '680px';
+            clonedEl.style.minWidth = '680px';
+            clonedEl.style.maxWidth = '680px';
+            clonedEl.style.height = `${targetHeight}px`;
+            clonedEl.style.overflow = 'visible';
+            clonedEl.style.boxSizing = 'border-box';
+            clonedEl.style.fontFamily = "'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif";
+            clonedEl.style.lineHeight = '1.6';
+            clonedEl.style.setProperty('-webkit-font-smoothing', 'antialiased');
+            clonedEl.style.setProperty('text-rendering', 'optimizeLegibility');
+            normalizeColorsInElementTree(clonedEl);
+          },
+        });
+
+        const mimeType = item.format === 'jpeg' ? 'image/jpeg' : 'image/png';
+        const ext = item.format === 'jpeg' ? 'jpg' : 'png';
+
+        let blob: Blob | null = null;
+        try {
+          blob = await new Promise<Blob | null>((resolve) =>
+            canvas.toBlob((b) => resolve(b), mimeType, 0.95)
+          );
+        } catch {}
+
+        if (!blob) {
+          const dataUrl = canvas.toDataURL(mimeType, 0.95);
+          const res = await fetch(dataUrl);
+          blob = await res.blob();
+        }
+
+        if (blob && blob.size > 0) {
+          const arrayBuffer = await blob.arrayBuffer();
+          zip.file(`${item.filename}.${ext}`, arrayBuffer);
+        }
+      } finally {
+        cleanup();
       }
-    } finally {
-      cleanup();
+    }
+  } finally {
+    if (document.head.contains(patchStyle)) {
+      document.head.removeChild(patchStyle);
     }
   }
 

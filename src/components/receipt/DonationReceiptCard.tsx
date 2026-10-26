@@ -134,7 +134,7 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
             {/* Official Seal / Badge - Permanent across all devices */}
             <div className="flex flex-col items-center justify-center flex-shrink-0 text-emerald-800 border border-emerald-700/30 bg-emerald-50/60 rounded-full w-16 h-16 p-1 text-center shadow-inner">
               <ShieldCheck className="w-5 h-5 text-emerald-700 mb-0.5" />
-              <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800">অফিসিয়াল</span>
+              <span className="text-[9px] font-bold uppercase text-emerald-800">অফিসিয়াল</span>
             </div>
           </div>
         </div>
@@ -145,7 +145,7 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
             className="relative inline-flex items-center justify-center text-center px-8 py-2.5 min-h-[46px] bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-800 text-white rounded-md shadow-sm"
             style={{ boxSizing: 'border-box' }}
           >
-            <span className="text-lg font-bold tracking-wider px-2 leading-none flex items-center justify-center">
+            <span className="text-lg font-bold px-2 leading-normal flex items-center justify-center">
               {receiptTitle}
             </span>
           </div>
