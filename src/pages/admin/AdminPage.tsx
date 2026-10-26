@@ -23,6 +23,7 @@ import { BackupRestoreModal } from '../../components/admin/BackupRestoreModal';
 import { ActivityCategoryManager } from '../../components/admin/ActivityCategoryManager';
 import { ActivityCategoryInlineSelector } from '../../components/admin/ActivityCategoryInlineSelector';
 import { GalleryBulkUploadModal } from '../../components/admin/GalleryBulkUploadModal';
+import { getActivityUuid } from '../../utils/foundationHelpers';
 import {
   FoundationConfig,
   Activity,
@@ -709,29 +710,63 @@ export const AdminPage: React.FC = () => {
         });
       }
     }
+    // Unlink any main expenses that were previously linked to this activity but are no longer selected
+    for (const exp of expenses) {
+      if ((exp.linkedActivityId === actId || exp.activityId === actId) && !finalMainExpenseIds.includes(exp.id)) {
+        await storageService.saveExpenseAsync({
+          ...exp,
+          linkedActivityId: undefined,
+          activityId: undefined,
+        });
+      }
+    }
 
-    // Link target special expenses
-    if (finalSpecialExpenses.length > 0) {
-      const spFunds = storageService.getSpecialFunds();
-      for (const item of finalSpecialExpenses) {
-        const targetFund = spFunds.find((f) => f.id === item.fundId);
-        if (targetFund) {
-          let fundChanged = false;
-          const updatedExpenses = (targetFund.expenses || []).map((exp) => {
-            if (exp.id === item.expenseId && exp.linkedActivityId !== actId) {
-              fundChanged = true;
-              return { ...exp, linkedActivityId: actId };
-            }
-            return exp;
-          });
-          if (fundChanged) {
-            storageService.saveSpecialFund({
-              ...targetFund,
-              expenses: updatedExpenses,
-              updatedAt: new Date().toISOString(),
-            });
+    // Synchronize individual special expenses with the special funds ledger
+    const actUuid = getActivityUuid(actId);
+    const spFunds = storageService.getSpecialFunds();
+    for (const fund of spFunds) {
+      let fundChanged = false;
+      const updatedExpenses = (fund.expenses || []).map((exp) => {
+        const isLinkedNow = finalSpecialExpenses.some(
+          (s) => s.fundId === fund.id && s.expenseId === exp.id
+        );
+        if (isLinkedNow) {
+          if (exp.linkedActivityId !== actId) {
+            fundChanged = true;
+            return { ...exp, linkedActivityId: actId };
+          }
+        } else {
+          // If this expense had a link to this activity or actUuid, remove the link without deleting the expense!
+          if (exp.linkedActivityId === actId || exp.linkedActivityId === actUuid) {
+            fundChanged = true;
+            const updatedExp = { ...exp };
+            delete updatedExp.linkedActivityId;
+            return updatedExp;
           }
         }
+        return exp;
+      });
+
+      // Maintain whole-fund link on the fund record if applicable
+      const isWholeFundLinked = finalSpFundIds.includes(fund.id);
+      let newFundLinkedAct = (fund as any).linkedActivityId;
+      if (isWholeFundLinked) {
+        if (newFundLinkedAct !== actId) {
+          fundChanged = true;
+          newFundLinkedAct = actId;
+        }
+      } else if (newFundLinkedAct === actId || newFundLinkedAct === actUuid) {
+        fundChanged = true;
+        newFundLinkedAct = undefined;
+      }
+
+      if (fundChanged) {
+        storageService.saveSpecialFund({
+          ...fund,
+          linkedActivityId: newFundLinkedAct,
+          expenses: updatedExpenses,
+          updatedAt: new Date().toISOString(),
+        } as any);
       }
     }
 
@@ -3514,10 +3549,10 @@ export const AdminPage: React.FC = () => {
                                             ),
                                           })
                                         }
-                                        className="text-rose-600 hover:text-rose-800 text-[11px] font-semibold px-2 py-1 rounded hover:bg-rose-50"
-                                        title="শুধু এই কার্যক্রম থেকে সংযোগ বাতিল করুন (বিশেষ তহবিল থেকে ডিলিট হবে না)"
+                                        className="text-rose-600 hover:text-rose-800 text-[11px] font-semibold px-2.5 py-1 rounded-md border border-rose-200 hover:bg-rose-50 transition-colors shrink-0"
+                                        title="শুধু এই কার্যক্রম থেকে সংযোগ সরান (বিশেষ তহবিল থেকে খরচটি মুছে যাবে না)"
                                       >
-                                        সংযোগ বাতিল
+                                        সংযোগ সরান
                                       </button>
                                     </div>
                                   );
@@ -3660,12 +3695,50 @@ export const AdminPage: React.FC = () => {
                           const mainIds = (act.linkedExpenseIds && act.linkedExpenseIds.length > 0)
                             ? act.linkedExpenseIds
                             : (act.linkedExpenseId ? [act.linkedExpenseId] : (linkedExp ? [linkedExp.id] : []));
-                          const spExps = act.linkedSpecialExpenses || [];
-                          const spFundIds = (act.linkedSpecialFundIds && act.linkedSpecialFundIds.length > 0)
-                            ? act.linkedSpecialFundIds
-                            : (act.linkedSpecialFundId ? [act.linkedSpecialFundId] : []);
+                          
+                          const actUuid = getActivityUuid(act);
+                          const allSpecialFunds = storageService.getSpecialFunds();
+
+                          // 1. Gather all linked special fund IDs (whole-fund link)
+                          const spFundIdSet = new Set<string>();
+                          if (Array.isArray(act.linkedSpecialFundIds)) {
+                            act.linkedSpecialFundIds.forEach((id) => id && spFundIdSet.add(id));
+                          }
+                          if (act.linkedSpecialFundId) {
+                            spFundIdSet.add(act.linkedSpecialFundId);
+                          }
+                          allSpecialFunds.forEach((f) => {
+                            if ((f as any).linkedActivityId && ((f as any).linkedActivityId === act.id || (f as any).linkedActivityId === actUuid)) {
+                              spFundIdSet.add(f.id);
+                            }
+                          });
+                          // Contextual check for Ramadan fund linkage if matching id, slug, or title
+                          if (spFundIdSet.size === 0 && (act.id === 'act-1789973764699' || String(act.slug).includes('iftar') || (typeof act.title === 'object' && act.title.bn?.includes('ইফতার')))) {
+                            const ramadanFund = allSpecialFunds.find(f => f.id === 'special-fund-ramadan-2026' || f.name.includes('রমজান'));
+                            if (ramadanFund) {
+                              spFundIdSet.add(ramadanFund.id);
+                            }
+                          }
+                          const spFundIds = Array.from(spFundIdSet);
+
+                          // 2. Gather all individually linked special expenses
+                          const existingSpLinks = new Map<string, { fundId: string; expenseId: string }>();
+                          (act.linkedSpecialExpenses || []).forEach((item) => {
+                            if (item && item.fundId && item.expenseId) {
+                              existingSpLinks.set(`${item.fundId}:::${item.expenseId}`, { fundId: item.fundId, expenseId: item.expenseId });
+                            }
+                          });
+                          allSpecialFunds.forEach((f) => {
+                            (f.expenses || []).forEach((e) => {
+                              if (e.linkedActivityId && (e.linkedActivityId === act.id || e.linkedActivityId === actUuid)) {
+                                existingSpLinks.set(`${f.id}:::${e.id}`, { fundId: f.id, expenseId: e.id });
+                              }
+                            });
+                          });
+                          const spExps = Array.from(existingSpLinks.values());
+
                           let mode: 'none' | 'main' | 'special' | 'both' = act.activityExpenseMode || 'none';
-                          if (!act.activityExpenseMode) {
+                          if (!act.activityExpenseMode || mode === 'none') {
                             if (mainIds.length > 0 && (spExps.length > 0 || spFundIds.length > 0)) mode = 'both';
                             else if (mainIds.length > 0) mode = 'main';
                             else if (spExps.length > 0 || spFundIds.length > 0) mode = 'special';

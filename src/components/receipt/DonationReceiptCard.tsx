@@ -66,12 +66,14 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
     <div
       ref={cardRef}
       id="printable-donation-receipt"
-      className="relative bg-white text-emerald-950 p-7 sm:p-8 rounded-xl shadow-xl border-4 border-double border-emerald-800/40 font-sans max-w-[680px] w-full mx-auto select-none overflow-hidden"
+      className="relative bg-white text-emerald-950 p-6 sm:p-7 rounded-xl shadow-xl border-4 border-double border-emerald-800/40 font-sans w-[680px] max-w-full mx-auto select-none overflow-visible"
       style={{
         boxSizing: 'border-box',
         backgroundColor: '#ffffff',
         color: '#062817',
         borderColor: '#1e6b4d',
+        width: '680px',
+        maxWidth: '100%',
       }}
     >
       {/* Background Watermark */}
@@ -91,15 +93,16 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
 
       {/* Decorative inner frame */}
       <div
-        className="relative z-10 border border-emerald-900/20 rounded-lg p-5 bg-gradient-to-b from-emerald-50/20 via-white to-emerald-50/30"
+        className="relative z-10 border border-emerald-900/20 rounded-lg p-5 bg-gradient-to-b from-emerald-50/20 via-white to-emerald-50/30 overflow-visible"
         style={{
           borderColor: 'rgba(6, 40, 23, 0.2)',
+          boxSizing: 'border-box',
         }}
       >
         
         {/* Header Section */}
-        <div className="border-b-2 border-emerald-800/30 pb-4 mb-4">
-          <div className="flex items-center justify-between gap-4">
+        <div className="border-b-2 border-emerald-800/30 pb-3.5 mb-3.5">
+          <div className="flex items-center justify-between gap-3">
             {/* Logo */}
             <div className="flex-shrink-0">
               <img
@@ -111,23 +114,23 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
             </div>
 
             {/* Foundation Names and Motto */}
-            <div className="flex-1 text-center">
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-emerald-900 tracking-tight leading-tight">
+            <div className="flex-1 text-center min-w-0 px-1">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-emerald-900 tracking-tight leading-tight break-words">
                 {orgNameBn}
               </h1>
-              <h2 className="text-xs sm:text-sm font-semibold text-emerald-700/80 tracking-wide uppercase mt-0.5">
+              <h2 className="text-xs sm:text-sm font-semibold text-emerald-700/80 tracking-wide uppercase mt-0.5 break-words">
                 {orgNameEn}
               </h2>
-              <p className="text-xs text-emerald-800 font-medium italic mt-1 bg-emerald-100/60 inline-block px-3 py-0.5 rounded-full">
+              <p className="text-xs text-emerald-800 font-medium italic mt-1 bg-emerald-100/60 inline-block px-3 py-0.5 rounded-full max-w-full break-words">
                 {sloganBn}
               </p>
-              <p className="text-[11px] text-gray-600 mt-1 leading-relaxed">
+              <p className="text-[11px] text-gray-600 mt-1 leading-relaxed break-words">
                 {address}
               </p>
             </div>
 
-            {/* Official Seal / Badge */}
-            <div className="hidden sm:flex flex-col items-center justify-center flex-shrink-0 text-emerald-800 border border-emerald-700/30 bg-emerald-50/60 rounded-full w-16 h-16 p-1 text-center shadow-inner">
+            {/* Official Seal / Badge - Permanent across all devices */}
+            <div className="flex flex-col items-center justify-center flex-shrink-0 text-emerald-800 border border-emerald-700/30 bg-emerald-50/60 rounded-full w-16 h-16 p-1 text-center shadow-inner">
               <ShieldCheck className="w-5 h-5 text-emerald-700 mb-0.5" />
               <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800">অফিসিয়াল</span>
             </div>
@@ -135,7 +138,7 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
         </div>
 
         {/* Title Banner */}
-        <div className="flex items-center justify-center my-3">
+        <div className="flex items-center justify-center my-2.5">
           <div className="relative inline-block text-center px-6 py-1 bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-800 text-white rounded-md shadow-sm">
             <span className="text-base sm:text-lg font-bold tracking-wider px-2">
               {receiptTitle}
@@ -144,36 +147,36 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
         </div>
 
         {/* Receipt Meta (No, Date, Period) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-emerald-50/70 border border-emerald-200/80 rounded-md p-2.5 text-xs text-emerald-950 mb-4 shadow-sm">
-          <div>
+        <div className="grid grid-cols-3 gap-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-md p-2.5 text-xs text-emerald-950 mb-3.5 shadow-sm">
+          <div className="min-w-0">
             <span className="text-gray-500 font-medium block text-[11px]">রসিদ নম্বর:</span>
-            <span className="font-mono font-bold text-emerald-900 text-xs sm:text-sm tracking-wide">
+            <span className="font-mono font-bold text-emerald-900 text-xs sm:text-sm tracking-wide break-all block mt-0.5">
               {receipt.receiptNumber}
             </span>
           </div>
-          <div>
+          <div className="min-w-0">
             <span className="text-gray-500 font-medium block text-[11px]">ইস্যুর তারিখ:</span>
-            <span className="font-semibold text-emerald-900">
+            <span className="font-semibold text-emerald-900 block mt-0.5 break-words">
               {receipt.issueDate}
             </span>
           </div>
-          <div className="col-span-2 sm:col-span-1 border-t sm:border-t-0 pt-1 sm:pt-0 border-emerald-200/60">
+          <div className="min-w-0">
             <span className="text-gray-500 font-medium block text-[11px]">আর্থিক বছর ও সময়:</span>
-            <span className="font-semibold text-emerald-900">
+            <span className="font-semibold text-emerald-900 block mt-0.5 break-words">
               {receipt.periodLabel}
             </span>
           </div>
         </div>
 
         {/* Member / Donor Information Box */}
-        <div className="border border-emerald-200 rounded-md p-3 mb-4 bg-white/90 shadow-sm text-xs sm:text-sm">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div>
-              <span className="text-gray-500 text-xs">সদস্য / দাতার নাম:</span>
-              <div className="font-bold text-emerald-950 text-sm sm:text-base flex items-center gap-1.5 mt-0.5">
+        <div className="border border-emerald-200 rounded-md p-3 mb-3.5 bg-white/90 shadow-sm text-xs sm:text-sm">
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="min-w-0">
+              <span className="text-gray-500 text-xs block">সদস্য / দাতার নাম:</span>
+              <div className="font-bold text-emerald-950 text-sm sm:text-base break-words mt-0.5 leading-snug">
                 <span>{receipt.member.nameBn || (typeof receipt.member.name === 'string' ? receipt.member.name : '') || 'সম্মানিত সদস্য'}</span>
                 {receipt.member.nameEn && (
-                  <span className="text-xs font-normal text-gray-500">
+                  <span className="text-xs font-normal text-gray-500 ml-1.5 inline-block">
                     ({receipt.member.nameEn})
                   </span>
                 )}
@@ -181,26 +184,26 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
             </div>
 
             {visibility.showDonorSerial && (
-              <div>
-                <span className="text-gray-500 text-xs">সদস্য ক্রমিক নম্বর:</span>
-                <div className="font-semibold text-emerald-900 mt-0.5">
+              <div className="min-w-0 text-right sm:text-left">
+                <span className="text-gray-500 text-xs block">সদস্য ক্রমিক নম্বর:</span>
+                <div className="font-semibold text-emerald-900 mt-0.5 font-mono text-sm">
                   {receipt.member.serial ? `#${toBengaliNumeral(receipt.member.serial)}` : (receipt.member.id ? `#${receipt.member.id.slice(-4)}` : '—')}
                 </div>
               </div>
             )}
 
             {visibility.showAddress && (receipt.member.addressBn || receipt.member.address || receipt.member.location) && (
-              <div className="sm:col-span-2">
-                <span className="text-gray-500 text-xs">গ্রাম / ঠিকানা:</span>
-                <div className="text-gray-800 text-xs mt-0.5">
+              <div className="col-span-2 min-w-0 border-t border-emerald-100 pt-1.5 mt-0.5">
+                <span className="text-gray-500 text-xs block">গ্রাম / ঠিকানা:</span>
+                <div className="text-gray-800 text-xs mt-0.5 break-words leading-relaxed">
                   {receipt.member.addressBn || receipt.member.address || receipt.member.location}
                 </div>
               </div>
             )}
 
             {visibility.showPhone && receipt.member.phone && (
-              <div>
-                <span className="text-gray-500 text-xs">মোবাইল:</span>
+              <div className="col-span-2 min-w-0">
+                <span className="text-gray-500 text-xs block">মোবাইল:</span>
                 <div className="text-gray-800 text-xs mt-0.5 font-mono">
                   {receipt.member.phone}
                 </div>
@@ -210,29 +213,29 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
         </div>
 
         {/* Contribution Details & Particulars Table */}
-        <div className="border border-emerald-300/80 rounded-md overflow-hidden mb-4 shadow-sm bg-white">
-          <table className="w-full text-left text-xs sm:text-sm">
+        <div className="border border-emerald-300/80 rounded-md overflow-hidden mb-3.5 shadow-sm bg-white">
+          <table className="w-full text-left text-xs sm:text-sm table-fixed">
             <thead className="bg-emerald-800 text-white font-medium text-xs">
               <tr>
-                <th className="py-2 px-3">বিবরণ / অনুদানের খাত</th>
-                <th className="py-2 px-3 text-center">অন্তর্ভুক্ত মাস</th>
-                <th className="py-2 px-3 text-right">পরিমাণ (টাকা)</th>
+                <th className="py-2.5 px-3 w-[46%]">বিবরণ / অনুদানের খাত</th>
+                <th className="py-2.5 px-3 w-[30%] text-center">অন্তর্ভুক্ত মাস</th>
+                <th className="py-2.5 px-3 w-[24%] text-right">পরিমাণ (টাকা)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-emerald-100">
               <tr>
-                <td className="py-2.5 px-3">
-                  <div className="font-semibold text-emerald-950">
+                <td className="py-2.5 px-3 align-top min-w-0">
+                  <div className="font-semibold text-emerald-950 break-words">
                     ফাউন্ডেশন মাসিক কল্যাণ তহবিল চাঁদা
                   </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">
+                  <div className="text-[11px] text-gray-500 mt-0.5 break-words">
                     নিয়মিত মাসিক সঞ্চয় ও মানবকল্যাণ তহবিল
                   </div>
                 </td>
-                <td className="py-2.5 px-3 text-center text-xs text-gray-700 font-medium">
+                <td className="py-2.5 px-3 text-center text-xs text-gray-700 font-medium align-top break-words min-w-0">
                   {monthNamesBn} {toBengaliNumeral(receipt.year)}
                 </td>
-                <td className="py-2.5 px-3 text-right font-bold text-emerald-900 text-sm sm:text-base">
+                <td className="py-2.5 px-3 text-right font-bold text-emerald-900 text-sm sm:text-base align-top whitespace-nowrap">
                   ৳{bengaliAmount}
                 </td>
               </tr>
@@ -242,7 +245,7 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
                 <td colSpan={2} className="py-2 px-3 text-right text-emerald-950">
                   সর্বমোট গৃহীত পরিমাণ:
                 </td>
-                <td className="py-2 px-3 text-right text-emerald-950 text-base sm:text-lg">
+                <td className="py-2 px-3 text-right text-emerald-950 text-base sm:text-lg whitespace-nowrap">
                   ৳{bengaliAmount}
                 </td>
               </tr>
@@ -252,18 +255,18 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
 
         {/* Amount in Bengali Words Banner */}
         {visibility.showWordsAmount && (
-          <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-md p-2.5 mb-4 text-xs flex items-start gap-2 shadow-sm">
+          <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-md p-2.5 mb-3.5 text-xs flex items-start gap-2 shadow-sm min-w-0">
             <span className="font-bold text-emerald-900 flex-shrink-0">কথায়:</span>
-            <span className="font-semibold text-emerald-950 italic">
+            <span className="font-semibold text-emerald-950 italic break-words flex-1 min-w-0">
               {amountInWords}
             </span>
           </div>
         )}
 
         {/* Verification Status Pill */}
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-4 bg-white p-2 rounded-md border border-gray-100 text-xs">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3 bg-white p-2 rounded-md border border-gray-100 text-xs">
           <div className="flex items-center gap-1.5 text-emerald-800 font-semibold">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
             <span>জমার স্থিতি: শতভাগ পরিশোধিত ও সংরক্ষিত</span>
           </div>
           <div className="text-[11px] text-gray-500 font-mono">
@@ -272,26 +275,26 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
         </div>
 
         {/* Thank You Note */}
-        <div className="text-center text-xs font-medium text-emerald-900 py-1.5 mb-4 border-y border-dashed border-emerald-300 bg-emerald-50/30">
+        <div className="text-center text-xs font-medium text-emerald-900 py-1.5 mb-3.5 border-y border-dashed border-emerald-300 bg-emerald-50/30">
           <p className="flex items-center justify-center gap-1.5">
-            <HeartHandshake className="w-4 h-4 text-emerald-600 inline" />
-            <span>{thankYouMessage}</span>
+            <HeartHandshake className="w-4 h-4 text-emerald-600 inline flex-shrink-0" />
+            <span className="break-words">{thankYouMessage}</span>
           </p>
         </div>
 
         {/* Footer & Signature Section */}
-        <div className="mt-6 pt-3 flex flex-col sm:flex-row items-end justify-between gap-4">
+        <div className="mt-5 pt-2 flex items-end justify-between gap-4">
           {/* Disclaimer & Notice */}
-          <div className="text-[10px] text-gray-500 max-w-[320px] text-left leading-normal order-2 sm:order-1">
-            {visibility.showDisclaimer && <p>{disclaimerText}</p>}
-            <p className="mt-0.5 text-gray-400">
+          <div className="text-[10px] text-gray-500 max-w-[340px] text-left leading-normal min-w-0">
+            {visibility.showDisclaimer && <p className="break-words">{disclaimerText}</p>}
+            <p className="mt-0.5 text-gray-400 break-words">
               ফাউন্ডেশনের সকল হিসাব গুগল শিট ও অনলাইনে সার্বক্ষণিক সংরক্ষিত।
             </p>
           </div>
 
           {/* Signature Box */}
           {visibility.showCollectorSignature && (
-            <div className="flex flex-col items-center justify-end text-center flex-shrink-0 min-w-[150px] order-1 sm:order-2">
+            <div className="flex flex-col items-center justify-end text-center flex-shrink-0 min-w-[150px]">
               <div className="h-14 flex items-end justify-center mb-1">
                 {signatureImg ? (
                   <img

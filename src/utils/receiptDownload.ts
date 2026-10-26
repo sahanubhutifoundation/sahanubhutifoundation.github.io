@@ -220,28 +220,43 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
   sandbox.style.top = '0';
   sandbox.style.zIndex = '-9999';
   sandbox.style.width = '680px';
+  sandbox.style.minWidth = '680px';
+  sandbox.style.maxWidth = '680px';
   sandbox.style.opacity = '1';
   sandbox.style.visibility = 'visible';
   sandbox.style.pointerEvents = 'none';
   sandbox.style.transform = 'none';
   sandbox.style.backgroundColor = '#ffffff';
+  sandbox.style.overflow = 'visible';
+  sandbox.style.boxSizing = 'border-box';
 
-  // 3. Clone source element
+  // 3. Clone source element with fixed 680px geometry and visible overflow
   const clone = sourceElement.cloneNode(true) as HTMLElement;
   clone.style.transform = 'none';
   clone.style.margin = '0 auto';
   clone.style.width = '680px';
+  clone.style.minWidth = '680px';
   clone.style.maxWidth = '680px';
+  clone.style.height = 'auto';
+  clone.style.minHeight = 'auto';
   clone.style.boxSizing = 'border-box';
+  clone.style.overflow = 'visible';
 
-  // 4. Preload and inline all images
+  // 4. Preload, inline, and await decoding of all images
   const images = Array.from(clone.querySelectorAll('img'));
   await Promise.all(
     images.map(async (img) => {
       img.style.filter = 'none';
       if (img.src) {
-        const dataUrl = await imageToDataUrl(img.src);
-        img.src = dataUrl;
+        try {
+          const dataUrl = await imageToDataUrl(img.src);
+          img.src = dataUrl;
+          if ('decode' in img) {
+            await img.decode();
+          }
+        } catch {
+          // continue gracefully if decode fails
+        }
       }
     })
   );
@@ -252,8 +267,13 @@ async function prepareElementInSandbox(sourceElement: HTMLElement): Promise<{
   // 5. Convert any computed oklab/oklch colors in the cloned tree to standard rgb/rgba
   normalizeColorsInElementTree(clone);
 
-  // Short tick for DOM layout calculation
-  await new Promise((r) => setTimeout(r, 80));
+  // Short settling delay for DOM layout calculation and font rendering
+  if (typeof document !== 'undefined' && 'fonts' in document) {
+    try {
+      await document.fonts.ready;
+    } catch {}
+  }
+  await new Promise((r) => setTimeout(r, 120));
 
   const cleanup = () => {
     if (document.body.contains(sandbox)) {
@@ -284,7 +304,9 @@ export async function downloadReceiptElement({
   const { clone, cleanup } = await prepareElementInSandbox(element);
 
   try {
-    const renderedHeight = clone.offsetHeight || clone.scrollHeight || 750;
+    const naturalHeight = Math.ceil(Math.max(clone.offsetHeight, clone.scrollHeight, 720));
+    // 12px safety buffer to ensure bottom borders, signatures, and descenders are never clipped
+    const targetHeight = naturalHeight + 12;
 
     const canvas = await html2canvas(clone, {
       scale: 2.5, // 2.5x high-res rendering for print-level sharpness
@@ -295,10 +317,15 @@ export async function downloadReceiptElement({
       scrollX: 0,
       scrollY: 0,
       width: 680,
-      height: renderedHeight,
+      height: targetHeight,
       windowWidth: 680,
-      windowHeight: renderedHeight,
+      windowHeight: targetHeight,
       onclone: (_clonedDoc, clonedEl) => {
+        clonedEl.style.width = '680px';
+        clonedEl.style.minWidth = '680px';
+        clonedEl.style.maxWidth = '680px';
+        clonedEl.style.height = 'auto';
+        clonedEl.style.overflow = 'visible';
         normalizeColorsInElementTree(clonedEl);
       },
     });
@@ -364,7 +391,8 @@ export async function downloadReceiptsZip(
   for (const item of items) {
     const { clone, cleanup } = await prepareElementInSandbox(item.element);
     try {
-      const renderedHeight = clone.offsetHeight || clone.scrollHeight || 750;
+      const naturalHeight = Math.ceil(Math.max(clone.offsetHeight, clone.scrollHeight, 720));
+      const targetHeight = naturalHeight + 12;
 
       const canvas = await html2canvas(clone, {
         scale: 2.5,
@@ -375,10 +403,15 @@ export async function downloadReceiptsZip(
         scrollX: 0,
         scrollY: 0,
         width: 680,
-        height: renderedHeight,
+        height: targetHeight,
         windowWidth: 680,
-        windowHeight: renderedHeight,
+        windowHeight: targetHeight,
         onclone: (_clonedDoc, clonedEl) => {
+          clonedEl.style.width = '680px';
+          clonedEl.style.minWidth = '680px';
+          clonedEl.style.maxWidth = '680px';
+          clonedEl.style.height = 'auto';
+          clonedEl.style.overflow = 'visible';
           normalizeColorsInElementTree(clonedEl);
         },
       });

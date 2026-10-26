@@ -26,7 +26,7 @@ import {
   initialExpenses,
 } from '../data/initialData';
 import { supabaseService, OperationResult } from './supabaseService';
-import { normalizeExpense, resolveCategoryLabel } from '../utils/foundationHelpers';
+import { normalizeExpense, resolveCategoryLabel, getActivityUuid } from '../utils/foundationHelpers';
 
 const KEYS = {
   CONFIG: 'sf_foundation_config',
@@ -482,6 +482,8 @@ export const storageService = {
 
   getActivities(): Activity[] {
     const list = getLocalItem<Activity[]>(KEYS.ACTIVITIES, initialActivities);
+    const allSpFunds = getLocalItem<SpecialFundRecord[]>(KEYS.SPECIAL_FUNDS, initialConfig.specialFunds || []);
+
     return list.map((act) => {
       let cleanLinkedExpenseId = act.linkedExpenseId;
       let cleanLinkedExpenseIds = act.linkedExpenseIds;
@@ -496,8 +498,37 @@ export const storageService = {
         cleanLinkedExpenseId = undefined;
         cleanLinkedExpenseIds = undefined;
       }
+
+      // Restore linkedSpecialExpenses if empty but expenses in special funds link to this activity
+      let spExpenses = Array.isArray(act.linkedSpecialExpenses) ? [...act.linkedSpecialExpenses] : [];
+      if (spExpenses.length === 0) {
+        allSpFunds.forEach((sf) => {
+          (sf.expenses || []).forEach((se) => {
+            if (se.linkedActivityId && (se.linkedActivityId === act.id || se.linkedActivityId === getActivityUuid(act))) {
+              if (!spExpenses.some((x) => x.fundId === sf.id && x.expenseId === se.id)) {
+                spExpenses.push({ fundId: sf.id, expenseId: se.id });
+              }
+            }
+          });
+        });
+      }
+
+      let spFundId = act.linkedSpecialFundId;
+      let spFundIds = act.linkedSpecialFundIds;
+      // Contextual link for Ramadan 2026 if Ramadan activity
+      if (!spFundId && (act.id === 'act-1789973764699' || String(act.slug).includes('iftar') || (typeof act.title === 'object' && act.title?.bn?.includes('ইফতার')))) {
+        const rFund = allSpFunds.find(f => f.id === 'special-fund-ramadan-2026' || f.name.includes('রমজান'));
+        if (rFund) {
+          spFundId = rFund.id;
+          spFundIds = [rFund.id];
+        }
+      }
+
       let cleaned: Activity = {
         ...act,
+        linkedSpecialFundId: spFundId,
+        linkedSpecialFundIds: spFundIds,
+        linkedSpecialExpenses: spExpenses,
         linkedExpenseId: cleanLinkedExpenseId,
         linkedExpenseIds: cleanLinkedExpenseIds,
       };
@@ -549,6 +580,7 @@ export const storageService = {
       activityExpenseMode: activity.activityExpenseMode || (finalSpIds.length > 0 ? 'special' : undefined),
       linkedExpenseId: cleanLinkedExpenseId,
       linkedExpenseIds: cleanLinkedExpenseIds,
+      linkedSpecialExpenses: Array.isArray(activity.linkedSpecialExpenses) ? activity.linkedSpecialExpenses : [],
     };
 
     let updated: Activity[];
@@ -1316,6 +1348,7 @@ export const storageService = {
       activityExpenseMode: activity.activityExpenseMode || (finalSpIds.length > 0 ? 'special' : undefined),
       linkedExpenseId: cleanLinkedExpenseId,
       linkedExpenseIds: cleanLinkedExpenseIds,
+      linkedSpecialExpenses: Array.isArray(activity.linkedSpecialExpenses) ? activity.linkedSpecialExpenses : [],
     };
 
     if (supabaseService.isAvailable()) {
