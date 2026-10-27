@@ -1,5 +1,6 @@
 import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord, Language, OtherMonthlyContribution } from '../types';
 import { storageService } from './storageService';
+import { parseRecordYear } from '../utils/foundationHelpers';
 
 const CACHE_PREFIX = 'sf_fund_cache_data_v4_';
 const CACHE_TIME_PREFIX = 'sf_fund_cache_time_v4_';
@@ -799,8 +800,7 @@ export function getCachedFundData(year?: string): FundData | null {
         (acc, item) => acc + (Number(item.amount) || 0),
         0
       );
-      const effectiveSpent =
-        dbExpenseTotal > 0 ? dbExpenseTotal : (data.sheetSummaryCost || 0);
+      const effectiveSpent = dbExpenseTotal;
       data.expenses = dbExpenses;
       data.otherMonthlyContributions = storageService.getOtherMonthlyContributions(year);
       const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
@@ -810,7 +810,8 @@ export function getCachedFundData(year?: string): FundData | null {
       data.otherMonthlyTotal = eligibleTotalToAdd;
       data.specialFunds = storageService.getSpecialFunds(year);
       data.amountSpent = effectiveSpent;
-      data.currentBalance = (data.amountReceived || 0) - effectiveSpent;
+      const opBal = typeof data.openingBalance === 'number' ? data.openingBalance : 0;
+      data.currentBalance = opBal + (data.amountReceived || 0) - effectiveSpent;
       data.expenseRatio =
         data.amountReceived > 0 ? (effectiveSpent / data.amountReceived) * 100 : 0;
       data.safetyRatio = Math.max(0, 100 - (data.expenseRatio || 0));

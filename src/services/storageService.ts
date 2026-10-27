@@ -26,7 +26,7 @@ import {
   initialExpenses,
 } from '../data/initialData';
 import { supabaseService, OperationResult } from './supabaseService';
-import { normalizeExpense, resolveCategoryLabel, getActivityUuid } from '../utils/foundationHelpers';
+import { normalizeExpense, resolveCategoryLabel, getActivityUuid, parseRecordYear } from '../utils/foundationHelpers';
 
 const KEYS = {
   CONFIG: 'sf_foundation_config',
@@ -946,18 +946,21 @@ export const storageService = {
       .map((e) => normalizeExpense(e))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    if (!year) return normalized;
+    if (!year || year === 'all') return normalized;
     const yearStr = String(year).trim();
     return normalized.filter((e) => {
-      if (e.year && String(e.year).trim() === yearStr) return true;
-      if (e.date && e.date.startsWith(yearStr)) return true;
-      return false;
+      const recYear = parseRecordYear(e.date, e.year);
+      return recYear === yearStr;
     });
   },
 
   saveExpense(expense: ExpenseRecord, skipRemoteSync = false): ExpenseRecord[] {
-    const normalized = normalizeExpense(expense);
-    const list = this.getExpenses();
+    const recYear = parseRecordYear(expense.date, expense.year);
+    const normalized = {
+      ...normalizeExpense(expense),
+      year: recYear,
+    };
+    const list = this.getExpenses('all');
     const existingIndex = list.findIndex((e) => String(e.id).trim() === String(normalized.id).trim());
     let updated: ExpenseRecord[];
     const itemToSave: ExpenseRecord = existingIndex >= 0
@@ -978,14 +981,22 @@ export const storageService = {
     if (supabaseService.isAvailable() && !skipRemoteSync) {
       supabaseService.saveExpense(itemToSave).catch(console.warn);
     }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+    }
     return updated.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   },
 
   deleteExpense(id: string): ExpenseRecord[] {
-    const list = this.getExpenses().filter((e) => String(e.id).trim() !== String(id).trim());
+    const list = this.getExpenses('all').filter((e) => String(e.id).trim() !== String(id).trim());
     setLocalItem(KEYS.EXPENSES, list);
     if (supabaseService.isAvailable()) {
       supabaseService.deleteExpense(id).catch(console.warn);
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
     }
     return list;
   },
@@ -1010,9 +1021,8 @@ export const storageService = {
 
     const yearStr = String(year).trim();
     const filtered = combined.filter((c) => {
-      if (c.year && String(c.year).trim() === yearStr) return true;
-      if (c.date && c.date.startsWith(yearStr)) return true;
-      return false;
+      const recYear = parseRecordYear(c.date, c.year);
+      return recYear === yearStr;
     });
     return [...filtered].sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime());
   },
@@ -1020,8 +1030,8 @@ export const storageService = {
   saveOtherMonthlyContribution(item: OtherMonthlyContribution): OtherMonthlyContribution[] {
     const all = this.getOtherMonthlyContributions('all');
     const id = item.id || `other-contrib-${Date.now()}`;
-    // Preserve transaction date and derive transaction year accurately
-    const derivedYear = item.year || (item.date ? item.date.slice(0, 4) : '2026');
+    // Preserve transaction date and derive transaction year accurately from transaction date
+    const derivedYear = parseRecordYear(item.date, item.year) || '2026';
     const cleanItem: OtherMonthlyContribution = {
       ...item,
       id,
@@ -1098,7 +1108,12 @@ export const storageService = {
     const localList = getLocalItem<SpecialFundRecord[]>(KEYS.SPECIAL_FUNDS, configList);
     const combined = Array.isArray(localList) && localList.length > 0 ? localList : configList;
 
-    const filtered = year ? combined.filter((f) => String(f.year) === String(year)) : combined;
+    const filtered = year && year !== 'all'
+      ? combined.filter((f) => {
+          const fundYr = parseRecordYear(f.eventDate || f.createdAtDate || f.createdAt, f.year);
+          return fundYr === String(year).trim();
+        })
+      : combined;
     return [...filtered].sort((a, b) => {
       const dateA = a.eventDate || a.createdAtDate || a.createdAt;
       const dateB = b.eventDate || b.createdAtDate || b.createdAt;
@@ -1107,12 +1122,13 @@ export const storageService = {
   },
 
   saveSpecialFund(fund: SpecialFundRecord): SpecialFundRecord[] {
-    const all = this.getSpecialFunds();
+    const all = this.getSpecialFunds('all');
     const id = fund.id || `sp-fund-${Date.now()}`;
+    const derivedYear = parseRecordYear(fund.eventDate || fund.createdAtDate || fund.createdAt, fund.year) || '2026';
     const cleanFund: SpecialFundRecord = {
       ...fund,
       id,
-      year: fund.year || (fund.eventDate ? fund.eventDate.substring(0, 4) : '2026'),
+      year: derivedYear,
       status: fund.status || 'ongoing',
       integrationMode: fund.integrationMode || 'separate',
       donations: Array.isArray(fund.donations) ? fund.donations : [],

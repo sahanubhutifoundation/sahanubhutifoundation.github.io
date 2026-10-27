@@ -1,7 +1,7 @@
-import React from 'react';
 import { OtherMonthlyContribution } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { translations } from '../../data/translations';
+import { parseRecordYear } from '../../utils/foundationHelpers';
 import { Heart, ShieldCheck, UserCheck, Calendar, Info, Sparkles } from 'lucide-react';
 
 interface OtherMonthlyContributionsSectionProps {
@@ -16,9 +16,9 @@ export const OtherMonthlyContributionsSection: React.FC<OtherMonthlyContribution
   const { language } = useLanguage();
   const t = translations;
 
-  // Filter for selected year if specified
+  // Filter for selected year strictly based on actual transaction date
   const filtered = selectedYear
-    ? contributions.filter((c) => !c.year || c.year === selectedYear)
+    ? contributions.filter((c) => parseRecordYear(c.date, c.year) === String(selectedYear).trim())
     : contributions;
 
   const totalAmount = filtered.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);

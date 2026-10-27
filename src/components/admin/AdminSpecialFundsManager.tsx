@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SpecialFundRecord, SpecialFundDonation, SpecialFundExpense, SpecialFundStatus, ExpenseAttachment } from '../../types';
 import { storageService } from '../../services/storageService';
+import { parseRecordYear } from '../../utils/foundationHelpers';
 import {
   Layers,
   Plus,
@@ -60,6 +61,7 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
   // Sub-forms: Donation & Expense
   const [isAddingDonation, setIsAddingDonation] = useState(false);
   const [donorName, setDonorName] = useState('');
+  const [donorDate, setDonorDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [donorIsAnon, setDonorIsAnon] = useState(false);
   const [donorAmount, setDonorAmount] = useState('');
   const [donorIsInKind, setDonorIsInKind] = useState(false);
@@ -127,13 +129,14 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
       return;
     }
 
+    const derivedYear = parseRecordYear(fundEventDate, fundYear) || selectedYear || '2026';
     if (activeFundId === 'new') {
       const newFund: SpecialFundRecord = {
         id: `special-fund-${Date.now()}`,
         name: fundName.trim(),
         purpose: fundPurpose.trim(),
         eventDate: fundEventDate.trim(),
-        year: fundYear || selectedYear || '2026',
+        year: derivedYear,
         status: fundStatus,
         integrationMode: fundIntegrationMode,
         donations: [],
@@ -153,7 +156,7 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
           name: fundName.trim(),
           purpose: fundPurpose.trim(),
           eventDate: fundEventDate.trim(),
-          year: fundYear || selectedYear || '2026',
+          year: derivedYear,
           status: fundStatus,
           integrationMode: fundIntegrationMode,
           updatedAt: new Date().toISOString(),
@@ -198,6 +201,11 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
       }
     }
 
+    if (!donorDate || !donorDate.trim()) {
+      setErrorMsg('অনুগ্রহ করে অনুদানের তারিখ উল্লেখ করুন।');
+      return;
+    }
+
     const newDonation: SpecialFundDonation = {
       id: `don-${Date.now()}`,
       donorName: donorIsAnon ? '' : donorName.trim(),
@@ -207,7 +215,7 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
       inKindItem: donorIsInKind ? donorInKindItem.trim() : undefined,
       inKindEstimatedValue: !isNaN(parsedInKindVal) && parsedInKindVal > 0 ? parsedInKindVal : undefined,
       notes: donorNotes.trim() || undefined,
-      date: new Date().toISOString().slice(0, 10),
+      date: donorDate.trim(),
     };
 
     const updatedFund: SpecialFundRecord = {
@@ -219,6 +227,7 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
     storageService.saveSpecialFund(updatedFund);
     setIsAddingDonation(false);
     setDonorName('');
+    setDonorDate(new Date().toISOString().slice(0, 10));
     setDonorIsAnon(false);
     setDonorAmount('');
     setDonorIsInKind(false);
@@ -379,12 +388,16 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
       setErrorMsg('ব্যয়ের খাত / বিবরণ প্রদান করুন।');
       return;
     }
+    if (!expenseDate || !expenseDate.trim()) {
+      setErrorMsg('অনুগ্রহ করে ব্যয়ের তারিখ উল্লেখ করুন।');
+      return;
+    }
 
     const newExp: SpecialFundExpense = {
       id: `spexp-${Date.now()}`,
       title: expenseTitle.trim(),
       amount: parsedAmount,
-      date: expenseDate || new Date().toISOString().slice(0, 10),
+      date: expenseDate.trim(),
       category: expenseCategory.trim(),
       receiptUrl: expenseReceiptUrl.trim() || undefined,
       attachments: expenseAttachments.length > 0 ? expenseAttachments : undefined,
@@ -835,7 +848,16 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">অনুদানের তারিখ *</label>
+                    <input
+                      type="date"
+                      value={donorDate}
+                      onChange={(e) => setDonorDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
+                    />
+                  </div>
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">অনুদানকারীর নাম</label>
                     <input
@@ -960,6 +982,7 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-semibold">
                   <tr>
                     <th className="py-2.5 px-3">#</th>
+                    <th className="py-2.5 px-3">তারিখ</th>
                     <th className="py-2.5 px-3">নাম</th>
                     <th className="py-2.5 px-3">ধরণ</th>
                     <th className="py-2.5 px-3">বিবরণ / নোট</th>
@@ -970,7 +993,7 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
                 <tbody className="divide-y divide-slate-100">
                   {(activeFund.donations || []).length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-6 text-center text-slate-400">
+                      <td colSpan={7} className="py-6 text-center text-slate-400">
                         এখনো কোনো অনুদানকারী রেকর্ড নেই।
                       </td>
                     </tr>
@@ -978,6 +1001,7 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
                     (activeFund.donations || []).map((item, idx) => (
                       <tr key={item.id || idx} className="hover:bg-slate-50/70">
                         <td className="py-2.5 px-3 text-slate-400 font-mono">{idx + 1}</td>
+                        <td className="py-2.5 px-3 text-slate-600 font-mono text-[11px] whitespace-nowrap">{item.date || '—'}</td>
                         <td className="py-2.5 px-3 font-semibold text-slate-900">
                           {item.isAnonymous || !item.donorName ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px]">

@@ -471,6 +471,11 @@ export interface FundData {
   sheetSummaryBalance?: number;
   balanceDiscrepancy?: boolean;
   discrepancyDiff?: number;
+  openingBalance?: number;
+  periodMovement?: number;
+  overallTotalReceived?: number;
+  overallTotalSpent?: number;
+  overallNetBalance?: number;
   contributorCount: number;
   yearlyReceived?: { [year: string]: number };
   monthlyTotals?: { [month: string]: number };

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { SpecialFundRecord, SpecialFundDonation, SpecialFundExpense } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { translations } from '../../data/translations';
+import { parseRecordYear } from '../../utils/foundationHelpers';
 import {
   Sparkles,
   ShieldCheck,
@@ -34,7 +35,6 @@ export const SpecialFundsSection: React.FC<SpecialFundsSectionProps> = ({
 }) => {
   const { language } = useLanguage();
   const t = translations;
-
   const [expandedFundId, setExpandedFundId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Record<string, 'donations' | 'expenses' | 'summary'>>({});
   const [receiptModalUrl, setReceiptModalUrl] = useState<string | null>(null);
@@ -60,9 +60,13 @@ export const SpecialFundsSection: React.FC<SpecialFundsSectionProps> = ({
     } catch {}
   }, []);
 
-  // Filter for selected year if specified (preserve targeted fund if requested via link)
+  // Filter for selected year strictly using the fund's authoritative eventDate / year
   const filtered = selectedYear
-    ? specialFunds.filter((f) => (!f.year || f.year === selectedYear) || f.id === requestedFundId)
+    ? specialFunds.filter((f) => {
+        if (f.id === requestedFundId) return true;
+        const fundYr = parseRecordYear(f.eventDate || f.createdAtDate || f.createdAt, f.year);
+        return fundYr === String(selectedYear).trim();
+      })
     : specialFunds;
 
   const formatTaka = (amount: number) => {

@@ -25,7 +25,7 @@ import {
 import { ExpenseRecord, FundVisibilitySettings, FundData, Activity } from '../../types';
 import { storageService } from '../../services/storageService';
 import { MediaUploadField } from '../../components/MediaUploadField';
-import { getLocalizedValue, normalizeExpense, getActivityUuid, getExpenseCategoryLabel } from '../../utils/foundationHelpers';
+import { getLocalizedValue, normalizeExpense, getActivityUuid, getExpenseCategoryLabel, parseRecordYear } from '../../utils/foundationHelpers';
 import { useLanguage } from '../../context/LanguageContext';
 
 interface AdminExpensesTabProps {
@@ -121,14 +121,18 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingExpense || !editingExpense.title || !editingExpense.amount) return;
-
+    if (!editingExpense.date || !editingExpense.date.trim()) {
+      onShowToast('অনুগ্রহ করে ব্যয়ের সঠিক তারিখ প্রদান করুন।');
+      return;
+    }
     setIsSaving(true);
+    const derivedYear = parseRecordYear(editingExpense.date, editingExpense.year) || '2026';
     const newExpense: ExpenseRecord = {
       id: editingExpense.id || `exp-${Date.now()}`,
       title: editingExpense.title.trim(),
       description: editingExpense.description || '',
       amount: Number(editingExpense.amount) || 0,
-      date: editingExpense.date || new Date().toISOString().split('T')[0],
+      date: editingExpense.date,
       category: (editingExpense.category as any) || 'medical_aid',
       customCategory: editingExpense.customCategory || '',
       recipient: editingExpense.recipient || '',
@@ -140,7 +144,7 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
       fundingSource: editingExpense.fundingSource || 'foundation_fund',
       activityId: (editingExpense.activityId || editingExpense.linkedActivityId) ? getActivityUuid(editingExpense.activityId || editingExpense.linkedActivityId) : undefined,
       linkedActivityId: (editingExpense.activityId || editingExpense.linkedActivityId) ? getActivityUuid(editingExpense.activityId || editingExpense.linkedActivityId) : undefined,
-      year: editingExpense.year || (editingExpense.date ? editingExpense.date.split('-')[0] : '2026'),
+      year: derivedYear,
       createdAt: editingExpense.createdAt || new Date().toISOString(),
     };
 

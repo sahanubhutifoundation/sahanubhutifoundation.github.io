@@ -10,7 +10,8 @@ import {
   getExpenseCategoryLabel,
   formatLocalizedNumber,
   formatLocalizedAmount,
-  formatMonthProgress 
+  formatMonthProgress,
+  parseRecordYear
 } from '../utils/foundationHelpers';
 import { storageService } from '../services/storageService';
 import { fetchFundData, MONTH_KEYS, MONTH_NAMES_BN, getLocalizedMonthName } from '../services/fundService';
@@ -389,13 +390,14 @@ export const FundPage: React.FC = () => {
     return { displayName: localized, memberId: matched.id };
   }, [memberNameMap, language]);
 
-  // Filtered expense ledger for the public display (normalized to guarantee safe strings)
+  // Filtered expense ledger for the public display (strictly belonging to selectedYear by transaction date)
   const displayExpenses: ExpenseRecord[] = useMemo(() => {
-    const list = fundData?.expenses || storageService.getExpenses();
+    const list = fundData?.expenses || storageService.getExpenses(selectedYear);
     return list
       .filter((exp) => exp.isPublic !== false)
+      .filter((exp) => parseRecordYear(exp.date, exp.year) === String(selectedYear).trim())
       .map((exp) => normalizeExpense(exp, language));
-  }, [fundData?.expenses, language]);
+  }, [fundData?.expenses, language, selectedYear]);
 
   const totalIn = fundData?.amountReceived || 0;
   const totalOut = fundData?.amountSpent || 0;
@@ -811,7 +813,27 @@ export const FundPage: React.FC = () => {
                   {loading ? '...' : `৳ ${formatLocalizedAmount(currentBalance, language)}`}
                 </div>
                 <p className="text-xs text-[#2D5A41] font-medium mt-2">
-                  {t('balanceCardSubtitle')}
+                  {typeof fundData?.openingBalance === 'number' && fundData.openingBalance > 0 ? (
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span>
+                        {language === 'ar'
+                          ? `رصيد سابق: ৳${formatLocalizedAmount(fundData.openingBalance, language)}`
+                          : language === 'en'
+                          ? `Opening: ৳${formatLocalizedAmount(fundData.openingBalance, language)}`
+                          : `পূর্ববর্তী স্থিতি: ৳${formatLocalizedAmount(fundData.openingBalance, language)}`}
+                      </span>
+                      <span className="text-[#A4B3A8]">•</span>
+                      <span>
+                        {language === 'ar'
+                          ? `صافي ${formatLocalizedNumber(selectedYear, language)}: ৳${formatLocalizedAmount(fundData.periodMovement ?? (totalIn - totalOut), language)}`
+                          : language === 'en'
+                          ? `${selectedYear} Net: ৳${formatLocalizedAmount(fundData.periodMovement ?? (totalIn - totalOut), language)}`
+                          : `${formatLocalizedNumber(selectedYear, language)} এর সঞ্চয়: ৳${formatLocalizedAmount(fundData.periodMovement ?? (totalIn - totalOut), language)}`}
+                      </span>
+                    </span>
+                  ) : (
+                    t('balanceCardSubtitle')
+                  )}
                 </p>
               </div>
             )}

@@ -35,11 +35,16 @@ export function formatMonthProgress(paidCount: number, totalMonths: number = 12,
 }
 
 /**
- * Parses date string supporting both YYYY-MM-DD and DD/MM/YYYY
+ * Parses date string supporting both YYYY-MM-DD and DD/MM/YYYY, with Bengali/Arabic numeral support
  */
 export function parseDateComponents(dateStr?: string): { day: string; month: string; year: string } | null {
   if (!dateStr || !dateStr.trim()) return null;
-  const s = dateStr.trim();
+  const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+  const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  let s = dateStr.trim();
+  for (let i = 0; i <= 9; i++) {
+    s = s.split(bengaliDigits[i]).join(String(i)).split(arabicDigits[i]).join(String(i));
+  }
 
   // YYYY-MM-DD or YYYY/MM/DD
   const ymd = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
@@ -62,6 +67,44 @@ export function parseDateComponents(dateStr?: string): { day: string; month: str
   }
 
   return null;
+}
+
+/**
+ * Authoritatively extracts the 4-digit Gregorian year from any date string
+ * (supports YYYY-MM-DD, DD/MM/YYYY, ISO-8601, Bengali numerals, and text with embedded year)
+ */
+export function parseRecordYear(dateStr?: string, fallbackYear?: string | number): string {
+  if (!dateStr || !String(dateStr).trim()) {
+    return fallbackYear ? String(fallbackYear).trim() : '';
+  }
+  const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+  const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  let westernized = String(dateStr).trim();
+  for (let i = 0; i <= 9; i++) {
+    westernized = westernized
+      .split(bengaliDigits[i]).join(String(i))
+      .split(arabicDigits[i]).join(String(i));
+  }
+
+  // 1. Try structured date components
+  const comp = parseDateComponents(westernized);
+  if (comp && comp.year && /^\d{4}$/.test(comp.year)) {
+    return comp.year;
+  }
+
+  // 2. Try YYYY-MM-DD or ISO string prefix
+  const isoMatch = westernized.match(/^(\d{4})[-\/]/);
+  if (isoMatch) {
+    return isoMatch[1];
+  }
+
+  // 3. Try 4-digit year anywhere in string (e.g. "রমজান ২০২৬" -> "2026")
+  const match = westernized.match(/\b(20\d{2})\b/);
+  if (match && match[1]) {
+    return match[1];
+  }
+
+  return fallbackYear ? String(fallbackYear).trim() : '';
 }
 
 /**
@@ -241,7 +284,7 @@ export function normalizeExpense(exp: any, lang: Language = 'bn'): ExpenseRecord
     location: cleanLocation,
     receiptUrl: exp.receiptUrl || exp.receipt_url || undefined,
     isVerified: Boolean(exp.isVerified ?? exp.is_verified ?? exp.verified_by),
-    year: exp.year != null ? String(exp.year) : undefined,
+    year: parseRecordYear(exp.date, exp.year),
     isPublic: exp.isPublic !== false && exp.is_public !== false,
     activityId: (() => {
       const raw = exp.activityId || exp.activity_id || exp.linkedActivityId || exp.linked_activity_id;

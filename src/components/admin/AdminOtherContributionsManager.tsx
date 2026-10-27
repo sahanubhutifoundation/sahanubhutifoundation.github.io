@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { OtherMonthlyContribution, MainFundAccountingStatus } from '../../types';
 import { storageService } from '../../services/storageService';
+import { parseRecordYear } from '../../utils/foundationHelpers';
 import {
   Heart,
   Plus,
@@ -75,8 +76,9 @@ export const AdminOtherContributionsManager: React.FC<AdminOtherContributionsMan
 
   const handleDateChange = (newDate: string) => {
     setDate(newDate);
-    if (newDate && newDate.length >= 4) {
-      setYear(newDate.slice(0, 4));
+    const yr = parseRecordYear(newDate);
+    if (yr) {
+      setYear(yr);
     }
   };
 
@@ -105,7 +107,7 @@ export const AdminOtherContributionsManager: React.FC<AdminOtherContributionsMan
     setIsEditing(true);
     setEditingId(item.id);
     setMonth(item.month || 'মার্চ');
-    setYear(item.year || (item.date ? item.date.slice(0, 4) : '2026'));
+    setYear(parseRecordYear(item.date, item.year) || '2026');
     setDate(item.date || '');
     setAmount(String(item.amount || ''));
     setContributorName(item.contributorName || '');
@@ -130,11 +132,10 @@ export const AdminOtherContributionsManager: React.FC<AdminOtherContributionsMan
       return;
     }
 
-    if (!date && !month) {
-      setErrorMsg('তারিখ অথবা মাস উল্লেখ করা আবশ্যক।');
+    if (!date || !date.trim()) {
+      setErrorMsg('অনুগ্রহ করে অনুদানের লেনদেনের তারিখ প্রদান করুন।');
       return;
     }
-
     if (!accountingChoice) {
       setErrorMsg('অনুগ্রহ করে নির্বাচন করুন: "মূল ফান্ডে এই টাকা কি আগে থেকেই যোগ করা আছে?"');
       return;
@@ -157,7 +158,7 @@ export const AdminOtherContributionsManager: React.FC<AdminOtherContributionsMan
 
     const isAlreadyIncluded = accountingChoice === 'already_included';
     const existingItem = editingId ? contributions.find((c) => c.id === editingId) : null;
-    const finalYear = year || (date ? date.slice(0, 4) : (activeYearFilter !== 'all' && activeYearFilter !== 'unverified' ? activeYearFilter : '2026'));
+    const finalYear = parseRecordYear(date, year) || '2026';
 
     const itemToSave: OtherMonthlyContribution = {
       id: editingId || `other-contrib-${Date.now()}`,
