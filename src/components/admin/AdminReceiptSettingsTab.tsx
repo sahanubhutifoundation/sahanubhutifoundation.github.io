@@ -491,7 +491,7 @@ export const AdminReceiptSettingsTab: React.FC<AdminReceiptSettingsTabProps> = (
 
         {/* Live Preview Column (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 shadow-inner flex flex-col items-center">
+          <div className="p-3 sm:p-4 bg-gray-50 rounded-2xl border border-gray-200 shadow-inner flex flex-col items-center overflow-x-auto">
             <div className="w-full flex items-center justify-between mb-3 text-xs text-gray-500 font-semibold px-1">
               <span className="flex items-center gap-1.5 text-emerald-950">
                 <Eye className="w-4 h-4 text-emerald-700" />
@@ -502,7 +502,7 @@ export const AdminReceiptSettingsTab: React.FC<AdminReceiptSettingsTabProps> = (
               </span>
             </div>
 
-            <div className="w-full transform scale-90 sm:scale-95 origin-top">
+            <div className="w-full flex justify-center transform scale-90 sm:scale-95 origin-top">
               <DonationReceiptCard
                 receipt={sampleReceiptData}
                 config={previewConfig}

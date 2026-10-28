@@ -1,4 +1,4 @@
-import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord, Language, OtherMonthlyContribution } from '../types';
+import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord, Language, OtherMonthlyContribution, YearlyFundSource } from '../types';
 import { storageService } from './storageService';
 import { parseRecordYear } from '../utils/foundationHelpers';
 
@@ -230,6 +230,146 @@ export function calculateEligibleAdditionalContributionsTotal(
     pendingInclusionTotal,
     unverifiedTotal,
   };
+}
+
+export interface YearlyAccountingLedgerEntry {
+  year: string;
+  openingBalance: number;
+  regularMemberIncome: number;
+  otherEligibleIncome: number;
+  integratedSpecialIncome: number;
+  currentYearIncome: number;
+  generalFundExpenses: number;
+  integratedSpecialExpenses: number;
+  currentYearExpenses: number;
+  periodMovement: number;
+  closingBalance: number;
+}
+
+/**
+ * Computes a mathematically continuous, multi-year fund balance across all accounting years.
+ *
+ * Mandatory rule:
+ * - Earliest year: Closing Balance = Verified Opening Balance + Income - Expenses
+ * - Subsequent years: Opening Balance = Previous Year's Closing Balance
+ *                     Period Movement = Current-Year Income - Current-Year Expenses
+ *                     Closing Balance = Opening Balance + Period Movement
+ *
+ * Transactions are assigned strictly by their dated transaction year.
+ * Grand totals / cost summaries from Google Sheets are never double-counted.
+ */
+export function computeContinuousYearlyFundLedger(
+  yearlyReceived: Record<string, number>,
+  activeYearKey: string,
+  activeYearMemberTotal: number,
+  yearlySources: YearlyFundSource[] = [],
+  verifiedStartingBalance: number = 0
+): Record<string, YearlyAccountingLedgerEntry> {
+  const yearsSet = new Set<string>();
+
+  // 1. Collect all distinct accounting years from sheets, configs, expenses, and contributions
+  Object.keys(yearlyReceived || {}).forEach((y) => {
+    const yr = parseRecordYear(y);
+    if (yr) yearsSet.add(yr);
+  });
+
+  (yearlySources || []).forEach((s) => {
+    const yr = parseRecordYear(s.year);
+    if (yr) yearsSet.add(yr);
+  });
+
+  const allExpenses = storageService.getExpenses();
+  allExpenses.forEach((exp) => {
+    const yr = parseRecordYear(exp.date, exp.year);
+    if (yr) yearsSet.add(yr);
+  });
+
+  const allOtherContribs = storageService.getOtherMonthlyContributions();
+  allOtherContribs.forEach((c) => {
+    const yr = parseRecordYear(c.date, c.year);
+    if (yr) yearsSet.add(yr);
+  });
+
+  const activeYrNorm = parseRecordYear(activeYearKey) || '2026';
+  yearsSet.add(activeYrNorm);
+  yearsSet.add('2024');
+  yearsSet.add('2025');
+  yearsSet.add('2026');
+
+  // Sort chronological ascending (e.g. ['2024', '2025', '2026', ...])
+  const sortedYears = Array.from(yearsSet).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+
+  const ledger: Record<string, YearlyAccountingLedgerEntry> = {};
+  let runningBalance = Number(verifiedStartingBalance) || 0;
+
+  for (const yr of sortedYears) {
+    const openingBalance = runningBalance;
+
+    // A. Regular Member Income for this year from Google Sheets
+    let regularMemberIncome = 0;
+    if (yearlyReceived[yr] !== undefined) {
+      regularMemberIncome = Number(yearlyReceived[yr]) || 0;
+    } else if (yr === activeYrNorm && activeYearMemberTotal > 0) {
+      regularMemberIncome = activeYearMemberTotal;
+    }
+
+    // B. Other Monthly Contributions for this year from persistent admin records
+    const yearOtherContribs = storageService.getOtherMonthlyContributions(yr);
+    const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
+      yearOtherContribs,
+      regularMemberIncome
+    );
+    const otherEligibleIncome = eligibleTotalToAdd;
+
+    // C. Integrated Special-Purpose Funds for this year (if explicitly set to 'integrated')
+    const yearSpecialFunds = storageService.getSpecialFunds(yr);
+    const integratedFunds = yearSpecialFunds.filter((f) => f.integrationMode === 'integrated');
+    const integratedSpecialIncome = integratedFunds.reduce((acc, f) => {
+      const cash = (f.donations || [])
+        .filter((d) => !d.isInKind || d.isCashEquivalent)
+        .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+      return acc + cash;
+    }, 0);
+    const integratedSpecialExpenses = integratedFunds.reduce((acc, f) => {
+      const exp = (f.expenses || []).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+      return acc + exp;
+    }, 0);
+
+    const currentYearIncome = regularMemberIncome + otherEligibleIncome + integratedSpecialIncome;
+
+    // D. General Fund Expenses strictly for this year by actual transaction date
+    const yearExpenses = storageService.getExpenses(yr);
+    const deductedExpenses = yearExpenses.filter(
+      (e) => e.deductionMode !== 'separate' && e.deductionMode !== 'display_only'
+    );
+    const generalFundExpenses = deductedExpenses.reduce(
+      (sum, e) => sum + (Number(e.amount) || 0),
+      0
+    );
+
+    const currentYearExpenses = generalFundExpenses + integratedSpecialExpenses;
+    const periodMovement = currentYearIncome - currentYearExpenses;
+    const closingBalance = openingBalance + periodMovement;
+
+    ledger[yr] = {
+      year: yr,
+      openingBalance,
+      regularMemberIncome,
+      otherEligibleIncome,
+      integratedSpecialIncome,
+      currentYearIncome,
+      generalFundExpenses,
+      integratedSpecialExpenses,
+      currentYearExpenses,
+      periodMovement,
+      closingBalance,
+    };
+
+    // Carry forward closing balance to become next year's opening balance
+    runningBalance = closingBalance;
+  }
+
+  return ledger;
 }
 
 /**
@@ -553,53 +693,46 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     yearSheetReceived = totalReceived;
   }
 
-  // Expenses strictly for targetYearKey
+  // Multi-year continuous fund accounting computation
+  const config = storageService.getConfig();
+  const yearlyLedger = computeContinuousYearlyFundLedger(
+    yearlyReceived,
+    targetYearKey,
+    members.reduce((sum, m) => sum + (Number(m.totalContributed) || 0), 0),
+    config.yearlyFundSources || [],
+    (config as any).verifiedOpeningBalance || 0
+  );
+
+  const currentYearLedger = yearlyLedger[targetYearKey] || {
+    year: targetYearKey,
+    openingBalance: 0,
+    regularMemberIncome: yearSheetReceived,
+    otherEligibleIncome: 0,
+    integratedSpecialIncome: 0,
+    currentYearIncome: yearSheetReceived,
+    generalFundExpenses: 0,
+    integratedSpecialExpenses: 0,
+    currentYearExpenses: 0,
+    periodMovement: yearSheetReceived,
+    closingBalance: yearSheetReceived,
+  };
+
+  const openingBalance = currentYearLedger.openingBalance;
+  const currentYearIncome = currentYearLedger.currentYearIncome;
+  const currentYearExpenses = currentYearLedger.currentYearExpenses;
+  const periodMovement = currentYearLedger.periodMovement;
+  const closingBalance = currentYearLedger.closingBalance;
+
   const dbExpenses = storageService.getExpenses(targetYearKey);
-  const fundDeductedExpenses = dbExpenses.filter(
-    (e) => e.deductionMode !== 'separate' && e.deductionMode !== 'display_only'
-  );
-  const dbDeductedExpenseTotal = fundDeductedExpenses.reduce(
-    (acc, item) => acc + (Number(item.amount) || 0),
-    0
-  );
-
-  let effectiveTotalCost = dbDeductedExpenseTotal;
-  if (totalCost > 0 && dbDeductedExpenseTotal === 0 && targetYearKey === '2026') {
-    effectiveTotalCost = totalCost;
-  }
-
-  // Other Monthly Contributions strictly for targetYearKey (Feature 1)
   const otherContributions = storageService.getOtherMonthlyContributions(targetYearKey);
-  const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
-    otherContributions,
-    yearSheetReceived
-  );
-  const otherMonthlyTotal = eligibleTotalToAdd;
-
-  // Purpose-Specific Separate Funds strictly for targetYearKey
   const allSpecialFunds = storageService.getSpecialFunds(targetYearKey);
-  const integratedFunds = allSpecialFunds.filter((f) => f.integrationMode === 'integrated');
-  const integratedDonationsTotal = integratedFunds.reduce((acc, f) => {
-    const cash = (f.donations || [])
-      .filter((d) => !d.isInKind || d.isCashEquivalent)
-      .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-    return acc + cash;
-  }, 0);
-  const integratedExpensesTotal = integratedFunds.reduce((acc, f) => {
-    const exp = (f.expenses || []).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-    return acc + exp;
-  }, 0);
-
-  const grandTotalReceived = yearSheetReceived + otherMonthlyTotal + integratedDonationsTotal;
-  const grandTotalCost = effectiveTotalCost + integratedExpensesTotal;
-  const grandBalance = grandTotalReceived > 0 ? Math.max(0, grandTotalReceived - grandTotalCost) : 0;
 
   const balanceDiscrepancy =
-    totalCost > 0 && targetYearKey === '2026' && Math.abs(dbDeductedExpenseTotal - totalCost) > 0.01;
-  const discrepancyDiff = dbDeductedExpenseTotal - totalCost;
+    totalCost > 0 && targetYearKey === '2026' && Math.abs(currentYearExpenses - totalCost) > 0.01;
+  const discrepancyDiff = currentYearExpenses - totalCost;
 
   const expenseRatio =
-    grandTotalReceived > 0 ? (grandTotalCost / grandTotalReceived) * 100 : 0;
+    currentYearIncome > 0 ? (currentYearExpenses / currentYearIncome) * 100 : 0;
   const safetyRatio = Math.max(0, 100 - expenseRatio);
 
   // If the sheet's matrix belongs to activeYearNum (e.g. 2026) and user is looking at another year (e.g. 2024),
@@ -609,10 +742,12 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
   const effectiveMemberRecords = isSelectedYearMatrix ? members : [];
 
   return {
-    totalFund: grandTotalReceived,
-    amountReceived: grandTotalReceived,
-    amountSpent: grandTotalCost,
-    currentBalance: grandBalance,
+    totalFund: closingBalance,
+    amountReceived: currentYearIncome,
+    amountSpent: currentYearExpenses,
+    currentBalance: closingBalance,
+    openingBalance,
+    periodMovement,
     sheetSummaryCost: totalCost,
     sheetSummaryBalance: availableBalance,
     balanceDiscrepancy,
@@ -626,7 +761,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     transactions: [],
     expenses: dbExpenses,
     otherMonthlyContributions: otherContributions,
-    otherMonthlyTotal,
+    otherMonthlyTotal: currentYearLedger.otherEligibleIncome,
     specialFunds: allSpecialFunds,
     lastUpdated: new Date().toISOString(),
     sourceUrl: rawSourceUrl,
@@ -792,32 +927,47 @@ export function getCachedFundData(year?: string): FundData | null {
       if (year && data.year && data.year !== year) {
         return null;
       }
-      const dbExpenses = storageService.getExpenses(year);
-      const fundDeductedExpenses = dbExpenses.filter(
-        (e) => e.deductionMode !== 'separate' && e.deductionMode !== 'display_only'
+
+      const config = storageService.getConfig();
+      const yrKey = year || data.year || '2026';
+      const yearlyLedger = computeContinuousYearlyFundLedger(
+        data.yearlyReceived || {},
+        yrKey,
+        (data.memberRecords || []).reduce((sum, m) => sum + (Number(m.totalContributed) || 0), 0),
+        config.yearlyFundSources || [],
+        (config as any).verifiedOpeningBalance || 0
       );
-      const dbExpenseTotal = fundDeductedExpenses.reduce(
-        (acc, item) => acc + (Number(item.amount) || 0),
-        0
-      );
-      const effectiveSpent = dbExpenseTotal;
-      data.expenses = dbExpenses;
-      data.otherMonthlyContributions = storageService.getOtherMonthlyContributions(year);
-      const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
-        data.otherMonthlyContributions || [],
-        data.amountReceived || 0
-      );
-      data.otherMonthlyTotal = eligibleTotalToAdd;
-      data.specialFunds = storageService.getSpecialFunds(year);
-      data.amountSpent = effectiveSpent;
-      const opBal = typeof data.openingBalance === 'number' ? data.openingBalance : 0;
-      data.currentBalance = opBal + (data.amountReceived || 0) - effectiveSpent;
+
+      const currentLedger = yearlyLedger[yrKey] || {
+        year: yrKey,
+        openingBalance: 0,
+        regularMemberIncome: data.amountReceived || 0,
+        otherEligibleIncome: 0,
+        integratedSpecialIncome: 0,
+        currentYearIncome: data.amountReceived || 0,
+        generalFundExpenses: 0,
+        integratedSpecialExpenses: 0,
+        currentYearExpenses: 0,
+        periodMovement: data.amountReceived || 0,
+        closingBalance: data.amountReceived || 0,
+      };
+
+      data.expenses = storageService.getExpenses(yrKey);
+      data.otherMonthlyContributions = storageService.getOtherMonthlyContributions(yrKey);
+      data.specialFunds = storageService.getSpecialFunds(yrKey);
+      data.openingBalance = currentLedger.openingBalance;
+      data.amountReceived = currentLedger.currentYearIncome;
+      data.amountSpent = currentLedger.currentYearExpenses;
+      data.periodMovement = currentLedger.periodMovement;
+      data.currentBalance = currentLedger.closingBalance;
+      data.totalFund = currentLedger.closingBalance;
+      data.otherMonthlyTotal = currentLedger.otherEligibleIncome;
       data.expenseRatio =
-        data.amountReceived > 0 ? (effectiveSpent / data.amountReceived) * 100 : 0;
+        currentLedger.currentYearIncome > 0 ? (currentLedger.currentYearExpenses / currentLedger.currentYearIncome) * 100 : 0;
       data.safetyRatio = Math.max(0, 100 - (data.expenseRatio || 0));
       return {
         ...data,
-        year: year || data.year,
+        year: yrKey,
         status: 'fallback',
       };
     }

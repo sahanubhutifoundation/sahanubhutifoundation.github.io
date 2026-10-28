@@ -401,8 +401,10 @@ export const FundPage: React.FC = () => {
 
   const totalIn = fundData?.amountReceived || 0;
   const totalOut = fundData?.amountSpent || 0;
+  const openingBalance = typeof fundData?.openingBalance === 'number' ? fundData.openingBalance : 0;
+  const periodMovement = typeof fundData?.periodMovement === 'number' ? fundData.periodMovement : totalIn - totalOut;
   const currentBalance =
-    fundData?.currentBalance !== undefined ? fundData.currentBalance : totalIn - totalOut;
+    fundData?.currentBalance !== undefined ? fundData.currentBalance : openingBalance + periodMovement;
   const contributorCount = fundData?.contributorCount || fundData?.memberRecords?.length || 0;
 
   // Exact floating ratio (e.g. 4950 / 23320 * 100 = 21.226... -> 21.23%)
@@ -755,103 +757,129 @@ export const FundPage: React.FC = () => {
           </div>
         )}
 
-        {/* Core Metric Cards (Rendered ONLY when source is live or verified cached, preventing fake zero values) */}
+        {/* Core Metric Cards: Displaying the 5 mandatory accounting metrics across all continuous accounting years */}
         {fundData && (fundData.status === 'live' || fundData.status === 'fallback') && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {/* Card 1: Total Received */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {/* Card 1: প্রারম্ভিক জের / Previous Balance (Carried Forward) */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
+              <div className="flex items-center justify-between text-[#7A877E] mb-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A877E]">
+                  {language === 'ar' ? 'الرصيد الافتتاحي' : language === 'en' ? 'Previous Balance' : 'প্রারম্ভিক জের'}
+                </span>
+                <div className="w-7 h-7 rounded-lg bg-[#F7F5F0] text-[#5C665F] flex items-center justify-center">
+                  <Clock className="w-3.5 h-3.5" />
+                </div>
+              </div>
+              <div className="text-xl sm:text-2xl font-bold text-[#2D3630] font-mono tracking-tight">
+                {loading ? '...' : `৳ ${formatLocalizedAmount(openingBalance, language)}`}
+              </div>
+              <p className="text-[11px] text-[#7A877E] mt-1.5 truncate">
+                {language === 'ar'
+                  ? 'المرحل من السنوات السابقة'
+                  : language === 'en'
+                  ? 'Carried forward'
+                  : 'পূর্ববর্তী বছরের সমাপ্তি স্থিতি'}
+              </p>
+            </div>
+
+            {/* Card 2: চলতি বছরের মোট আয় / Current-Year Income */}
             {visibility.showTotalReceived !== false && (
-              <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
-                <div className="flex items-center justify-between text-[#7A877E] mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#7A877E]">
-                    {t('totalFundCard')}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
+                <div className="flex items-center justify-between text-[#7A877E] mb-2.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A877E]">
+                    {language === 'ar' ? 'إجمالي إيرادات العام' : language === 'en' ? 'Current-Year Income' : 'চলতি বছরের মোট আয়'}
                   </span>
-                  <div className="w-8 h-8 rounded-lg bg-[#F7F5F0] text-[#2D5A41] flex items-center justify-center">
-                    <TrendingUp className="w-4 h-4" />
+                  <div className="w-7 h-7 rounded-lg bg-[#F7F5F0] text-[#2D5A41] flex items-center justify-center">
+                    <TrendingUp className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-[#2D3630] font-mono tracking-tight">
+                <div className="text-xl sm:text-2xl font-bold text-[#2D3630] font-mono tracking-tight">
                   {loading ? '...' : `৳ ${formatLocalizedAmount(totalIn, language)}`}
                 </div>
-                <p className="text-xs text-[#7A877E] mt-2">
-                  {formatLocalizedNumber(selectedYear, language)} {t('totalFundSubtitle')}
+                <p className="text-[11px] text-[#7A877E] mt-1.5 truncate">
+                  {formatLocalizedNumber(selectedYear, language)} {language === 'ar' ? 'إيرادات مستلمة' : language === 'en' ? 'eligible received' : 'সালে গৃহীত অনুদান'}
                 </p>
               </div>
             )}
 
-            {/* Card 2: Total Spent */}
+            {/* Card 3: চলতি বছরের মোট ব্যয় / Current-Year Expenses */}
             {visibility.showTotalCost !== false && (
-              <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
-                <div className="flex items-center justify-between text-[#7A877E] mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#7A877E]">
-                    {headings.totalSpentLabel || t('totalSpentCard')}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
+                <div className="flex items-center justify-between text-[#7A877E] mb-2.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A877E]">
+                    {headings.totalSpentLabel || (language === 'ar' ? 'إجمالي مصروفات العام' : language === 'en' ? 'Current-Year Expenses' : 'চলতি বছরের মোট ব্যয়')}
                   </span>
-                  <div className="w-8 h-8 rounded-lg bg-[#FDF2F0] text-[#C25442] flex items-center justify-center">
-                    <TrendingDown className="w-4 h-4" />
+                  <div className="w-7 h-7 rounded-lg bg-[#FDF2F0] text-[#C25442] flex items-center justify-center">
+                    <TrendingDown className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-[#C25442] font-mono tracking-tight">
+                <div className="text-xl sm:text-2xl font-bold text-[#C25442] font-mono tracking-tight">
                   {loading ? '...' : `৳ ${formatLocalizedAmount(totalOut, language)}`}
                 </div>
-                <p className="text-xs text-[#7A877E] mt-2">
-                  {t('totalSpentSubtitle')}
+                <p className="text-[11px] text-[#7A877E] mt-1.5 truncate">
+                  {formatLocalizedNumber(selectedYear, language)} {language === 'ar' ? 'مصروفات معتمدة' : language === 'en' ? 'eligible spent' : 'সালে অনুমোদিত ব্যয়'}
                 </p>
               </div>
             )}
 
-            {/* Card 3: Net Available Balance */}
+            {/* Card 4: চলতি বছরের নিট পরিবর্তন / Current-Year Net Movement */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
+              <div className="flex items-center justify-between text-[#7A877E] mb-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A877E]">
+                  {language === 'ar' ? 'صافي حركة العام' : language === 'en' ? 'Current-Year Net' : 'চলতি নিট পরিবর্তন'}
+                </span>
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${periodMovement >= 0 ? 'bg-[#E8EFEA] text-[#2D5A41]' : 'bg-[#FDF2F0] text-[#C25442]'}`}>
+                  {periodMovement >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                </div>
+              </div>
+              <div className={`text-xl sm:text-2xl font-bold font-mono tracking-tight ${periodMovement >= 0 ? 'text-[#2D5A41]' : 'text-[#C25442]'}`}>
+                {loading ? '...' : `${periodMovement >= 0 ? '+' : '-'}৳ ${formatLocalizedAmount(Math.abs(periodMovement), language)}`}
+              </div>
+              <p className="text-[11px] text-[#7A877E] mt-1.5 truncate">
+                {periodMovement >= 0
+                  ? (language === 'ar' ? 'فائض صافي للعام' : language === 'en' ? 'Net period surplus' : 'চলতি বছরের নিট সঞ্চয়')
+                  : (language === 'ar' ? 'عجز صافي للعام' : language === 'en' ? 'Net period deficit' : 'চলতি বছরের নিট ঘাটতি')}
+              </p>
+            </div>
+
+            {/* Card 5: সমাপনী জের / Cumulative Closing Balance */}
             {visibility.showAvailableBalance !== false && (
-              <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
-                <div className="flex items-center justify-between text-[#7A877E] mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#7A877E]">
-                    {t('currentBalanceCard')}
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#F7FAF8] border border-[#2D5A41]/30 shadow-2xs hover:shadow-xs transition-shadow">
+                <div className="flex items-center justify-between text-[#2D5A41] mb-2.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#2D5A41]">
+                    {language === 'ar' ? 'الرصيد الختامي' : language === 'en' ? 'Closing Balance' : 'সমাপনী জের'}
                   </span>
-                  <div className="w-8 h-8 rounded-lg bg-[#E8EFEA] text-[#2D5A41] flex items-center justify-center">
-                    <Wallet className="w-4 h-4" />
+                  <div className="w-7 h-7 rounded-lg bg-[#2D5A41] text-white flex items-center justify-center">
+                    <Wallet className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-[#2D5A41] font-mono tracking-tight">
+                <div className="text-xl sm:text-2xl font-bold text-[#2D5A41] font-mono tracking-tight">
                   {loading ? '...' : `৳ ${formatLocalizedAmount(currentBalance, language)}`}
                 </div>
-                <p className="text-xs text-[#2D5A41] font-medium mt-2">
-                  {typeof fundData?.openingBalance === 'number' && fundData.openingBalance > 0 ? (
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <span>
-                        {language === 'ar'
-                          ? `رصيد سابق: ৳${formatLocalizedAmount(fundData.openingBalance, language)}`
-                          : language === 'en'
-                          ? `Opening: ৳${formatLocalizedAmount(fundData.openingBalance, language)}`
-                          : `পূর্ববর্তী স্থিতি: ৳${formatLocalizedAmount(fundData.openingBalance, language)}`}
-                      </span>
-                      <span className="text-[#A4B3A8]">•</span>
-                      <span>
-                        {language === 'ar'
-                          ? `صافي ${formatLocalizedNumber(selectedYear, language)}: ৳${formatLocalizedAmount(fundData.periodMovement ?? (totalIn - totalOut), language)}`
-                          : language === 'en'
-                          ? `${selectedYear} Net: ৳${formatLocalizedAmount(fundData.periodMovement ?? (totalIn - totalOut), language)}`
-                          : `${formatLocalizedNumber(selectedYear, language)} এর সঞ্চয়: ৳${formatLocalizedAmount(fundData.periodMovement ?? (totalIn - totalOut), language)}`}
-                      </span>
-                    </span>
-                  ) : (
-                    t('balanceCardSubtitle')
-                  )}
+                <p className="text-[11px] text-[#2D5A41]/80 mt-1.5 font-medium truncate">
+                  {language === 'ar'
+                    ? 'الرصيد السابق + صافي العام'
+                    : language === 'en'
+                    ? 'Opening + Net Movement'
+                    : 'প্রারম্ভিক জের + চলতি নিট'}
                 </p>
               </div>
             )}
 
-            {/* Card 4: Committed Contributors */}
-            <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
-              <div className="flex items-center justify-between text-[#7A877E] mb-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-[#7A877E]">
+            {/* Card 6: Committed Contributors */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs hover:shadow-xs transition-shadow">
+              <div className="flex items-center justify-between text-[#7A877E] mb-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A877E]">
                   {t('contributorCountCard')}
                 </span>
-                <div className="w-8 h-8 rounded-lg bg-[#F7F5F0] text-[#2D5A41] flex items-center justify-center">
-                  <Users className="w-4 h-4" />
+                <div className="w-7 h-7 rounded-lg bg-[#F7F5F0] text-[#2D5A41] flex items-center justify-center">
+                  <Users className="w-3.5 h-3.5" />
                 </div>
               </div>
-              <div className="text-2xl sm:text-3xl font-bold text-[#2D3630] font-mono tracking-tight">
+              <div className="text-xl sm:text-2xl font-bold text-[#2D3630] font-mono tracking-tight">
                 {loading ? '...' : `${formatLocalizedNumber(contributorCount, language)} ${t('contributorUnit')}`.trim()}
               </div>
-              <p className="text-xs text-[#7A877E] mt-2">
+              <p className="text-[11px] text-[#7A877E] mt-1.5 truncate">
                 {t('contributorCountSubtitle')}
               </p>
             </div>

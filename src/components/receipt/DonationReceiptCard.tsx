@@ -66,14 +66,15 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
     <div
       ref={cardRef}
       id="printable-donation-receipt"
-      className="relative bg-white text-emerald-950 p-7 rounded-xl shadow-xl border-4 border-double border-emerald-800/40 w-[680px] max-w-full mx-auto select-none overflow-visible"
+      className="relative bg-white text-emerald-950 p-7 rounded-xl shadow-xl border-4 border-double border-emerald-800/40 w-[680px] select-none overflow-visible"
       style={{
         boxSizing: 'border-box',
         backgroundColor: '#ffffff',
         color: '#062817',
         borderColor: '#1e6b4d',
         width: '680px',
-        maxWidth: '100%',
+        minWidth: '680px',
+        maxWidth: '680px',
         fontFamily: "'Hind Siliguri', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif",
         lineHeight: 1.6,
       }}
