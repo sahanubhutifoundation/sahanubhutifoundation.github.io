@@ -890,31 +890,52 @@ export const FundPage: React.FC = () => {
         {visibility.showYearlyOverview !== false &&
           fundData &&
           (fundData.status === 'live' || fundData.status === 'fallback') &&
-          fundData?.yearlyReceived &&
-          Object.keys(fundData.yearlyReceived).length > 0 && (
-            <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EBE8E0]">
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-[#2D3630] flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-[#2D5A41]" />
-                    <span>{t('yearlyReceivedTitle')}</span>
-                  </h3>
-                  <p className="text-xs text-[#7A877E] mt-0.5">
-                    {t('yearlyOverviewSubtitle')}
-                  </p>
-                </div>
-                <div className="text-xs font-semibold text-[#2D5A41] bg-[#E8EFEA] px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 self-start sm:self-center">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>{t('totalCollection')}: ৳ {formatLocalizedAmount(totalIn, language)}</span>
-                </div>
-              </div>
+          ((fundData.yearlyIncome && Object.keys(fundData.yearlyIncome).length > 0) ||
+            (fundData.yearlyReceived && Object.keys(fundData.yearlyReceived).length > 0)) && (() => {
+            const yearlyIncomeMap = fundData.yearlyIncome || fundData.yearlyReceived || {};
+            const selectedYearNum = parseInt(selectedYear, 10) || 2026;
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {Object.keys(fundData.yearlyReceived)
-                  .sort()
-                  .map((year) => {
-                    const amount = fundData.yearlyReceived?.[year] || 0;
-                    const pct = totalIn > 0 ? Math.round((amount / totalIn) * 100) : 0;
+            // In 2025 view, include 2024 and 2025. In 2026 view, include 2024, 2025, and 2026.
+            const displayedYears = Object.keys(yearlyIncomeMap)
+              .filter((yr) => {
+                const yrNum = parseInt(yr, 10);
+                return !isNaN(yrNum) && yrNum <= selectedYearNum;
+              })
+              .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+
+            const finalYears = displayedYears.length > 0 ? displayedYears : Object.keys(yearlyIncomeMap).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+            const chartTotalIncome = finalYears.reduce((sum, yr) => sum + (yearlyIncomeMap[yr] || 0), 0);
+            const maxYearAmount = Math.max(...finalYears.map((yr) => yearlyIncomeMap[yr] || 0), 1);
+
+            return (
+              <div className="p-6 sm:p-8 rounded-2xl bg-white border border-[#EBE8E0] shadow-2xs space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EBE8E0]">
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-[#2D3630] flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-[#2D5A41]" />
+                      <span>{t('yearlyReceivedTitle')}</span>
+                    </h3>
+                    <p className="text-xs text-[#7A877E] mt-0.5">
+                      {t('yearlyOverviewSubtitle')}
+                    </p>
+                  </div>
+                  <div className="text-xs font-semibold text-[#2D5A41] bg-[#E8EFEA] px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 self-start sm:self-center">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>
+                      {language === 'ar'
+                        ? `إجمالي التحصيل: ৳ ${formatLocalizedAmount(chartTotalIncome, language)}`
+                        : language === 'en'
+                        ? `Total Period Collection: ৳ ${formatLocalizedAmount(chartTotalIncome, language)}`
+                        : `প্রদর্শিত সময়ের সর্বমোট আদায়: ৳ ${formatLocalizedAmount(chartTotalIncome, language)}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {finalYears.map((year) => {
+                    const amount = yearlyIncomeMap[year] || 0;
+                    const pct = chartTotalIncome > 0 ? Math.round((amount / chartTotalIncome) * 100) : 0;
+                    const barWidth = Math.max(4, Math.round((amount / maxYearAmount) * 100));
                     const yearLabel = year === '2026'
                       ? `${formatLocalizedNumber(year, language)} (${t('currentYear')})`
                       : (language === 'bn' ? `${formatLocalizedNumber(year, language)} ${t('yearSuffix')}`.trim() : formatLocalizedNumber(year, language));
@@ -944,15 +965,16 @@ export const FundPage: React.FC = () => {
                         <div className="w-full h-2 bg-[#EBE8E0] rounded-full overflow-hidden">
                           <div
                             className="h-full bg-[#2D5A41] rounded-full transition-all duration-500"
-                            style={{ width: `${Math.max(4, pct)}%` }}
+                            style={{ width: `${barWidth}%` }}
                           />
                         </div>
                       </div>
                     );
                   })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
         {/* Monthly Breakdown Grid */}
         {visibility.showMonthlyFundDetails !== false &&

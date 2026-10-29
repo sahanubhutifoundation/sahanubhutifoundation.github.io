@@ -462,6 +462,20 @@ export interface FundDiagnostics {
   note?: string;
 }
 
+export interface YearlyAccountingLedgerEntry {
+  year: string;
+  openingBalance: number;
+  regularMemberIncome: number;
+  otherEligibleIncome: number;
+  integratedSpecialIncome: number;
+  currentYearIncome: number;
+  generalFundExpenses: number;
+  integratedSpecialExpenses: number;
+  currentYearExpenses: number;
+  periodMovement: number;
+  closingBalance: number;
+}
+
 export interface FundData {
   totalFund: number;
   amountReceived: number;
@@ -478,6 +492,8 @@ export interface FundData {
   overallNetBalance?: number;
   contributorCount: number;
   yearlyReceived?: { [year: string]: number };
+  yearlyIncome?: { [year: string]: number };
+  yearlyLedger?: Record<string, YearlyAccountingLedgerEntry>;
   monthlyTotals?: { [month: string]: number };
   memberRecords?: FundMemberRecord[];
   transactions: FundTransaction[];
