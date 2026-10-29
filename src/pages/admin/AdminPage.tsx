@@ -1073,11 +1073,18 @@ export const AdminPage: React.FC = () => {
   // Year Source Manager Handlers
   const handleAddYearSource = () => {
     setIsNewYearSource(true);
+    const configuredYears = (config.yearlyFundSources || [])
+      .map((s) => parseInt(s.year, 10))
+      .filter((n) => !isNaN(n));
+    const nextYr = (configuredYears.length > 0 ? Math.max(...configuredYears) + 1 : new Date().getFullYear() + 1).toString();
+    const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    const nextYrBn = nextYr.split('').map((d) => bengaliDigits[parseInt(d, 10)] || d).join('');
+
     setEditingYearSource({
-      year: '',
+      year: nextYr,
       url: '',
       gid: '0',
-      label: '',
+      label: `${nextYrBn} আর্থিক বছর`,
       enabled: true,
       isPublic: true,
       isDefault: false,
@@ -1093,7 +1100,7 @@ export const AdminPage: React.FC = () => {
   const handleSaveYearSource = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingYearSource || !editingYearSource.year?.trim()) {
-      showToast('আর্থিক বছর প্রদান করুন (যেমন: 2027)');
+      showToast('আর্থিক বছর প্রদান করুন (৪ সংখ্যার সাল)');
       return;
     }
 
@@ -5065,34 +5072,44 @@ export const AdminPage: React.FC = () => {
 
             <div className="p-6 overflow-y-auto flex-1">
               <form onSubmit={handleSaveYearSource} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-[#2D3630] mb-1">
-                      আর্থিক বছর * (যেমন: 2027)
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={editingYearSource.year || ''}
-                      onChange={(e) => setEditingYearSource({ ...editingYearSource, year: e.target.value.trim() })}
-                      placeholder="যেমন: 2027"
-                      className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs font-mono text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
-                    />
-                  </div>
+                {(() => {
+                  const configuredYears = (config.yearlyFundSources || [])
+                    .map((s) => parseInt(s.year, 10))
+                    .filter((n) => !isNaN(n));
+                  const suggYr = (configuredYears.length > 0 ? Math.max(...configuredYears) + 1 : new Date().getFullYear() + 1).toString();
+                  const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+                  const suggYrBn = suggYr.split('').map((d) => bengaliDigits[parseInt(d, 10)] || d).join('');
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-[#2D3630] mb-1">
+                          আর্থিক বছর * (যেমন: {suggYr})
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editingYearSource.year || ''}
+                          onChange={(e) => setEditingYearSource({ ...editingYearSource, year: e.target.value.trim() })}
+                          placeholder={`যেমন: ${suggYr}`}
+                          className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs font-mono text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                        />
+                      </div>
 
-                  <div>
-                    <label className="block font-bold text-[#2D3630] mb-1">
-                      সোর্স লেবেল (ঐচ্ছিক)
-                    </label>
-                    <input
-                      type="text"
-                      value={editingYearSource.label || ''}
-                      onChange={(e) => setEditingYearSource({ ...editingYearSource, label: e.target.value })}
-                      placeholder="যেমন: ২০২৭ আর্থিক বছর"
-                      className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
-                    />
-                  </div>
-                </div>
+                      <div>
+                        <label className="block font-bold text-[#2D3630] mb-1">
+                          সোর্স লেবেল (ঐচ্ছিক)
+                        </label>
+                        <input
+                          type="text"
+                          value={editingYearSource.label || ''}
+                          onChange={(e) => setEditingYearSource({ ...editingYearSource, label: e.target.value })}
+                          placeholder={`যেমন: ${suggYrBn} আর্থিক বছর`}
+                          className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div>
                   <label className="block font-bold text-[#2D3630] mb-1">
@@ -5166,7 +5183,7 @@ export const AdminPage: React.FC = () => {
                     rows={2}
                     value={editingYearSource.notes || ''}
                     onChange={(e) => setEditingYearSource({ ...editingYearSource, notes: e.target.value })}
-                    placeholder="যেমন: ২০২৭ সালের লাইভ স্প্রেডশিট হিসাব..."
+                    placeholder="যেমন: সংশ্লিষ্ট বছরের লাইভ স্প্রেডশিট হিসাব..."
                     className="w-full px-3 py-2 rounded-xl border border-[#EBE8E0] bg-[#FDFCF9] text-xs text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
                   />
                 </div>

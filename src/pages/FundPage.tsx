@@ -206,8 +206,8 @@ export const FundPage: React.FC = () => {
         let targetUrl = activeYearSource?.url?.trim() || '';
         const explicitGid = activeYearSource?.gid?.trim();
 
-        // If this year has no configured URL, fallback to foundation's master fundSourceUrl
-        if (!targetUrl && freshConfig.fundSourceUrl) {
+        // Only fallback to foundation's master fundSourceUrl IF selectedYear is the default year (or none specified)
+        if (!targetUrl && (!selectedYear || selectedYear === defaultYear) && freshConfig.fundSourceUrl) {
           targetUrl = freshConfig.fundSourceUrl.trim();
         }
 
@@ -753,6 +753,79 @@ export const FundPage: React.FC = () => {
                   </span>
                 </button>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Prominent Current Available Fund Balance Summary Banner */}
+        {fundData && (
+          <div className="p-6 sm:p-7 rounded-2xl bg-[#F7FAF8] border-2 border-[#2D5A41]/30 shadow-2xs space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#2D5A41] text-white text-xs font-bold shadow-2xs mb-2">
+                  <Wallet className="w-3.5 h-3.5" />
+                  <span>
+                    {language === 'ar'
+                      ? 'الرصيد المتاح حالياً في الصندوق'
+                      : language === 'en'
+                      ? 'Currently Available in Fund'
+                      : 'বর্তমানে তহবিলে আছে'}
+                  </span>
+                </div>
+                <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#2D5A41] font-mono tracking-tight">
+                  {loading ? '...' : `৳ ${formatLocalizedAmount(currentBalance, language)}`}
+                </div>
+                <p className="text-xs text-[#5C665F] mt-1.5">
+                  {language === 'ar'
+                    ? `الرصيد الفعلي المتاح حتى نهاية السنة المالية ${formatLocalizedNumber(selectedYear, language)} (محتسب بدقة وفق الدفتر العام المتواصل)`
+                    : language === 'en'
+                    ? `Verified available general fund balance through ${formatLocalizedNumber(selectedYear, language)} financial year`
+                    : `${formatLocalizedNumber(selectedYear, language)} অর্থবছর পর্যন্ত সাধারণ তহবিলের সর্বশেষ অনুমোদিত সমাপনী জের`}
+                </p>
+              </div>
+
+              {/* 4 Supporting Accounting Metric Chips */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 text-xs shrink-0">
+                {/* 1. প্রারম্ভিক জের */}
+                <div className="p-3 rounded-xl bg-white border border-[#EBE8E0] shadow-3xs">
+                  <span className="text-[10px] font-bold text-[#7A877E] uppercase block mb-0.5">
+                    {language === 'ar' ? 'الرصيد الافتتاحي' : language === 'en' ? 'Opening Balance' : 'প্রারম্ভিক জের'}
+                  </span>
+                  <span className="font-bold text-[#2D3630] font-mono text-sm block">
+                    {loading ? '...' : `৳ ${formatLocalizedAmount(openingBalance, language)}`}
+                  </span>
+                </div>
+
+                {/* 2. চলতি বছরের মোট আয় */}
+                <div className="p-3 rounded-xl bg-white border border-[#EBE8E0] shadow-3xs">
+                  <span className="text-[10px] font-bold text-[#7A877E] uppercase block mb-0.5">
+                    {language === 'ar' ? 'إجمالي إيرادات العام' : language === 'en' ? 'Current-Year Income' : 'চলতি বছরের মোট আয়'}
+                  </span>
+                  <span className="font-bold text-[#2D5A41] font-mono text-sm block">
+                    {loading ? '...' : `৳ ${formatLocalizedAmount(totalIn, language)}`}
+                  </span>
+                </div>
+
+                {/* 3. চলতি বছরের মোট ব্যয় */}
+                <div className="p-3 rounded-xl bg-white border border-[#EBE8E0] shadow-3xs">
+                  <span className="text-[10px] font-bold text-[#7A877E] uppercase block mb-0.5">
+                    {headings.totalSpentLabel || (language === 'ar' ? 'إجمالي مصروفات العام' : language === 'en' ? 'Current-Year Expenses' : 'চলতি বছরের মোট ব্যয়')}
+                  </span>
+                  <span className="font-bold text-[#C25442] font-mono text-sm block">
+                    {loading ? '...' : `৳ ${formatLocalizedAmount(totalOut, language)}`}
+                  </span>
+                </div>
+
+                {/* 4. সমাপনী জের */}
+                <div className="p-3 rounded-xl bg-[#E8EFEA]/60 border border-[#2D5A41]/30 shadow-3xs">
+                  <span className="text-[10px] font-bold text-[#2D5A41] uppercase block mb-0.5">
+                    {language === 'ar' ? 'الرصيد الختامي' : language === 'en' ? 'Closing Balance' : 'সমাপনী জের'}
+                  </span>
+                  <span className="font-bold text-[#2D5A41] font-mono text-sm block">
+                    {loading ? '...' : `৳ ${formatLocalizedAmount(currentBalance, language)}`}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         )}

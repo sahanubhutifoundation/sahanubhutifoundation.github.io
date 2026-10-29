@@ -315,10 +315,12 @@ export function computeContinuousYearlyFundLedger(
       regularMemberIncome = 710;
     } else if (yr === activeYrNorm && activeYearMemberTotal > 0) {
       regularMemberIncome = activeYearMemberTotal;
-    } else if (yearlyReceived[yr] !== undefined) {
+    } else if (yearlyReceived[yr] !== undefined && Number(yearlyReceived[yr]) > 0) {
       regularMemberIncome = Number(yearlyReceived[yr]) || 0;
     } else if (AUTHORITATIVE_HISTORICAL_REGULAR_INCOME[yr]) {
       regularMemberIncome = AUTHORITATIVE_HISTORICAL_REGULAR_INCOME[yr];
+    } else {
+      regularMemberIncome = 0;
     }
 
     // B. Other Monthly Contributions for this year from persistent admin records
@@ -391,6 +393,58 @@ export function computeContinuousYearlyFundLedger(
   return ledger;
 }
 
+export const MONTH_VARIANTS: Record<string, string[]> = {
+  Jan: ['জানুয়ারি', 'জানুয়ারি', 'জানু', 'january', 'jan'],
+  Feb: ['ফেব্রুয়ারি', 'ফেব্রুয়ারি', 'ফেব', 'february', 'feb'],
+  Mar: ['মার্চ', 'মার', 'march', 'mar'],
+  Apr: ['এপ্রিল', 'এপ্রি', 'april', 'apr'],
+  May: ['মে', 'may'],
+  Jun: ['জুন', 'june', 'jun'],
+  Jul: ['জুলাই', 'জুল', 'july', 'jul'],
+  Aug: ['আগস্ট', 'আগষ্ট', 'আগ', 'august', 'aug'],
+  Sep: ['সেপ্টেম্বর', 'সেপ্টে', 'সেপ্টেম্বের', 'september', 'sep', 'sept'],
+  Oct: ['অক্টোবর', 'অক্টো', 'অক্টোবের', 'october', 'oct'],
+  Nov: ['নভেম্বর', 'নভে', 'নভেম্বের', 'november', 'nov'],
+  Dec: ['ডিসেম্বর', 'ডিসে', 'ডিসেম্বের', 'december', 'dec'],
+};
+
+export function matchMonthColumnKey(colStr: string): (typeof MONTH_KEYS)[number] | null {
+  const clean = (colStr || '').trim().toLowerCase().replace(/[\s\-_.:/()0-9০-৯]/g, '');
+  if (!clean) return null;
+  for (const m of MONTH_KEYS) {
+    const variants = MONTH_VARIANTS[m] || [];
+    for (const v of variants) {
+      const vClean = v.toLowerCase().replace(/[\s\-_.:/()]/g, '');
+      if (clean === vClean || clean.startsWith(vClean) || clean.endsWith(vClean) || clean.includes(vClean)) {
+        return m;
+      }
+    }
+  }
+  return null;
+}
+
+export function detectSheetDeclaredYear(rows: string[][], headerRowIndex: number): string | null {
+  const maxRow = Math.min(headerRowIndex >= 0 ? headerRowIndex + 1 : rows.length, 10);
+  for (let r = 0; r < maxRow; r++) {
+    const rowText = (rows[r] || []).join(' ');
+    const westernMatch = rowText.match(/\b(20[2-3][0-9])\b/);
+    if (westernMatch) {
+      return westernMatch[1];
+    }
+    const bnMatch = rowText.match(/(?:২০[২-৩][০-৯])/);
+    if (bnMatch) {
+      const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+      let western = '';
+      for (const ch of bnMatch[0]) {
+        const idx = bengaliDigits.indexOf(ch);
+        western += idx !== -1 ? idx.toString() : ch;
+      }
+      return western;
+    }
+  }
+  return null;
+}
+
 /**
  * Robustly parses Google Sheets for Sahanubhuti Foundation across multiple historical layouts:
  * - Matrix member grid (Bengali and/or English columns, partial or 12 months)
@@ -407,53 +461,38 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
   // Detect header row containing member columns
   for (let r = 0; r < rows.length; r++) {
     const row = rows[r].map((c) => (c || '').trim().toLowerCase());
-    const hasName = row.some((c) => c === 'name' || c.includes('name') || c.includes('নাম') || c.includes('সদস্য'));
-    const hasMonth = row.some((c) => {
-      return MONTH_KEYS.some((m) => {
-        const bnMonth = MONTH_NAMES_BN[m]?.toLowerCase();
-        const enMonth = m.toLowerCase();
-        return (
-          c === enMonth ||
-          c.startsWith(enMonth) ||
-          c.endsWith(enMonth) ||
-          (bnMonth && (c === bnMonth || c.includes(bnMonth)))
-        );
-      });
-    });
-    const hasCommitment = row.some((c) => c.includes('commitment') || c.includes('অঙ্গীকার') || c.includes('প্রতিশ্রুতি') || c.includes('চাঁদা') || c.includes('rate'));
+    const hasName = row.some((c) => c === 'name' || c.includes('name') || c.includes('নাম') || c.includes('সদস্য') || c.includes('member'));
+    const hasMonth = rows[r].some((rawCol) => matchMonthColumnKey(rawCol) !== null);
+    const hasCommitment = row.some((c) => c.includes('commitment') || c.includes('অঙ্গীকার') || c.includes('প্রতিশ্রুতি') || c.includes('চাঁদা') || c.includes('rate') || c.includes('ধার্য'));
     const hasTotal = row.some((c) => (c === 'total' || c.includes('মোট') || c.includes('সর্বমোট')) && !c.includes('year') && !c.includes('monthly') && !c.includes('বছর') && !c.includes('মাসিক'));
 
     if (hasName && (hasMonth || hasCommitment || hasTotal)) {
       headerRowIndex = r;
       rows[r].forEach((rawCol, cIdx) => {
         const col = (rawCol || '').trim().toLowerCase();
-        if (col === 'no' || col === 'sl' || col === 'ক্রমিক' || col === '#' || col === 'আইডি' || col === 'id' || col === 'নং') {
+        if (col === 'no' || col === 'sl' || col === 'sl.' || col === 'ক্রমিক' || col === 'ক্র.' || col === '#' || col === 'আইডি' || col === 'id' || col === 'নং') {
           colMap.no = cIdx;
-        } else if (col.includes('name') || col.includes('নাম') || col.includes('সদস্য')) {
+        } else if (col.includes('name') || col.includes('নাম') || col.includes('সদস্য') || col.includes('member')) {
           colMap.name = cIdx;
-        } else if (col.includes('commitment') || col.includes('অঙ্গীকার') || col.includes('প্রতিশ্রুতি') || col.includes('চাঁদা') || col.includes('rate')) {
+        } else if (col.includes('commitment') || col.includes('অঙ্গীকার') || col.includes('প্রতিশ্রুতি') || col.includes('চাঁদা') || col.includes('rate') || col.includes('ধার্য')) {
           colMap.commitment = cIdx;
         } else if ((col.includes('total') || col.includes('মোট') || col.includes('সর্বমোট')) && !col.includes('year') && !col.includes('monthly') && !col.includes('বছর') && !col.includes('মাসিক')) {
           colMap.total = cIdx;
         }
 
-        MONTH_KEYS.forEach((m) => {
-          const bnMonth = MONTH_NAMES_BN[m]?.toLowerCase();
-          const enMonth = m.toLowerCase();
-          if (
-            col === enMonth ||
-            col.startsWith(enMonth) ||
-            col.endsWith(enMonth) ||
-            col.endsWith(' ' + enMonth) ||
-            (bnMonth && (col === bnMonth || col.includes(bnMonth)))
-          ) {
-            colMap[m] = cIdx;
-          }
-        });
+        const matchedM = matchMonthColumnKey(rawCol);
+        if (matchedM && colMap[matchedM] === undefined) {
+          colMap[matchedM] = cIdx;
+        }
       });
       break;
     }
   }
+
+  // Detect whether the sheet explicitly declares a year in its title or headers
+  const declaredYear = detectSheetDeclaredYear(rows, headerRowIndex);
+  const isSheetMatchingTargetYear = !declaredYear || declaredYear === targetYearKey;
+  const matrixActiveYear = declaredYear || targetYearKey;
 
   // If no matrix header is found, check if it's a generic ledger or report failure
   if (headerRowIndex === -1) {
@@ -462,18 +501,48 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
       return genericRes;
     }
 
+    const config = storageService.getConfig();
+    const ledger = computeContinuousYearlyFundLedger(
+      {},
+      targetYearKey,
+      0,
+      config.yearlyFundSources || [],
+      (config as any).verifiedOpeningBalance || 0
+    );
+    const yrLedger = ledger[targetYearKey] || {
+      year: targetYearKey,
+      openingBalance: 0,
+      regularMemberIncome: 0,
+      otherEligibleIncome: 0,
+      integratedSpecialIncome: 0,
+      currentYearIncome: 0,
+      generalFundExpenses: 0,
+      integratedSpecialExpenses: 0,
+      currentYearExpenses: 0,
+      periodMovement: 0,
+      closingBalance: 0,
+    };
+    const yearlyIncome: Record<string, number> = {};
+    Object.keys(ledger).forEach((y) => {
+      yearlyIncome[y] = ledger[y].currentYearIncome;
+    });
+
     return {
-      totalFund: 0,
-      amountReceived: 0,
-      amountSpent: 0,
-      currentBalance: 0,
+      totalFund: yrLedger.closingBalance,
+      amountReceived: yrLedger.currentYearIncome,
+      amountSpent: yrLedger.currentYearExpenses,
+      currentBalance: yrLedger.closingBalance,
+      openingBalance: yrLedger.openingBalance,
+      periodMovement: yrLedger.periodMovement,
       contributorCount: 0,
-      yearlyReceived: {},
+      yearlyReceived: yearlyIncome,
+      yearlyIncome,
+      yearlyLedger: ledger,
       monthlyTotals: {},
       transactions: [],
       expenses: storageService.getExpenses(targetYearKey),
       otherMonthlyContributions: storageService.getOtherMonthlyContributions(targetYearKey),
-      otherMonthlyTotal: 0,
+      otherMonthlyTotal: yrLedger.otherEligibleIncome,
       specialFunds: storageService.getSpecialFunds(targetYearKey),
       lastUpdated: new Date().toISOString(),
       sourceUrl: rawSourceUrl,
@@ -514,8 +583,8 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
     ) {
       const valRow = (r + 1 < rows.length && rows[r + 1].some((c) => parseNumber(c) > 0)) ? rows[r + 1] : rawRow;
       const nums = valRow.map((c) => parseNumber(c)).filter((n) => n > 0);
-      if (nums.length > 0 && !yearlyReceived[String(activeYearNum)]) {
-        yearlyReceived[String(activeYearNum)] = nums[0];
+      if (nums.length > 0 && !yearlyReceived[matrixActiveYear]) {
+        yearlyReceived[matrixActiveYear] = nums[0];
       }
       if (nums.length > 1 && totalCost === 0) {
         totalCost = nums[1];
@@ -551,7 +620,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
         const allNums = rawRow.map((c) => parseNumber(c)).filter((n) => n > 0);
         const maxNum = Math.max(...allNums, 0);
         if (maxNum > 0) {
-          yearlyReceived[String(activeYearNum)] = maxNum;
+          yearlyReceived[matrixActiveYear] = maxNum;
         }
       }
 
@@ -562,7 +631,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
           monthlyTotals[m] = allNums[idx];
         });
         if (allNums.length > 12) {
-          yearlyReceived[String(activeYearNum)] = allNums[allNums.length - 1];
+          yearlyReceived[matrixActiveYear] = allNums[allNums.length - 1];
         }
       }
       continue;
@@ -638,7 +707,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
           monthlyTotals[m] = nums[idx];
         });
         if (nums.length > 12) {
-          yearlyReceived[String(activeYearNum)] = nums[12];
+          yearlyReceived[matrixActiveYear] = nums[12];
         }
       } else {
         MONTH_KEYS.forEach((m) => {
@@ -649,7 +718,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
         });
         const totalYearIdx = rawRow.findIndex((c) => c.toLowerCase().includes('total year') || c.includes('বছরের মোট') || c.includes('মোট'));
         if (totalYearIdx !== -1 && valRow[totalYearIdx]) {
-          yearlyReceived[String(activeYearNum)] = parseNumber(valRow[totalYearIdx]);
+          yearlyReceived[matrixActiveYear] = parseNumber(valRow[totalYearIdx]);
         }
       }
       continue;
@@ -664,6 +733,8 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
       lowerName.includes('total') ||
       lowerName.includes('সর্বমোট') ||
       lowerName.includes('মোট') ||
+      lowerName.includes('উপ-মোট') ||
+      lowerName.includes('গ্র্যান্ড') ||
       lowerName.includes('খরচ') ||
       lowerName.includes('ব্যয়') ||
       lowerName.includes('মওজুদ') ||
@@ -671,7 +742,9 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
       lowerName.includes('স্থিতি') ||
       lowerName.includes('balance') ||
       lowerName.includes('received') ||
-      lowerName.includes('গ্র্যান্ড') ||
+      lowerName.includes('বিশেষ অনুদান') ||
+      lowerName.includes('অনুদান') ||
+      lowerName.includes('special donation') ||
       rowText.includes('monthly total') ||
       rowText.includes('total received') ||
       rowText.includes('total cost');
@@ -683,10 +756,11 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
         (colMap.commitment !== undefined && rawRow[colMap.commitment] && parseNumber(rawRow[colMap.commitment]) > 0) ||
         (colMap.total !== undefined && rawRow[colMap.total] && parseNumber(rawRow[colMap.total]) > 0));
 
-    if (isMemberRow) {
+    if (isMemberRow && isSheetMatchingTargetYear) {
       const commitment = colMap.commitment !== undefined ? parseNumber(rawRow[colMap.commitment]) : 0;
       const months: Record<string, 'paid' | 'unpaid'> = {};
       let paidMonthsCount = 0;
+      let calculatedMemberTotal = 0;
 
       MONTH_KEYS.forEach((m) => {
         const cIdx = colMap[m];
@@ -694,6 +768,8 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
         const lowerVal = val.toLowerCase();
 
         let status: 'paid' | 'unpaid' = 'unpaid';
+        let monthAmount = 0;
+
         if (
           lowerVal === 'true' ||
           lowerVal === '1' ||
@@ -704,6 +780,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
         ) {
           status = 'paid';
           paidMonthsCount++;
+          monthAmount = commitment > 0 ? commitment : 500;
         } else if (
           lowerVal === 'false' ||
           lowerVal === '0' ||
@@ -716,15 +793,24 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
         } else if (val.length === 0) {
           status = 'unpaid';
         } else {
-          status = parseNumber(val) > 0 ? 'paid' : 'unpaid';
-          if (status === 'paid') paidMonthsCount++;
+          const num = parseNumber(val);
+          if (num > 0) {
+            status = 'paid';
+            paidMonthsCount++;
+            monthAmount = num;
+          } else {
+            status = 'unpaid';
+          }
         }
         months[m] = status;
+        calculatedMemberTotal += monthAmount;
       });
 
       const totalVal =
-        colMap.total !== undefined && rawRow[colMap.total]
+        colMap.total !== undefined && rawRow[colMap.total] && parseNumber(rawRow[colMap.total]) > 0
           ? parseNumber(rawRow[colMap.total])
+          : calculatedMemberTotal > 0
+          ? calculatedMemberTotal
           : commitment * paidMonthsCount;
 
       members.push({
@@ -739,11 +825,19 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
   }
 
   // Derive active matrix yearly collection from member total if not set
-  if (!yearlyReceived[String(activeYearNum)] && Object.keys(monthlyTotals).length > 0) {
-    yearlyReceived[String(activeYearNum)] = Object.values(monthlyTotals).reduce((a, b) => a + b, 0);
-  }
-  if (!yearlyReceived[String(activeYearNum)] && members.length > 0) {
-    yearlyReceived[String(activeYearNum)] = members.reduce((sum, m) => sum + (Number(m.totalContributed) || 0), 0);
+  if (isSheetMatchingTargetYear) {
+    if (!yearlyReceived[String(activeYearNum)] && Object.keys(monthlyTotals).length > 0) {
+      yearlyReceived[String(activeYearNum)] = Object.values(monthlyTotals).reduce((a, b) => a + b, 0);
+    }
+    if (!yearlyReceived[String(activeYearNum)] && members.length > 0) {
+      yearlyReceived[String(activeYearNum)] = members.reduce((sum, m) => sum + (Number(m.totalContributed) || 0), 0);
+    }
+  } else {
+    // If the sheet declared another year (e.g. 2026 sheet loaded for 2027),
+    // do not fabricate income for the target year!
+    if (yearlyReceived[targetYearKey] === undefined) {
+      yearlyReceived[targetYearKey] = 0;
+    }
   }
 
   // Ensure all authoritative historical yearly incomes exist in yearlyReceived
@@ -759,16 +853,15 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
   }
 
   // Determine year-specific sheet collection for the selected year
-  // If viewing 2024, use yearlyReceived['2024'] (e.g. 1,210)
-  // If viewing 2025, use yearlyReceived['2025'] (e.g. 10,120)
-  // If viewing 2026, use yearlyReceived['2026'] (e.g. 16,590)
   let yearSheetReceived = 0;
-  if (yearlyReceived[targetYearKey] !== undefined) {
-    yearSheetReceived = yearlyReceived[targetYearKey];
-  } else if (members.length > 0 && String(activeYearNum) === targetYearKey) {
-    yearSheetReceived = members.reduce((sum, m) => sum + (Number(m.totalContributed) || 0), 0);
-  } else if (totalReceived > 0 && Object.keys(yearlyReceived).length === 0) {
-    yearSheetReceived = totalReceived;
+  if (isSheetMatchingTargetYear) {
+    if (yearlyReceived[targetYearKey] !== undefined) {
+      yearSheetReceived = yearlyReceived[targetYearKey];
+    } else if (members.length > 0 && String(activeYearNum) === targetYearKey) {
+      yearSheetReceived = members.reduce((sum, m) => sum + (Number(m.totalContributed) || 0), 0);
+    }
+  } else {
+    yearSheetReceived = 0;
   }
 
   // Multi-year continuous fund accounting computation
@@ -1085,45 +1178,76 @@ export async function fetchFundData(
   let effectiveSourceUrl = (rawSourceUrl || '').trim();
   let effectiveGid = explicitGid?.trim();
 
-  // If no year-specific URL is configured, fallback to the foundation's master fundSourceUrl
-  if (!effectiveSourceUrl && config.fundSourceUrl && config.fundSourceUrl.trim()) {
+  const defaultYear = config.yearlyFundSources?.find((s) => s.isDefault)?.year || '2026';
+
+  // If no year-specific URL is configured, fallback to master fundSourceUrl ONLY IF selectedYear is default
+  // Never fallback to master 2026 URL for newly added years (e.g. 2027) or archived years
+  if (!effectiveSourceUrl && (!selectedYear || selectedYear === defaultYear) && config.fundSourceUrl && config.fundSourceUrl.trim()) {
     effectiveSourceUrl = config.fundSourceUrl.trim();
   }
 
-  // If the sheet source URL is still empty, return clean 'not_found' status with diagnostics
+  // If the sheet source URL is still empty, calculate verified carry forward without fabricating income
   if (!effectiveSourceUrl) {
-    const otherContributions = storageService.getOtherMonthlyContributions(selectedYear);
-    const { eligibleTotalToAdd } = calculateEligibleAdditionalContributionsTotal(
-      otherContributions,
-      0
+    const yrKey = selectedYear || defaultYear;
+    const yearlyLedger = computeContinuousYearlyFundLedger(
+      {},
+      yrKey,
+      0,
+      config.yearlyFundSources || [],
+      (config as any).verifiedOpeningBalance || 0
     );
-    const otherMonthlyTotal = eligibleTotalToAdd;
-    const allSpecialFunds = storageService.getSpecialFunds(selectedYear);
-    const dbExpenses = storageService.getExpenses(selectedYear);
+
+    const currentYearLedger = yearlyLedger[yrKey] || {
+      year: yrKey,
+      openingBalance: 0,
+      regularMemberIncome: 0,
+      otherEligibleIncome: 0,
+      integratedSpecialIncome: 0,
+      currentYearIncome: 0,
+      generalFundExpenses: 0,
+      integratedSpecialExpenses: 0,
+      currentYearExpenses: 0,
+      periodMovement: 0,
+      closingBalance: 0,
+    };
+
+    const yearlyIncome: Record<string, number> = {};
+    Object.keys(yearlyLedger).forEach((y) => {
+      yearlyIncome[y] = yearlyLedger[y].currentYearIncome;
+    });
+
+    const otherContributions = storageService.getOtherMonthlyContributions(yrKey);
+    const allSpecialFunds = storageService.getSpecialFunds(yrKey);
+    const dbExpenses = storageService.getExpenses(yrKey);
 
     return {
-      totalFund: otherMonthlyTotal,
-      amountReceived: otherMonthlyTotal,
-      amountSpent: 0,
-      currentBalance: otherMonthlyTotal,
+      totalFund: currentYearLedger.closingBalance,
+      amountReceived: currentYearLedger.currentYearIncome,
+      amountSpent: currentYearLedger.currentYearExpenses,
+      currentBalance: currentYearLedger.closingBalance,
+      openingBalance: currentYearLedger.openingBalance,
+      periodMovement: currentYearLedger.periodMovement,
       contributorCount: 0,
-      yearlyReceived: {},
+      yearlyReceived: yearlyIncome,
+      yearlyIncome,
+      yearlyLedger,
       monthlyTotals: {},
+      memberRecords: [],
       transactions: [],
       expenses: dbExpenses,
       otherMonthlyContributions: otherContributions,
-      otherMonthlyTotal,
+      otherMonthlyTotal: currentYearLedger.otherEligibleIncome,
       specialFunds: allSpecialFunds,
       lastUpdated: new Date().toISOString(),
       sourceUrl: '',
       sourceType: 'google_sheet',
       status: 'not_found',
-      year: selectedYear,
-      errorMessage: selectedYear
-        ? `${selectedYear} আর্থিক বছরের জন্য গুগল স্প্রেডশিট বা ডাটা সোর্স লিংক কনফিগার করা হয়নি।`
+      year: yrKey,
+      errorMessage: yrKey
+        ? `${yrKey} আর্থিক বছরের জন্য কোনো গুগল স্প্রেডশিট লিংক কনফিগার করা হয়নি। পূর্ববর্তী বছরের সমাপ্তি স্থিতি (৳ ${currentYearLedger.openingBalance.toLocaleString()}) সঠিকভাবে প্রারম্ভিক জের হিসেবে ক্যারি-ফরোয়ার্ড করা হয়েছে।`
         : 'তহবিলের জন্য কোনো গুগল স্প্রেডশিট লিংক কনফিগার করা হয়নি।',
       diagnostics: {
-        selectedYear: selectedYear || '',
+        selectedYear: yrKey,
         sourceUrl: '',
         requestSucceeded: false,
         rowCount: 0,
@@ -1150,13 +1274,43 @@ export async function fetchFundData(
   const dbExpenses = storageService.getExpenses(selectedYear);
 
   if (!exportUrl && !gvizUrl) {
+    const yrKey = selectedYear || defaultYear;
+    const yearlyLedger = computeContinuousYearlyFundLedger(
+      {},
+      yrKey,
+      0,
+      config.yearlyFundSources || [],
+      (config as any).verifiedOpeningBalance || 0
+    );
+    const currentYearLedger = yearlyLedger[yrKey] || {
+      year: yrKey,
+      openingBalance: 0,
+      regularMemberIncome: 0,
+      otherEligibleIncome: 0,
+      integratedSpecialIncome: 0,
+      currentYearIncome: 0,
+      generalFundExpenses: 0,
+      integratedSpecialExpenses: 0,
+      currentYearExpenses: 0,
+      periodMovement: 0,
+      closingBalance: 0,
+    };
+    const yearlyIncome: Record<string, number> = {};
+    Object.keys(yearlyLedger).forEach((y) => {
+      yearlyIncome[y] = yearlyLedger[y].currentYearIncome;
+    });
+
     return {
-      totalFund: 0,
-      amountReceived: 0,
-      amountSpent: 0,
-      currentBalance: 0,
+      totalFund: currentYearLedger.closingBalance,
+      amountReceived: currentYearLedger.currentYearIncome,
+      amountSpent: currentYearLedger.currentYearExpenses,
+      currentBalance: currentYearLedger.closingBalance,
+      openingBalance: currentYearLedger.openingBalance,
+      periodMovement: currentYearLedger.periodMovement,
       contributorCount: 0,
-      yearlyReceived: {},
+      yearlyReceived: yearlyIncome,
+      yearlyIncome,
+      yearlyLedger,
       monthlyTotals: {},
       transactions: [],
       expenses: dbExpenses,
@@ -1166,7 +1320,7 @@ export async function fetchFundData(
       status: 'error',
       year: selectedYear,
       errorMessage: selectedYear
-        ? `${selectedYear} আর্থিক বছরের গুগল স্প্রেডশিট লিংকটি সঠিক নয়।`
+        ? `${selectedYear} আর্থিক বছরের গুগল স্প্রেডশিট লিংকটি সঠিক নয়। পূর্ববর্তী জের সংরক্ষিত আছে।`
         : 'গুগল স্প্রেডশিট লিংকটি সঠিক নয়।',
       diagnostics: {
         selectedYear: selectedYear || '',
@@ -1240,14 +1394,44 @@ export async function fetchFundData(
     };
   }
 
-  // Clear source-unavailable state (NEVER substitute another year's data or fake static numbers!)
+  // Clear source-unavailable state with continuous ledger carry-forward preserved
+  const yrKey = selectedYear || defaultYear;
+  const yearlyLedger = computeContinuousYearlyFundLedger(
+    {},
+    yrKey,
+    0,
+    config.yearlyFundSources || [],
+    (config as any).verifiedOpeningBalance || 0
+  );
+  const currentYearLedger = yearlyLedger[yrKey] || {
+    year: yrKey,
+    openingBalance: 0,
+    regularMemberIncome: 0,
+    otherEligibleIncome: 0,
+    integratedSpecialIncome: 0,
+    currentYearIncome: 0,
+    generalFundExpenses: 0,
+    integratedSpecialExpenses: 0,
+    currentYearExpenses: 0,
+    periodMovement: 0,
+    closingBalance: 0,
+  };
+  const yearlyIncome: Record<string, number> = {};
+  Object.keys(yearlyLedger).forEach((y) => {
+    yearlyIncome[y] = yearlyLedger[y].currentYearIncome;
+  });
+
   return {
-    totalFund: 0,
-    amountReceived: 0,
-    amountSpent: 0,
-    currentBalance: 0,
+    totalFund: currentYearLedger.closingBalance,
+    amountReceived: currentYearLedger.currentYearIncome,
+    amountSpent: currentYearLedger.currentYearExpenses,
+    currentBalance: currentYearLedger.closingBalance,
+    openingBalance: currentYearLedger.openingBalance,
+    periodMovement: currentYearLedger.periodMovement,
     contributorCount: 0,
-    yearlyReceived: {},
+    yearlyReceived: yearlyIncome,
+    yearlyIncome,
+    yearlyLedger,
     monthlyTotals: {},
     transactions: [],
     expenses: dbExpenses,
@@ -1257,7 +1441,7 @@ export async function fetchFundData(
     status: 'error',
     year: selectedYear,
     errorMessage: selectedYear
-      ? `${selectedYear} আর্থিক বছরের গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা যায়নি। অনুগ্রহ করে স্প্রেডশিটের শেয়ারিং পারমিশন (Anyone with the link can view) এবং নেটওয়ার্ক সংযোগ যাচাই করুন।`
+      ? `${selectedYear} আর্থিক বছরের গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা যায়নি। পূর্ববর্তী বছরের সমাপ্তি স্থিতি (৳ ${currentYearLedger.openingBalance.toLocaleString()}) সংরক্ষিত রয়েছে।`
       : 'গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি। স্প্রেডশিটের শেয়ারিং পারমিশন যাচাই করুন।',
     diagnostics: {
       selectedYear: selectedYear || '',

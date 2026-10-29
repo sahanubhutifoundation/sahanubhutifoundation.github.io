@@ -49,7 +49,7 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [mobileTab, setMobileTab] = useState<'preview' | 'controls'>('preview');
+  const [mobileTab, setMobileTab] = useState<'controls' | 'preview'>('controls');
   const [zoomMode, setZoomMode] = useState<'fit' | 'actual'>('fit');
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [measuredCardHeight, setMeasuredCardHeight] = useState<number>(750);
@@ -383,6 +383,18 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
         <div className="lg:hidden flex items-center p-1.5 bg-emerald-50 border-b border-emerald-100 text-xs font-semibold">
           <button
             type="button"
+            onClick={() => setMobileTab('controls')}
+            className={`flex-1 py-2 text-center rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              mobileTab === 'controls'
+                ? 'bg-emerald-800 text-white shadow-xs font-bold'
+                : 'text-emerald-900 hover:bg-emerald-100/60'
+            }`}
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>১. সদস্য ও মাস নির্বাচন</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setMobileTab('preview')}
             className={`flex-1 py-2 text-center rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               mobileTab === 'preview'
@@ -391,19 +403,7 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>রসিদ প্রিভিউ {previewReceiptData ? `(৳${toBengaliNumeral(previewReceiptData.amount)})` : ''}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileTab('controls')}
-            className={`flex-1 py-2 text-center rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              mobileTab === 'controls'
-                ? 'bg-emerald-800 text-white shadow-xs font-bold'
-                : 'text-emerald-900 hover:bg-emerald-100/60'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            <span>মাস ও সদস্য নির্বাচন</span>
+            <span>২. রসিদ প্রিভিউ ও ডাউনলোড {previewReceiptData ? `(৳${toBengaliNumeral(previewReceiptData.amount)})` : ''}</span>
           </button>
         </div>
 
@@ -411,11 +411,30 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 overflow-y-auto p-3 sm:p-6 gap-6">
           {/* Left Column: Selection Controls (5 cols) */}
           <div className={`lg:col-span-5 flex-col gap-5 border-b lg:border-b-0 lg:border-r border-gray-200 lg:pr-6 pb-6 lg:pb-0 ${mobileTab === 'controls' ? 'flex' : 'hidden lg:flex'}`}>
-            {/* Year Selector */}
+            {/* Member Selector (Placed First) */}
+            <div>
+              <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5 mb-1.5 uppercase tracking-wide">
+                <User className="w-3.5 h-3.5 text-emerald-700" />
+                <span>১. সদস্যের নাম নির্বাচন করুন</span>
+              </label>
+              <select
+                value={selectedMemberId}
+                onChange={(e) => setSelectedMemberId(e.target.value)}
+                className="w-full text-sm font-medium border border-gray-300 rounded-lg p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-emerald-600 focus:border-transparent outline-none shadow-sm"
+              >
+                {availableMembers.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.serial ? `[#${m.serial}] ` : ''}{m.nameBn} {m.nameEn ? `(${m.nameEn})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Year Selector (Placed Second) */}
             <div>
               <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5 mb-1.5 uppercase tracking-wide">
                 <Calendar className="w-3.5 h-3.5 text-emerald-700" />
-                <span>আর্থিক বছর নির্বাচন করুন</span>
+                <span>২. আর্থিক বছর নির্বাচন করুন</span>
               </label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {yearlySources.map((s) => (
@@ -433,25 +452,6 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
                   </button>
                 ))}
               </div>
-            </div>
-
-            {/* Member Selector */}
-            <div>
-              <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5 mb-1.5 uppercase tracking-wide">
-                <User className="w-3.5 h-3.5 text-emerald-700" />
-                <span>সদস্যের নাম নির্বাচন করুন</span>
-              </label>
-              <select
-                value={selectedMemberId}
-                onChange={(e) => setSelectedMemberId(e.target.value)}
-                className="w-full text-sm font-medium border border-gray-300 rounded-lg p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-emerald-600 focus:border-transparent outline-none shadow-sm"
-              >
-                {availableMembers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.serial ? `[#${m.serial}] ` : ''}{m.nameBn} {m.nameEn ? `(${m.nameEn})` : ''}
-                  </option>
-                ))}
-              </select>
             </div>
 
             {/* Member Verification Status Card */}
@@ -659,10 +659,10 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setMobileTab('preview')}
-                  className="w-full py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  className="w-full py-3 px-4 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >
                   <FileText className="w-4 h-4" />
-                  <span>রসিদ প্রিভিউ দেখুন</span>
+                  <span>রসিদ প্রিভিউ ও ডাউনলোড দেখুন {previewReceiptData ? `(৳${toBengaliNumeral(previewReceiptData.amount)}) →` : '→'}</span>
                 </button>
               </div>
             </div>
@@ -693,7 +693,7 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
                   onClick={() => setMobileTab('controls')}
                   className="lg:hidden px-2.5 py-1 rounded-md text-[11px] font-semibold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 transition-colors cursor-pointer"
                 >
-                  মাস পরিবর্তন
+                  ← সদস্য বা মাস পরিবর্তন
                 </button>
                 <button
                   type="button"
@@ -731,20 +731,21 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="w-full py-16 flex flex-col items-center justify-center text-center text-gray-400 gap-3">
+              <div className="w-full py-16 flex flex-col items-center justify-center text-center text-gray-400 gap-3 px-4">
                 <FileText className="w-12 h-12 text-gray-300" />
-                <p className="text-sm font-semibold text-gray-600">
-                  রসিদ দেখতে বাম পাশ থেকে মাস নির্বাচন করুন।
+                <p className="text-sm font-semibold text-gray-700">
+                  রসিদ দেখতে অনুগ্রহ করে সদস্যের নাম এবং অন্তত একটি পরিশোধিত মাস নির্বাচন করুন।
                 </p>
-                <p className="text-xs text-gray-400 max-w-xs">
-                  শুধুমাত্র ভেরিফাইড এবং পরিশোধিত মাসের জন্যই অফিসিয়াল ডিজিটাল রসিদ ইস্যু করা যায়।
+                <p className="text-xs text-gray-500 max-w-sm">
+                  শুধুমাত্র ভেরিফাইড এবং পরিশোধিত মাসের জন্যই অফিসিয়াল ডিজিটাল রসিদ ইস্যু ও ডাউনলোড করা যায়।
                 </p>
                 <button
                   type="button"
                   onClick={() => setMobileTab('controls')}
-                  className="lg:hidden mt-2 px-4 py-2 bg-emerald-800 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                  className="mt-2 px-4 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-colors shadow-sm"
                 >
-                  মাস নির্বাচন করুন
+                  <User className="w-4 h-4" />
+                  <span>সদস্য ও মাস নির্বাচন করুন</span>
                 </button>
               </div>
             )}
@@ -783,6 +784,14 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
                     <span>সব রসিদ ZIP (PNG) ডাউনলোড</span>
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('controls')}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 font-semibold text-xs rounded-xl cursor-pointer transition-colors"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>← অন্য সদস্য বা মাস নির্বাচন করুন</span>
+                </button>
               </div>
             )}
           </div>
