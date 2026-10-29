@@ -4940,23 +4940,96 @@ export const AdminPage: React.FC = () => {
 
                       {/* Test Result Preview for this year */}
                       {testRes && (
-                        <div className="mt-3 p-3 rounded-lg bg-[#F7F5F0] border border-[#EBE8E0] text-[11px] font-mono flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`w-2 h-2 rounded-full ${
-                                testRes.status === 'live' ? 'bg-[#2D5A41]' : 'bg-rose-500'
-                              }`}
-                            />
-                            <span className="font-bold text-[#2D3630]">
-                              {testRes.status === 'live' ? 'সংযোগ সফল' : 'সংযোগ ত্রুটি'}
-                            </span>
+                        <div className="mt-3 p-3.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0] text-[11px] space-y-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#EBE8E0] pb-2 font-mono">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`w-2.5 h-2.5 rounded-full ${
+                                  testRes.status === 'live' ? 'bg-[#2D5A41]' : 'bg-rose-500'
+                                }`}
+                              />
+                              <span className="font-bold text-[#2D3630]">
+                                {testRes.status === 'live'
+                                  ? 'গুগল শিট এক্সট্রাকশন সফল'
+                                  : 'সংযোগ বা পার্সিং সমস্যা'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[#5C665F]">
+                              <span>আদায়: <strong className="text-[#2D5A41]">৳ {testRes.amountReceived.toLocaleString()}</strong></span>
+                              <span>ব্যয়: <strong>৳ {testRes.amountSpent.toLocaleString()}</strong></span>
+                              <span>স্থিতি: <strong className="text-[#2D5A41]">৳ {testRes.currentBalance.toLocaleString()}</strong></span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3 text-[#5C665F]">
-                            <span>আদায়: ৳ {testRes.amountReceived.toLocaleString()}</span>
-                            <span>ব্যয়: ৳ {testRes.amountSpent.toLocaleString()}</span>
-                            <span>স্থিতি: ৳ {testRes.currentBalance.toLocaleString()}</span>
-                            <span>সদস্য: {testRes.contributorCount} জন</span>
+
+                          {/* Detailed Extraction Metrics */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                            <div className="p-2 rounded-lg bg-white border border-[#EBE8E0]">
+                              <span className="text-[10px] text-[#7A877E] block">স্বীকৃত সদস্য</span>
+                              <span className="font-bold text-[#2D3630]">
+                                {testRes.diagnostics?.recognizedMembersCount ?? testRes.contributorCount} জন
+                                {testRes.diagnostics?.candidateMemberRowsCount ? (
+                                  <span className="text-[10px] text-[#7A877E] font-normal ml-1">
+                                    /{testRes.diagnostics.candidateMemberRowsCount} রো
+                                  </span>
+                                ) : null}
+                              </span>
+                            </div>
+                            <div className="p-2 rounded-lg bg-white border border-[#EBE8E0]">
+                              <span className="text-[10px] text-[#7A877E] block">শনাক্তকৃত মাস কলাম</span>
+                              <span className="font-bold text-[#2D3630]">
+                                {Array.isArray(testRes.diagnostics?.detectedMonthColumns)
+                                  ? testRes.diagnostics.detectedMonthColumns.length
+                                  : (testRes.diagnostics?.detectedMonthColumns ?? 12)} টি
+                              </span>
+                            </div>
+                            <div className="p-2 rounded-lg bg-white border border-[#EBE8E0]">
+                              <span className="text-[10px] text-[#7A877E] block">পরিশোধিত এন্ট্রি</span>
+                              <span className="font-bold text-emerald-700">
+                                {testRes.diagnostics?.totalPaidMonthEntries ?? '-'} টি
+                              </span>
+                            </div>
+                            <div className="p-2 rounded-lg bg-white border border-[#EBE8E0]">
+                              <span className="text-[10px] text-[#7A877E] block">বকেয়া / শূন্য</span>
+                              <span className="font-bold text-amber-700">
+                                {testRes.diagnostics?.totalUnpaidMonthEntries ?? '-'} টি
+                              </span>
+                            </div>
                           </div>
+
+                          {/* Multi-Year Grand Total Quarantined Notice */}
+                          {Boolean(testRes.diagnostics?.multiYearGrandTotalDetected) && (
+                            <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200/80 text-[11px] text-blue-900 flex items-start gap-2">
+                              <span className="font-bold text-blue-700">ℹ তথ্য:</span>
+                              <span>
+                                শিটের বহু-বছরের সম্মিলিত মোট (৳ {testRes.diagnostics?.multiYearGrandTotalDetected?.toLocaleString()}) পৃথকভাবে চিহ্নিত ও বাদ দেওয়া হয়েছে। শুধুমাত্র <strong>{src.year}</strong> সালের যাচাইকৃত সদস্য আদায় (৳ {testRes.amountReceived.toLocaleString()}) লেজারে যুক্ত হয়েছে।
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Summary Rows Excluded Notice */}
+                          {Boolean(testRes.diagnostics?.summaryRowsExcludedCount && testRes.diagnostics.summaryRowsExcludedCount > 0) && (
+                            <div className="text-[10px] text-[#7A877E] italic">
+                              * {testRes.diagnostics?.summaryRowsExcludedCount}টি সাবটোটাল / সারাংশ সারি সদস্য ডাটা থেকে সুরক্ষিতভাবে বাদ রাখা হয়েছে।
+                            </div>
+                          )}
+
+                          {/* Warnings / Errors */}
+                          {testRes.diagnostics?.warnings && testRes.diagnostics.warnings.length > 0 && (
+                            <div className="p-2 rounded-lg bg-amber-50 border border-amber-200/70 text-[11px] text-amber-900 space-y-1">
+                              {testRes.diagnostics.warnings.map((w, i) => (
+                                <div key={i} className="flex items-center gap-1.5">
+                                  <span className="text-amber-600 font-bold">•</span>
+                                  <span>{w}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {testRes.status !== 'live' && (
+                            <div className="text-[10px] text-rose-700">
+                              পরামর্শ: গুগল স্প্রেডশিটের শেয়ারিং সেটিংস "Anyone with the link can view" নিশ্চিত করুন এবং হেডার সারিতে সদস্যের নাম ও মাসের নাম রয়েছে কিনা দেখুন।
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

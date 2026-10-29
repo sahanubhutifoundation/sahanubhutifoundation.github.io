@@ -460,6 +460,19 @@ export interface FundDiagnostics {
   detectedType: 'matrix' | 'ledger' | 'unrecognized';
   rawSnippet?: string[];
   note?: string;
+  warnings?: string[];
+  sheetGid?: string;
+  detectedMonthColumns?: string[] | number;
+  candidateMemberRowsCount?: number;
+  recognizedMembersCount?: number;
+  totalPaidMonthEntries?: number;
+  totalUnpaidMonthEntries?: number;
+  ambiguousEntriesCount?: number;
+  rawMemberIncomeTotal?: number;
+  normalizedIncomeTotal?: number;
+  summaryRowsExcludedCount?: number;
+  skippedSummaryRows?: string[];
+  multiYearGrandTotalDetected?: number;
 }
 
 export interface YearlyAccountingLedgerEntry {
