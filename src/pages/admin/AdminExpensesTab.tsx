@@ -361,6 +361,11 @@ export const AdminExpensesTab: React.FC<AdminExpensesTabProps> = ({
               label: 'গুগল শিট উৎস লিংক (Source Links)',
               desc: 'পাবলিক পেজে মূল স্প্রেডশিটের লিংক বাটন দেখাবে',
             },
+            {
+              key: 'showPublicReceiptDownload' as keyof FundVisibilitySettings,
+              label: 'সদস্যদের জন্য রসিদ ডাউনলোড চালু রাখুন',
+              desc: 'পাবলিক ফান্ড পেজে ডিজিটাল মানি রসিদ সেকশন ও রসিদ ডাউনলোড সক্রিয় রাখবে',
+            },
           ].map((item) => {
             const isEnabled = visibilitySettings[item.key] !== false;
             return (

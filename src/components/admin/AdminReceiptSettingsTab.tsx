@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FoundationConfig, DonationReceiptSettings, Member } from '../../types';
+import { FoundationConfig, DonationReceiptSettings, Member, FundVisibilitySettings } from '../../types';
 import { DonationReceiptCard, ReceiptData } from '../receipt/DonationReceiptCard';
 import { storageService } from '../../services/storageService';
 import {
@@ -176,6 +176,26 @@ export const AdminReceiptSettingsTab: React.FC<AdminReceiptSettingsTabProps> = (
     }
   };
 
+  const isPublicDownloadEnabled = config.fundVisibility?.showPublicReceiptDownload !== false;
+
+  const handleTogglePublicReceiptDownload = async () => {
+    const nextState = !isPublicDownloadEnabled;
+    const currentVis = storageService.getFundVisibility();
+    const updatedVisibility: FundVisibilitySettings = {
+      ...currentVis,
+      ...(config.fundVisibility || {}),
+      showPublicReceiptDownload: nextState,
+    };
+    storageService.saveFundVisibility(updatedVisibility);
+    const updatedConfig: FoundationConfig = {
+      ...config,
+      fundVisibility: updatedVisibility,
+    };
+    await storageService.saveConfigAsync(updatedConfig);
+    onConfigChange(updatedConfig);
+    showToast(nextState ? 'সদস্যদের জন্য রসিদ ডাউনলোড চালু করা হয়েছে।' : 'সদস্যদের জন্য রসিদ ডাউনলোড বন্ধ করা হয়েছে।');
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner */}
@@ -205,6 +225,32 @@ export const AdminReceiptSettingsTab: React.FC<AdminReceiptSettingsTabProps> = (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Controls Column (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
+          {/* Public Receipt Download Availability Toggle */}
+          <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-center justify-between gap-4">
+            <div>
+              <span className="text-xs font-bold text-emerald-950 block">
+                সদস্যদের জন্য রসিদ ডাউনলোড চালু রাখুন
+              </span>
+              <span className="text-[11px] text-emerald-800/80 block mt-0.5">
+                সক্রিয় থাকলে সাধারণ সদস্যরা ফান্ড পেজ থেকে তাদের নিজস্ব অনুদান রসিদ দেখতে ও ডাউনলোড করতে পারবেন।
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleTogglePublicReceiptDownload}
+              className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 cursor-pointer ${
+                isPublicDownloadEnabled ? 'bg-emerald-800' : 'bg-gray-300'
+              }`}
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  isPublicDownloadEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Organization & Header Labels */}
           <div className="p-5 bg-white rounded-2xl border border-gray-200 shadow-sm space-y-4">
             <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2 border-b pb-2">

@@ -253,6 +253,7 @@ export interface FundVisibilitySettings {
   showSourceLinks?: boolean;
   showOtherMonthlyContributions?: boolean;
   showSpecialFunds?: boolean;
+  showPublicReceiptDownload?: boolean;
 }
 
 export type MainFundAccountingStatus = 'already_included' | 'not_included' | 'unverified';
@@ -441,6 +442,7 @@ export interface FundTransaction {
 }
 
 export interface FundMemberRecord {
+  id?: string;
   serial: number;
   name: string;
   commitment: number;

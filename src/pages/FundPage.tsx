@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { PageHero } from '../components/PageHero';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -57,6 +57,8 @@ import { OnlineReceiptModal } from '../components/receipt/OnlineReceiptModal';
 export const FundPage: React.FC = () => {
   const { t, language } = useLanguage();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeRequestIdRef = useRef(0);
   const [config, setConfig] = useState(storageService.getConfig());
   const [visibility, setVisibility] = useState<FundVisibilitySettings>(
     storageService.getFundVisibility()
@@ -77,8 +79,7 @@ export const FundPage: React.FC = () => {
   // Auto-scroll and highlight target expense when navigating from an activity
   useEffect(() => {
     if (!isAccessGranted) return;
-    const urlParams = new URLSearchParams(location.search);
-    const targetExpenseId = urlParams.get('expenseId') || (location.hash ? location.hash.replace('#expense-', '') : '');
+    const targetExpenseId = searchParams.get('expenseId') || (location.hash ? location.hash.replace('#expense-', '') : '');
     if (!targetExpenseId) return;
 
     const timer = setTimeout(() => {
@@ -94,7 +95,7 @@ export const FundPage: React.FC = () => {
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [location.search, location.hash, isAccessGranted, fundData]);
+  }, [searchParams, location.hash, isAccessGranted, fundData]);
 
   // Available yearly sources from config (only enabled and public on public page)
   const yearlySources: YearlyFundSource[] = useMemo(() => {
@@ -139,8 +140,7 @@ export const FundPage: React.FC = () => {
   // Selected year state (defaults to defaultYear, URL param, or localStorage)
   const [selectedYear, setSelectedYear] = useState<string>(() => {
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlYear = urlParams.get('year');
+      const urlYear = searchParams.get('year');
       if (urlYear && yearlySources.some((s) => s.year === urlYear)) return urlYear;
       const cachedYear = localStorage.getItem('sf_fund_last_selected_year');
       if (cachedYear && yearlySources.some((s) => s.year === cachedYear)) return cachedYear;
@@ -149,12 +149,18 @@ export const FundPage: React.FC = () => {
   });
 
   const handleSelectYear = (yr: string) => {
+    if (yr === selectedYear) return;
     setSelectedYear(yr);
     try {
       localStorage.setItem('sf_fund_last_selected_year', yr);
-      const url = new URL(window.location.href);
-      url.searchParams.set('year', yr);
-      window.history.replaceState(null, '', url.toString());
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('year', yr);
+          return next;
+        },
+        { replace: true }
+      );
     } catch {}
   };
 
@@ -167,14 +173,13 @@ export const FundPage: React.FC = () => {
 
   // Synchronize when navigating back or when URL query / location state changes
   useEffect(() => {
-    const urlParams = new URLSearchParams(location.search);
-    const yrFromUrl = urlParams.get('year');
+    const yrFromUrl = searchParams.get('year');
     const yrFromState = (location.state as any)?.selectedYear;
     const targetYr = yrFromUrl || yrFromState;
     if (targetYr && yearlySources.some((s) => s.year === targetYr) && targetYr !== selectedYear) {
       setSelectedYear(targetYr);
     }
-  }, [location.search, location.state, yearlySources, selectedYear]);
+  }, [searchParams, location.state, yearlySources, selectedYear]);
 
   // Current year source configuration
   const currentSource = useMemo(() => {
@@ -184,12 +189,15 @@ export const FundPage: React.FC = () => {
   // Load fund data dynamically for current year
   const loadData = useCallback(
     async (isManual = false) => {
+      const reqId = ++activeRequestIdRef.current;
       if (isManual) setRefreshing(true);
       else setLoading(true);
 
       if (!fundPrivacyService.isAccessGranted()) {
-        setLoading(false);
-        setRefreshing(false);
+        if (reqId === activeRequestIdRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
         return;
       }
 
@@ -214,42 +222,50 @@ export const FundPage: React.FC = () => {
         // If still no URL, return clean not_found state
         if (!targetUrl) {
           const res = await fetchFundData('', isManual, selectedYear);
-          setFundData(res);
+          if (reqId === activeRequestIdRef.current) {
+            setFundData(res);
+          }
           return;
         }
 
         const res = await fetchFundData(targetUrl, isManual, selectedYear, explicitGid);
-        setFundData(res);
+        if (reqId === activeRequestIdRef.current) {
+          setFundData(res);
+        }
       } catch (e) {
         console.warn('Fund load error:', e);
-        setFundData({
-          totalFund: 0,
-          amountReceived: 0,
-          amountSpent: 0,
-          currentBalance: 0,
-          contributorCount: 0,
-          yearlyReceived: {},
-          monthlyTotals: {},
-          transactions: [],
-          expenses: [],
-          lastUpdated: new Date().toISOString(),
-          sourceUrl: '',
-          sourceType: 'google_sheet',
-          status: 'error',
-          year: selectedYear,
-          errorMessage:
-            language === 'ar'
-              ? `تعذر تحميل بيانات عام ${formatLocalizedNumber(selectedYear, language)}.`
-              : language === 'en'
-              ? `Failed to load records for financial year ${formatLocalizedNumber(selectedYear, language)}.`
-              : `${formatLocalizedNumber(selectedYear, language)} আর্থিক বছরের তথ্য লোড করতে সমস্যা হয়েছে।`,
-        });
+        if (reqId === activeRequestIdRef.current) {
+          setFundData({
+            totalFund: 0,
+            amountReceived: 0,
+            amountSpent: 0,
+            currentBalance: 0,
+            contributorCount: 0,
+            yearlyReceived: {},
+            monthlyTotals: {},
+            transactions: [],
+            expenses: [],
+            lastUpdated: new Date().toISOString(),
+            sourceUrl: '',
+            sourceType: 'google_sheet',
+            status: 'error',
+            year: selectedYear,
+            errorMessage:
+              language === 'ar'
+                ? `تعذر تحميل بيانات عام ${formatLocalizedNumber(selectedYear, language)}.`
+                : language === 'en'
+                ? `Failed to load records for financial year ${formatLocalizedNumber(selectedYear, language)}.`
+                : `${formatLocalizedNumber(selectedYear, language)} আর্থিক বছরের তথ্য লোড করতে সমস্যা হয়েছে।`,
+          });
+        }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (reqId === activeRequestIdRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [selectedYear, language]
+    [selectedYear, defaultYear, language]
   );
 
   useEffect(() => {
@@ -1200,7 +1216,7 @@ export const FundPage: React.FC = () => {
                       const displayName = resolved.displayName || safeName || 'সদস্য';
 
                       return (
-                        <tr key={member.serial} className="hover:bg-[#FDFCF9] transition-colors">
+                        <tr key={member.id || `${member.serial}-${member.name}`} className="hover:bg-[#FDFCF9] transition-colors">
                           <td className="py-3 px-3 text-center font-mono text-[#7A877E]">
                             {formatLocalizedNumber(member.serial, language)}
                           </td>
@@ -1480,31 +1496,41 @@ export const FundPage: React.FC = () => {
           </div>
         )}
         {/* Online Donation Receipt Generator Entry Point */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1E3E2B] via-[#2D5A41] to-[#1E3E2B] text-white p-6 sm:p-8 shadow-lg border border-emerald-700/40">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
-            <div className="space-y-2 text-center md:text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-800/80 text-emerald-200 border border-emerald-600/40">
-                <FileText className="w-3.5 h-3.5" />
-                <span>ডিজিটাল মানি রসিদ</span>
+        {visibility.showPublicReceiptDownload !== false && (
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1E3E2B] via-[#2D5A41] to-[#1E3E2B] text-white p-6 sm:p-8 shadow-lg border border-emerald-700/40">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+              <div className="space-y-2 text-center md:text-left">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-800/80 text-emerald-200 border border-emerald-600/40">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>
+                    {language === 'ar' ? 'إيصال التبرع الإلكتروني' : language === 'en' ? 'Digital Money Receipt' : 'ডিজিটাল মানি রসিদ'}
+                  </span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                  {language === 'ar' ? 'احصل على إيصالك الإلكتروني' : language === 'en' ? 'Get Your Online Receipt' : 'আপনার অনলাইন রসিদ সংগ্রহ করুন'}
+                </h3>
+                <p className="text-sm text-emerald-100/90 max-w-xl">
+                  {language === 'ar'
+                    ? 'حدد تفاصيل اشتراكك الشهري وتبرعك الإنساني لحفظ الإيصال.'
+                    : language === 'en'
+                    ? 'Select your monthly contribution and humanitarian donation details to save receipt.'
+                    : 'আপনার মাসিক চাঁদা ও মানবিক অনুদানের তথ্য নির্বাচন করে রসিদ সংরক্ষণ করুন।'}
+                </p>
               </div>
-              <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-                আপনার অনলাইন রসিদ সংগ্রহ করুন
-              </h3>
-              <p className="text-sm text-emerald-100/90 max-w-xl">
-                আপনার জমাকৃত মাসিক চাঁদা বা অনুদানের রসিদ নির্বাচন করুন এবং ডাউনলোড করুন।
-              </p>
-            </div>
 
-            <button
-              type="button"
-              onClick={() => setIsReceiptModalOpen(true)}
-              className="flex-shrink-0 inline-flex items-center gap-2.5 px-6 py-3.5 bg-white hover:bg-emerald-50 text-emerald-950 font-bold text-sm sm:text-base rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
-            >
-              <FileText className="w-5 h-5 text-emerald-700" />
-              <span>অনলাইন রসিদ সংগ্রহ করুন</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsReceiptModalOpen(true)}
+                className="flex-shrink-0 inline-flex items-center gap-2.5 px-6 py-3.5 bg-white hover:bg-emerald-50 text-emerald-950 font-bold text-sm sm:text-base rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+              >
+                <FileText className="w-5 h-5 text-emerald-700" />
+                <span>
+                  {language === 'ar' ? 'عرض وحفظ الإيصال' : language === 'en' ? 'Download Online Receipt' : 'অনলাইন রসিদ সংগ্রহ করুন'}
+                </span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Online Receipt Generator Modal */}

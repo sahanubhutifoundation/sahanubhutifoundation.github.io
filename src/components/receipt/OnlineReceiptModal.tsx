@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useLanguage } from '../../context/LanguageContext';
 import { FoundationConfig, Member, FundMemberRecord, YearlyFundSource } from '../../types';
 import { DonationReceiptCard, ReceiptData } from './DonationReceiptCard';
 import { downloadReceiptElement, downloadReceiptsZip } from '../../utils/receiptDownload';
 import { getDeterministicReceiptNumber } from '../../utils/receiptNumbering';
 import { toBengaliNumeral, BENGALI_MONTH_NAMES, ORDERED_MONTH_KEYS } from '../../utils/bengaliWords';
+import { fetchFundData } from '../../services/fundService';
 import {
   FileText,
   Download,
@@ -31,6 +33,16 @@ interface OnlineReceiptModalProps {
   isLoadingYearData?: boolean;
 }
 
+export interface UnifiedReceiptMember {
+  id: string;
+  serial: number;
+  displayName: string;
+  canonicalName: string;
+  secondaryName?: string;
+  memberObj: Member;
+  sheetRecord?: FundMemberRecord;
+}
+
 export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
   isOpen,
   onClose,
@@ -42,6 +54,7 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
   onYearChange,
   isLoadingYearData = false,
 }) => {
+  const { language } = useLanguage();
   const [selectedYear, setSelectedYear] = useState<string>(currentYear);
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
@@ -54,14 +67,30 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [measuredCardHeight, setMeasuredCardHeight] = useState<number>(750);
 
+  // Local cache of year-specific sheet records to enable instant switching and prevent stale overrides
+  const [yearRecordsMap, setYearRecordsMap] = useState<Record<string, FundMemberRecord[]>>({});
+  const [isFetchingLocalYear, setIsFetchingLocalYear] = useState(false);
+
   const previewCardRef = useRef<HTMLDivElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const batchContainerRef = useRef<HTMLDivElement>(null);
 
-  // Sync year prop with state
+  // Sync year prop with state only when modal opens or parent explicitly sets it
   useEffect(() => {
-    setSelectedYear(currentYear);
-  }, [currentYear]);
+    if (isOpen) {
+      setSelectedYear(currentYear);
+    }
+  }, [isOpen]);
+
+  // Keep records map populated whenever parent updates memberRecords for currentYear
+  useEffect(() => {
+    if (memberRecords && memberRecords.length > 0) {
+      setYearRecordsMap((prev) => ({
+        ...prev,
+        [currentYear]: memberRecords,
+      }));
+    }
+  }, [memberRecords, currentYear]);
 
   // Responsive width observer for mobile preview proportional scaling
   useEffect(() => {
@@ -100,77 +129,131 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
     return Math.min(1.0, Math.max(0.40, avail / 680));
   }, [containerWidth, zoomMode]);
 
-  // Combine members list from configuration and sheet records for full coverage
-  const availableMembers = useMemo(() => {
-    const list: { id: string; nameBn: string; nameEn?: string; serial?: number; memberObj: Member }[] = [];
-    const seenNames = new Set<string>();
+  // Active records for currently selectedYear
+  const activeYearRecords = useMemo(() => {
+    if (yearRecordsMap[selectedYear]) {
+      return yearRecordsMap[selectedYear];
+    }
+    if (selectedYear === currentYear) {
+      return memberRecords;
+    }
+    return [];
+  }, [yearRecordsMap, selectedYear, currentYear, memberRecords]);
 
-    // 1. From registered members
+  // Safe string normalizer for robust member identity matching
+  const normalizeIdentity = (s?: string) =>
+    (s || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[\s\.\-_]+/g, '');
+
+  // Combine members list from configuration and sheet records without duplicate representations
+  const availableMembers = useMemo(() => {
+    const list: UnifiedReceiptMember[] = [];
+    const matchedSheetIndices = new Set<number>();
+
+    // 1. Process each registered member from membersList
     membersList.forEach((m) => {
-      const nameBn = m.nameBn || m.name || '';
-      if (nameBn.trim() && !seenNames.has(nameBn.trim().toLowerCase())) {
-        seenNames.add(nameBn.trim().toLowerCase());
-        list.push({
-          id: m.id,
-          nameBn: nameBn.trim(),
-          nameEn: m.nameEn,
-          serial: m.serial,
-          memberObj: m,
+      const mSerial = Number(m.serial) || 0;
+      const mNameNorm = normalizeIdentity(m.name);
+      const mBnNorm = normalizeIdentity(m.nameBn);
+      const mEnNorm = normalizeIdentity(m.nameEn);
+
+      let matchedRecIndex = -1;
+
+      // Rule A: Exact or normalized name match against sheet records
+      matchedRecIndex = activeYearRecords.findIndex((rec, idx) => {
+        if (matchedSheetIndices.has(idx)) return false;
+        const recNorm = normalizeIdentity(rec.name);
+        return recNorm && (recNorm === mEnNorm || recNorm === mBnNorm || recNorm === mNameNorm);
+      });
+
+      // Rule B: Match by serial number ONLY IF name does not collide with another registered member
+      if (matchedRecIndex === -1 && mSerial > 0) {
+        matchedRecIndex = activeYearRecords.findIndex((rec, idx) => {
+          if (matchedSheetIndices.has(idx)) return false;
+          if (rec.serial !== mSerial) return false;
+          const recNorm = normalizeIdentity(rec.name);
+          const belongsToOther = membersList.some((other) => {
+            if (other.id === m.id) return false;
+            return (
+              recNorm === normalizeIdentity(other.name) ||
+              recNorm === normalizeIdentity(other.nameBn) ||
+              recNorm === normalizeIdentity(other.nameEn)
+            );
+          });
+          return !belongsToOther;
         });
       }
+
+      let sheetRec: FundMemberRecord | undefined;
+      if (matchedRecIndex >= 0) {
+        matchedSheetIndices.add(matchedRecIndex);
+        sheetRec = activeYearRecords[matchedRecIndex];
+      }
+
+      const primaryName = m.nameBn || m.name || (sheetRec ? sheetRec.name : 'সদস্য');
+      const secondName = m.nameEn && m.nameEn !== primaryName ? m.nameEn : undefined;
+      const finalSerial = mSerial || (sheetRec ? sheetRec.serial : 0);
+      const serialPrefix = finalSerial > 0 ? `${toBengaliNumeral(finalSerial)} — ` : '';
+      const displayLabel = `${serialPrefix}${primaryName}${secondName ? ` (${secondName})` : ''}`;
+
+      list.push({
+        id: m.id,
+        serial: finalSerial,
+        displayName: displayLabel,
+        canonicalName: primaryName,
+        secondaryName: secondName,
+        memberObj: m,
+        sheetRecord: sheetRec,
+      });
     });
 
-    // 2. From current sheet records if not already present
-    memberRecords.forEach((rec) => {
+    // 2. Any remaining sheet records that were not matched to registered members
+    activeYearRecords.forEach((rec, idx) => {
+      if (matchedSheetIndices.has(idx)) return;
       const recName = (rec.name || '').trim();
-      if (recName && !seenNames.has(recName.toLowerCase())) {
-        seenNames.add(recName.toLowerCase());
-        const synthMember: Member = {
-          id: `sheet-${rec.serial}`,
-          serial: rec.serial,
-          name: recName,
-          nameBn: recName,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-        };
-        list.push({
-          id: synthMember.id,
-          nameBn: recName,
-          serial: rec.serial,
-          memberObj: synthMember,
-        });
-      }
+      if (!recName) return;
+
+      const synthMember: Member = {
+        id: `sheet-${rec.serial}-${normalizeIdentity(recName)}`,
+        serial: rec.serial,
+        name: recName,
+        nameBn: recName,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+
+      const serialPrefix = rec.serial > 0 ? `${toBengaliNumeral(rec.serial)} — ` : '';
+      list.push({
+        id: synthMember.id,
+        serial: rec.serial,
+        displayName: `${serialPrefix}${recName}`,
+        canonicalName: recName,
+        memberObj: synthMember,
+        sheetRecord: rec,
+      });
     });
 
     return list.sort((a, b) => (a.serial || 9999) - (b.serial || 9999));
-  }, [membersList, memberRecords]);
+  }, [membersList, activeYearRecords]);
 
-  // Auto-select first member if none selected
+  // Auto-select first member if none selected or if selection invalid
   useEffect(() => {
-    if (!selectedMemberId && availableMembers.length > 0) {
-      setSelectedMemberId(availableMembers[0].id);
+    if (availableMembers.length > 0) {
+      if (!selectedMemberId || !availableMembers.some((m) => m.id === selectedMemberId)) {
+        setSelectedMemberId(availableMembers[0].id);
+      }
     }
   }, [availableMembers, selectedMemberId]);
 
-  // Find currently selected member
-  const currentMember = useMemo(() => {
-    return availableMembers.find((m) => m.id === selectedMemberId)?.memberObj;
+  // Find currently selected member entry
+  const selectedMemberEntry = useMemo(() => {
+    return availableMembers.find((m) => m.id === selectedMemberId) || availableMembers[0] || null;
   }, [availableMembers, selectedMemberId]);
 
-  // Find member's sheet record for the current year
-  const currentMemberSheetRecord = useMemo(() => {
-    if (!currentMember) return null;
-    const searchBn = (currentMember.nameBn || currentMember.name || '').trim().toLowerCase();
-    const searchEn = (currentMember.nameEn || '').trim().toLowerCase();
-
-    return memberRecords.find((rec) => {
-      const recName = (rec.name || '').trim().toLowerCase();
-      if (recName === searchBn) return true;
-      if (searchEn && recName === searchEn) return true;
-      if (currentMember.serial && rec.serial === currentMember.serial) return true;
-      return false;
-    });
-  }, [currentMember, memberRecords]);
+  const currentMember = selectedMemberEntry?.memberObj;
+  const currentMemberSheetRecord = selectedMemberEntry?.sheetRecord;
 
   // Available paid months for this member in the selected year
   const memberMonthStatus = useMemo(() => {
@@ -184,7 +267,6 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
 
     const recMonths = currentMemberSheetRecord.months || {};
     ORDERED_MONTH_KEYS.forEach((m) => {
-      // Check case-insensitively
       const val = recMonths[m] || (recMonths as any)[m.toLowerCase()] || '';
       const isPaid = val === 'paid' || val === 'Paid' || val === 'পরিশোধিত' || val === 'PAID';
       statusMap[m] = { isPaid, rawStatus: val };
@@ -196,7 +278,6 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
   useEffect(() => {
     const paidMonths = ORDERED_MONTH_KEYS.filter((m) => memberMonthStatus[m]?.isPaid);
     if (paidMonths.length > 0) {
-      // Retain already selected if valid, otherwise select latest paid
       setSelectedMonths((prev) => {
         const stillValid = prev.filter((m) => memberMonthStatus[m]?.isPaid);
         return stillValid.length > 0 ? stillValid : [paidMonths[paidMonths.length - 1]];
@@ -206,12 +287,34 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
     }
   }, [memberMonthStatus]);
 
-  // Handle year change
-  const handleYearChange = (year: string) => {
+  // Handle year change inside modal without resetting or reloading stale data
+  const handleYearChange = async (year: string) => {
+    if (year === selectedYear) return;
     setSelectedYear(year);
     setSelectedMonths([]);
-    if (onYearChange) {
-      onYearChange(year);
+    onYearChange?.(year);
+
+    // If records for this year are not yet in local cache, fetch them dynamically
+    if (!yearRecordsMap[year]) {
+      const src = yearlySources.find((s) => s.year === year);
+      const targetUrl = src?.url?.trim() || (year === currentYear ? config.fundSourceUrl : '');
+      const explicitGid = src?.gid?.trim();
+      if (targetUrl) {
+        setIsFetchingLocalYear(true);
+        try {
+          const res = await fetchFundData(targetUrl, false, year, explicitGid);
+          if (res.memberRecords) {
+            setYearRecordsMap((prev) => ({
+              ...prev,
+              [year]: res.memberRecords || [],
+            }));
+          }
+        } catch (err) {
+          console.warn('Failed to load year records in modal:', err);
+        } finally {
+          setIsFetchingLocalYear(false);
+        }
+      }
     }
   };
 
@@ -238,9 +341,15 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
     setSelectedMonths([]);
   };
 
-  // Monthly commitment amount
-  const monthlyCommitment = currentMemberSheetRecord?.commitment || 500;
-  const totalReceiptAmount = selectedMonths.length * monthlyCommitment;
+  // Monthly commitment amount calculated from actual member record
+  const monthlyCommitment =
+    (currentMemberSheetRecord?.commitment && currentMemberSheetRecord.commitment > 0)
+      ? currentMemberSheetRecord.commitment
+      : (currentMemberSheetRecord?.totalContributed && currentMemberSheetRecord.paidCount > 0)
+      ? Math.round(currentMemberSheetRecord.totalContributed / currentMemberSheetRecord.paidCount)
+      : 0;
+
+  const totalReceiptAmount = selectedMonths.length * (monthlyCommitment > 0 ? monthlyCommitment : 500);
 
   // Build receipt data object for preview
   const previewReceiptData: ReceiptData | null = useMemo(() => {
@@ -363,10 +472,14 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-xl font-bold tracking-tight">
-                অনলাইন চাঁদা ও অনুদান রসিদ
+                {language === 'ar' ? 'إيصال الاشتراك الشهري والتبرع' : language === 'en' ? 'Online Donation & Contribution Receipt' : 'অনলাইন চাঁদা ও অনুদান রসিদ'}
               </h2>
               <p className="text-[11px] sm:text-xs text-emerald-200/80">
-                আপনার জমাকৃত মাসিক চাঁদা ও অনুদানের তথ্য নির্বাচন করে রসিদ সংরক্ষণ করুন
+                {language === 'ar'
+                  ? 'حدد تفاصيل اشتراكك الشهري وتبرعك الإنساني لحفظ الإيصال.'
+                  : language === 'en'
+                  ? 'Select your monthly contribution and humanitarian donation details to save receipt.'
+                  : 'আপনার মাসিক চাঁদা ও মানবিক অনুদানের তথ্য নির্বাচন করে রসিদ সংরক্ষণ করুন।'}
               </p>
             </div>
           </div>
@@ -424,7 +537,7 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
               >
                 {availableMembers.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.serial ? `[#${m.serial}] ` : ''}{m.nameBn} {m.nameEn ? `(${m.nameEn})` : ''}
+                    {m.displayName}
                   </option>
                 ))}
               </select>
@@ -458,7 +571,7 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
             <div className="p-3.5 rounded-xl border bg-emerald-50/50 border-emerald-200/70 text-xs">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="font-semibold text-emerald-950">
-                  {currentMember?.nameBn || currentMember?.name || 'সদস্য'}
+                  {selectedMemberEntry?.displayName || currentMember?.nameBn || currentMember?.name || 'সদস্য'}
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
                   {toBengaliNumeral(paidMonthsCount)} মাস পরিশোধিত
@@ -469,6 +582,12 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
                 {(currentMember?.address || currentMember?.location) && ` • এলাকা: ${currentMember.address || currentMember.location}`}
                 {currentMember?.phone && ` • মোবা: ${currentMember.phone}`}
               </p>
+              {!currentMemberSheetRecord && (
+                <div className="mt-2 p-2 rounded-lg bg-amber-100/70 border border-amber-300 text-amber-900 text-[11px] flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" />
+                  <span>{toBengaliNumeral(selectedYear)} সালের গুগল শিটে এই সদস্যের কোনো জমার রেকর্ড পাওয়া যায়নি।</span>
+                </div>
+              )}
             </div>
 
             {/* Month Selection Grid */}
@@ -497,12 +616,12 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
                 </div>
               </div>
 
-              {isLoadingYearData ? (
+              {(isLoadingYearData || isFetchingLocalYear) ? (
                 <div className="py-6 text-center text-xs text-gray-500 flex items-center justify-center gap-2">
                   <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
                   <span>তথ্য যাচাই করা হচ্ছে...</span>
                 </div>
-              ) : memberRecords.length === 0 ? (
+              ) : activeYearRecords.length === 0 ? (
                 <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div>

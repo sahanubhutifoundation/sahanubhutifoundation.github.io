@@ -684,6 +684,7 @@ export const initialConfig: FoundationConfig = {
     showHistoricalYears: true,
     showActivityLinkedExpenses: true,
     showSourceLinks: true,
+    showPublicReceiptDownload: true,
   },
   fundPrivacy: {
     isEnabled: true,

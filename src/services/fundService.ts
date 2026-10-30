@@ -972,10 +972,63 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
           ? calculatedMemberTotal
           : commitment * paidMonthsCount;
 
+      const parsedSerial = parseNumber(noCell);
+      const cleanName = nameCell.trim();
+      const normalizedNameKey = cleanName.toLowerCase().replace(/[\s\.\-_]+/g, '');
+      const finalSerial = parsedSerial > 0 ? parsedSerial : members.length + 1;
+      const effectiveCommitment = commitment > 0 ? commitment : (paidMonthsCount > 0 ? Math.round(totalContributed / paidMonthsCount) : 500);
+
+      // Safe deduplication: Check if this exact member was already processed in this sheet
+      const existingMemberIdx = members.findIndex((m) => {
+        const mNorm = m.name.toLowerCase().replace(/[\s\.\-_]+/g, '');
+        if (mNorm === normalizedNameKey) {
+          if (parsedSerial > 0 && m.serial > 0) {
+            return parsedSerial === m.serial;
+          }
+          return true;
+        }
+        return false;
+      });
+
+      if (existingMemberIdx >= 0) {
+        const existing = members[existingMemberIdx];
+        const isIdentical =
+          existing.commitment === effectiveCommitment &&
+          existing.totalContributed === totalContributed &&
+          MONTH_KEYS.every((m) => existing.months[m] === months[m]);
+
+        if (isIdentical) {
+          summaryRowsExcludedCount++;
+          skippedSummaryRows.push(`Duplicate member row excluded: ${cleanName}`);
+          continue;
+        } else {
+          let mergedPaidCount = 0;
+          let mergedTotal = 0;
+          const mergedMonths: Record<string, 'paid' | 'unpaid'> = {};
+          MONTH_KEYS.forEach((m) => {
+            const isPaid = existing.months[m] === 'paid' || months[m] === 'paid';
+            mergedMonths[m] = isPaid ? 'paid' : 'unpaid';
+            if (isPaid) {
+              mergedPaidCount++;
+              mergedTotal += (existing.commitment > 0 ? existing.commitment : effectiveCommitment);
+            }
+          });
+          members[existingMemberIdx] = {
+            ...existing,
+            months: mergedMonths,
+            paidCount: mergedPaidCount,
+            totalContributed: Math.max(existing.totalContributed, totalContributed, mergedTotal),
+          };
+          continue;
+        }
+      }
+
+      const memberRecordId = `${targetYearKey}-${finalSerial}-${normalizedNameKey}`;
       members.push({
-        serial: parseNumber(noCell) || members.length + 1,
-        name: nameCell,
-        commitment: commitment > 0 ? commitment : (paidMonthsCount > 0 ? Math.round(totalContributed / paidMonthsCount) : 500),
+        id: memberRecordId,
+        serial: finalSerial,
+        name: cleanName,
+        commitment: effectiveCommitment,
         months,
         totalContributed,
         paidCount: paidMonthsCount,
