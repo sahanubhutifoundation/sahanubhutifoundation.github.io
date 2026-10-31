@@ -5013,6 +5013,32 @@ export const AdminPage: React.FC = () => {
                             </div>
                           )}
 
+                          {/* Unrecognized Members */}
+                          {testRes.diagnostics?.unrecognizedMembers && testRes.diagnostics.unrecognizedMembers.length > 0 && (
+                            <div className="p-2 rounded-lg bg-orange-50 border border-orange-200/70 text-[11px] text-orange-900 space-y-1">
+                              <span className="font-bold text-orange-800">অমীমাংসিত সদস্য ({testRes.diagnostics.unrecognizedMembers.length} জন):</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {testRes.diagnostics.unrecognizedMembers.map((m, i) => (
+                                  <span key={i} className="px-1.5 py-0.5 rounded bg-white border border-orange-200 text-orange-800 text-[10px]">
+                                    #{m.serial} {m.rawName}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Duplicate Conflicts */}
+                          {testRes.diagnostics?.duplicateConflicts && testRes.diagnostics.duplicateConflicts.length > 0 && (
+                            <div className="p-2 rounded-lg bg-amber-50 border border-amber-200/70 text-[11px] text-amber-900 space-y-1">
+                              <span className="font-bold text-amber-800">ডুপ্লিকেট সিরিয়াল / একাধিক এন্ট্রি নোট:</span>
+                              {testRes.diagnostics.duplicateConflicts.map((c, i) => (
+                                <div key={i} className="text-[10px] text-amber-800">
+                                  সিরিয়াল #{c.serial}: "{c.rawName}" ({c.issue})
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
                           {/* Warnings / Errors */}
                           {testRes.diagnostics?.warnings && testRes.diagnostics.warnings.length > 0 && (
                             <div className="p-2 rounded-lg bg-amber-50 border border-amber-200/70 text-[11px] text-amber-900 space-y-1">

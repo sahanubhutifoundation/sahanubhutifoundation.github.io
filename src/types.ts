@@ -445,6 +445,7 @@ export interface FundMemberRecord {
   id?: string;
   serial: number;
   name: string;
+  canonicalMemberId?: string;
   commitment: number;
   months: { [month: string]: 'paid' | 'unpaid' };
   totalContributed: number;
@@ -467,6 +468,15 @@ export interface FundDiagnostics {
   detectedMonthColumns?: string[] | number;
   candidateMemberRowsCount?: number;
   recognizedMembersCount?: number;
+  unrecognizedMembers?: { serial: number; rawName: string; reason?: string }[];
+  duplicateConflicts?: { serial: number; rawName: string; issue: string }[];
+  detectedColumns?: {
+    serialCol?: number;
+    nameCol?: number;
+    commitmentCol?: number;
+    totalCol?: number;
+    monthCols?: Record<string, number>;
+  };
   totalPaidMonthEntries?: number;
   totalUnpaidMonthEntries?: number;
   ambiguousEntriesCount?: number;

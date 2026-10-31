@@ -282,29 +282,34 @@ export const translations: TranslationDictionary = {
     ar: 'الإجمالي',
   },
   memberContributionSubtitle: {
-    bn: 'সদস্যদের নিয়মিত মাসিক অঙ্গীকার ও জমাকৃত কিস্তির স্বচ্ছ বিবরণী',
-    en: 'Transparent statement of monthly commitments and installments',
-    ar: 'بيان شفاف للالتزامات الشهرية والأقساط المسددة للأعضاء',
+    bn: 'সদস্যদের নিয়মিত মাসিক অবদান ও জমাকৃত কিস্তির স্বচ্ছ বিবরণী',
+    en: 'Transparent statement of monthly contributions and installments',
+    ar: 'بيان شفاف للمساهمات الشهرية والأقساط المسددة للأعضاء',
   },
   searchMemberPlaceholder: {
-    bn: 'সদস্যের নাম খুঁজুন...',
-    en: 'Search member by name...',
-    ar: 'ابحث عن اسم العضو...',
+    bn: 'সদস্যের নাম বা সিরিয়াল খুঁজুন...',
+    en: 'Search member by name or serial...',
+    ar: 'ابحث عن العضو بالاسم أو الرقم...',
   },
   filterAll: {
-    bn: 'সকল',
-    en: 'All',
-    ar: 'الكل',
+    bn: 'সকল সদস্য',
+    en: 'All Members',
+    ar: 'جميع الأعضاء',
   },
   filterComplete: {
     bn: 'পরিপূর্ণ',
-    en: 'Completed',
+    en: 'Complete',
     ar: 'مكتمل',
   },
   filterOngoing: {
     bn: 'চলমান',
     en: 'Ongoing',
     ar: 'قيد المتابعة',
+  },
+  filterDue: {
+    bn: 'বকেয়া রয়েছে',
+    en: 'Due / Arrears',
+    ar: 'المتأخرات',
   },
   colMemberName: {
     bn: 'সদস্যের নাম',
@@ -1185,7 +1190,7 @@ export const translations: TranslationDictionary = {
     ar: 'الأعضاء المساهمون بانتظام',
   },
   memberContributionBreakdown: {
-    bn: 'সদস্যভিত্তিক জমা ও চাঁদার তালিকা',
+    bn: 'সদস্যভিত্তিক জমা ও অবদানের তালিকা',
     en: 'Member Contribution & Collection Breakdown',
     ar: 'بيان اشتراكات وتبرعات الأعضاء',
   },
@@ -1455,9 +1460,9 @@ export const translations: TranslationDictionary = {
     ar: 'تبرعات شهرية أخرى',
   },
   otherMonthlyContributionsSubtitle: {
-    bn: 'মূল তহবিলে নিয়মিত সদস্য চাঁদার পাশাপাশি ব্যক্তিগত ও স্বেচ্ছাসেবী অনুদানের তালিকা',
-    en: 'List of individual voluntary contributions to the main fund alongside regular membership fees',
-    ar: 'قائمة بالمساهمات التطوعية الفردية في الصندوق الرئيسي إلى جانب الرسوم الدورية',
+    bn: 'মূল তহবিলে নিয়মিত সদস্য অবদানের পাশাপাশি ব্যক্তিগত ও স্বেচ্ছাসেবী অনুদানের তালিকা',
+    en: 'List of individual voluntary contributions to the main fund alongside regular member contributions',
+    ar: 'قائمة بالمساهمات التطوعية الفردية في الصندوق الرئيسي إلى جانب المساهمات الشهرية للأعضاء',
   },
   specialFundsTitle: {
     bn: 'আলাদা ও বিশেষ তহবিল',

@@ -11,7 +11,10 @@ import {
   formatLocalizedNumber,
   formatLocalizedAmount,
   formatMonthProgress,
-  parseRecordYear
+  parseRecordYear,
+  getApplicableMonthsForYear,
+  isMonthApplicableForYear,
+  toBengaliDigits
 } from '../utils/foundationHelpers';
 import { storageService } from '../services/storageService';
 import { fetchFundData, MONTH_KEYS, MONTH_NAMES_BN, getLocalizedMonthName } from '../services/fundService';
@@ -68,7 +71,7 @@ export const FundPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [memberFilter, setMemberFilter] = useState<'all' | 'complete' | 'ongoing'>('all');
+  const [memberFilter, setMemberFilter] = useState<'all' | 'complete' | 'ongoing' | 'due'>('all');
   const [activeReceiptUrl, setActiveReceiptUrl] = useState<string | null>(null);
   const [isAccessGranted, setIsAccessGranted] = useState<boolean>(() =>
     fundPrivacyService.isAccessGranted()
@@ -140,16 +143,17 @@ export const FundPage: React.FC = () => {
   // Selected year state (defaults to defaultYear, URL param, or localStorage)
   const [selectedYear, setSelectedYear] = useState<string>(() => {
     try {
+      const knownYears = ['2024', '2025', '2026'];
       const urlYear = searchParams.get('year');
-      if (urlYear && yearlySources.some((s) => s.year === urlYear)) return urlYear;
+      if (urlYear && (yearlySources.some((s) => s.year === urlYear) || knownYears.includes(urlYear))) return urlYear;
       const cachedYear = localStorage.getItem('sf_fund_last_selected_year');
-      if (cachedYear && yearlySources.some((s) => s.year === cachedYear)) return cachedYear;
+      if (cachedYear && (yearlySources.some((s) => s.year === cachedYear) || knownYears.includes(cachedYear))) return cachedYear;
     } catch {}
     return defaultYear;
   });
 
   const handleSelectYear = (yr: string) => {
-    if (yr === selectedYear) return;
+    if (!yr) return;
     setSelectedYear(yr);
     try {
       localStorage.setItem('sf_fund_last_selected_year', yr);
@@ -164,19 +168,21 @@ export const FundPage: React.FC = () => {
     } catch {}
   };
 
-  // Sync if selected year is no longer available in configured sources
+  // Sync if selected year is no longer available in configured sources and is not a known valid year
   useEffect(() => {
-    if (yearlySources.length > 0 && !yearlySources.some((s) => s.year === selectedYear)) {
+    const knownYears = ['2024', '2025', '2026'];
+    if (yearlySources.length > 0 && !yearlySources.some((s) => s.year === selectedYear) && !knownYears.includes(selectedYear)) {
       setSelectedYear(defaultYear);
     }
   }, [yearlySources, defaultYear, selectedYear]);
 
   // Synchronize when navigating back or when URL query / location state changes
   useEffect(() => {
+    const knownYears = ['2024', '2025', '2026'];
     const yrFromUrl = searchParams.get('year');
     const yrFromState = (location.state as any)?.selectedYear;
     const targetYr = yrFromUrl || yrFromState;
-    if (targetYr && yearlySources.some((s) => s.year === targetYr) && targetYr !== selectedYear) {
+    if (targetYr && (yearlySources.some((s) => s.year === targetYr) || knownYears.includes(targetYr)) && targetYr !== selectedYear) {
       setSelectedYear(targetYr);
     }
   }, [searchParams, location.state, yearlySources, selectedYear]);
@@ -442,24 +448,114 @@ export const FundPage: React.FC = () => {
     }
   };
 
-  // Filtered members list
-  const filteredMembers = useMemo(() => {
+  // Applicable months for selected year (for 2024 founding year, ['Dec'] only)
+  const applicableMonths = useMemo(() => getApplicableMonthsForYear(selectedYear), [selectedYear]);
+
+  // Calculate member classifications for filtering and status counts
+  const memberEvaluations = useMemo(() => {
     if (!fundData?.memberRecords) return [];
-    let list = fundData.memberRecords;
+
+    const currentCalendarYear = new Date().getFullYear();
+    const currentCalendarMonth = new Date().getMonth(); // 0 = Jan ... 11 = Dec
+    const selYearNum = parseInt(selectedYear, 10) || currentCalendarYear;
+    const isHistoricalYear = selYearNum < currentCalendarYear;
+    const totalApplicable = applicableMonths.length;
+
+    // Cutoff month expectation for active current year
+    let expectedMonths = totalApplicable;
+    if (!isHistoricalYear && selYearNum === currentCalendarYear) {
+      expectedMonths = Math.min(totalApplicable, currentCalendarMonth + 1);
+    }
+
+    return fundData.memberRecords.map((m) => {
+      const paidApplicableCount = applicableMonths.filter((mo) => m.months && m.months[mo] === 'paid').length;
+      const isComplete = paidApplicableCount >= totalApplicable && totalApplicable > 0;
+
+      let isOngoing = false;
+      let isDue = false;
+
+      if (isComplete) {
+        isOngoing = false;
+        isDue = false;
+      } else if (isHistoricalYear) {
+        // Concluded year: incomplete means due/arrears
+        isDue = true;
+        isOngoing = false;
+      } else {
+        // Active year: if up to date through current cutoff month, ongoing; otherwise due
+        if (paidApplicableCount >= expectedMonths) {
+          isOngoing = true;
+          isDue = false;
+        } else {
+          isDue = true;
+          isOngoing = false;
+        }
+      }
+
+      return {
+        ...m,
+        paidApplicableCount,
+        totalApplicable,
+        isComplete,
+        isOngoing,
+        isDue,
+      };
+    });
+  }, [fundData?.memberRecords, selectedYear, applicableMonths]);
+
+  // Counts for all 4 filter tabs
+  const filterCounts = useMemo(() => {
+    return {
+      all: memberEvaluations.length,
+      complete: memberEvaluations.filter((m) => m.isComplete).length,
+      ongoing: memberEvaluations.filter((m) => m.isOngoing).length,
+      due: memberEvaluations.filter((m) => m.isDue).length,
+    };
+  }, [memberEvaluations]);
+
+  // Filtered members list based on search and active filter tab
+  const filteredMembers = useMemo(() => {
+    let list = memberEvaluations;
 
     if (searchTerm.trim()) {
       const q = searchTerm.trim().toLowerCase();
-      list = list.filter((m) => (m.name || '').toLowerCase().includes(q));
+      list = list.filter((m) => {
+        const rawName = (m.name || '').toLowerCase();
+        const resolved = resolveContributionMemberName(m.name || '');
+        const dispName = (resolved.displayName || '').toLowerCase();
+        const serialStr = String(m.serial || '').toLowerCase();
+        const serialBn = toBengaliDigits(m.serial || '').toLowerCase();
+
+        // Also check matched canonical member details
+        const matchedMember = m.canonicalMemberId
+          ? membersList.find((mem) => mem.id === m.canonicalMemberId)
+          : memberNameMap.get(rawName);
+        const nameBn = (matchedMember?.nameBn || '').toLowerCase();
+        const nameEn = (matchedMember?.nameEn || '').toLowerCase();
+
+        return (
+          rawName.includes(q) ||
+          dispName.includes(q) ||
+          nameBn.includes(q) ||
+          nameEn.includes(q) ||
+          serialStr === q ||
+          serialBn === q ||
+          serialStr.includes(q) ||
+          serialBn.includes(q)
+        );
+      });
     }
 
     if (memberFilter === 'complete') {
-      list = list.filter((m) => m.paidCount >= 12);
+      list = list.filter((m) => m.isComplete);
     } else if (memberFilter === 'ongoing') {
-      list = list.filter((m) => m.paidCount < 12);
+      list = list.filter((m) => m.isOngoing);
+    } else if (memberFilter === 'due') {
+      list = list.filter((m) => m.isDue);
     }
 
     return list;
-  }, [fundData?.memberRecords, searchTerm, memberFilter]);
+  }, [memberEvaluations, searchTerm, memberFilter, resolveContributionMemberName, membersList, memberNameMap]);
 
   // Max monthly total for relative bar sizing
   const maxMonthlyVal = useMemo(() => {
@@ -1036,7 +1132,7 @@ export const FundPage: React.FC = () => {
                             ? 'bg-[#E8EFEA]/40 border-[#2D5A41]'
                             : 'bg-[#FDFCF9] border-[#EBE8E0] hover:border-[#2D5A41]/40'
                         }`}
-                        onClick={() => setSelectedYear(year)}
+                        onClick={() => handleSelectYear(year)}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-bold text-[#5C665F]">
@@ -1089,8 +1185,29 @@ export const FundPage: React.FC = () => {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                 {MONTH_KEYS.map((m) => {
+                  const isApplicable = isMonthApplicableForYear(m, selectedYear);
                   const amount = fundData.monthlyTotals?.[m] || 0;
                   const barHeightPct = maxMonthlyVal > 0 ? Math.round((amount / maxMonthlyVal) * 100) : 0;
+
+                  if (!isApplicable) {
+                    return (
+                      <div
+                        key={m}
+                        className="p-3.5 rounded-xl bg-[#FDFCF9]/60 border border-dashed border-[#EBE8E0] flex flex-col justify-between opacity-60"
+                      >
+                        <div className="flex items-center justify-between text-xs text-[#7A877E]">
+                          <span className="font-semibold">{getLocalizedMonthName(m, language)}</span>
+                          {language === 'en' && <span className="text-[10px] text-[#A4B3A8] uppercase">{m}</span>}
+                        </div>
+                        <div className="my-2.5">
+                          <div className="text-xs font-medium text-[#A4B3A8]">
+                            {language === 'ar' ? 'قبل التأسيس' : language === 'en' ? 'Pre-foundation' : 'প্রতিষ্ঠার পূর্ববর্তী'}
+                          </div>
+                        </div>
+                        <div className="w-full h-1.5 bg-[#EBE8E0]/40 rounded-full" />
+                      </div>
+                    );
+                  }
 
                   return (
                     <div
@@ -1152,7 +1269,7 @@ export const FundPage: React.FC = () => {
                     />
                   </div>
 
-                  <div className="flex items-center gap-1 p-1 bg-[#F7F5F0] rounded-lg border border-[#EBE8E0] text-xs">
+                  <div className="flex flex-wrap items-center gap-1 p-1 bg-[#F7F5F0] rounded-lg border border-[#EBE8E0] text-xs">
                     <button
                       type="button"
                       onClick={() => setMemberFilter('all')}
@@ -1162,7 +1279,7 @@ export const FundPage: React.FC = () => {
                           : 'text-[#5C665F] hover:text-[#2D3630]'
                       }`}
                     >
-                      {t('filterAll')} ({formatLocalizedNumber(fundData.memberRecords.length, language)})
+                      {t('filterAll')} ({formatLocalizedNumber(filterCounts.all, language)})
                     </button>
                     <button
                       type="button"
@@ -1173,18 +1290,29 @@ export const FundPage: React.FC = () => {
                           : 'text-[#5C665F] hover:text-[#2D3630]'
                       }`}
                     >
-                      {t('filterComplete')}
+                      {t('filterComplete')} ({formatLocalizedNumber(filterCounts.complete, language)})
                     </button>
                     <button
                       type="button"
                       onClick={() => setMemberFilter('ongoing')}
                       className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
                         memberFilter === 'ongoing'
-                          ? 'bg-white text-[#5C665F] shadow-2xs font-semibold'
+                          ? 'bg-white text-[#2D5A41] shadow-2xs font-semibold'
                           : 'text-[#5C665F] hover:text-[#2D3630]'
                       }`}
                     >
-                      {t('filterOngoing')}
+                      {t('filterOngoing')} ({formatLocalizedNumber(filterCounts.ongoing, language)})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberFilter('due')}
+                      className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                        memberFilter === 'due'
+                          ? 'bg-white text-rose-700 shadow-2xs font-semibold'
+                          : 'text-[#5C665F] hover:text-rose-700'
+                      }`}
+                    >
+                      {t('filterDue')} ({formatLocalizedNumber(filterCounts.due, language)})
                     </button>
                   </div>
                 </div>
@@ -1198,21 +1326,28 @@ export const FundPage: React.FC = () => {
                       <th className="py-3 px-3 w-10 text-center">#</th>
                       <th className="py-3 px-4">{t('colMemberName')}</th>
                       <th className="py-3 px-3 text-right">{t('colMonthlyRate')}</th>
-                      {MONTH_KEYS.map((m) => (
-                        <th key={m} className="py-3 px-2 text-center text-[11px]">
-                          {getLocalizedMonthName(m, language)}
-                        </th>
-                      ))}
+                      {MONTH_KEYS.map((m) => {
+                        const isApplicable = isMonthApplicableForYear(m, selectedYear);
+                        return (
+                          <th
+                            key={m}
+                            className={`py-3 px-2 text-center text-[11px] ${
+                              !isApplicable ? 'text-[#B0ABA0] font-normal' : ''
+                            }`}
+                          >
+                            {getLocalizedMonthName(m, language)}
+                          </th>
+                        );
+                      })}
                       <th className="py-3 px-3 text-right">{t('colTotalDeposit')}</th>
                       <th className="py-3 px-3 text-center">{t('colProgress')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#EBE8E0]">
                     {filteredMembers.map((member) => {
-                      const isFullyPaid = member.paidCount >= 12;
                       const safeName = (member.name || '').trim();
                       const resolved = resolveContributionMemberName(safeName);
-                      const matchedMemberId = resolved.memberId || (safeName ? memberNameMap.get(safeName.toLowerCase())?.id : undefined);
+                      const matchedMemberId = member.canonicalMemberId || resolved.memberId || (safeName ? memberNameMap.get(safeName.toLowerCase())?.id : undefined);
                       const displayName = resolved.displayName || safeName || 'সদস্য';
 
                       return (
@@ -1238,6 +1373,26 @@ export const FundPage: React.FC = () => {
                             ৳ {formatLocalizedAmount(member.commitment, language)}
                           </td>
                           {MONTH_KEYS.map((m) => {
+                            const isApplicable = isMonthApplicableForYear(m, selectedYear);
+                            if (!isApplicable) {
+                              return (
+                                <td key={m} className="py-3 px-2 text-center">
+                                  <span
+                                    className="text-[#C5BFB0] font-mono text-[11px] select-none"
+                                    title={
+                                      language === 'ar'
+                                        ? 'قبل تأسيس المؤسسة'
+                                        : language === 'en'
+                                        ? 'Pre-foundation'
+                                        : 'প্রতিষ্ঠার পূর্ববর্তী'
+                                    }
+                                  >
+                                    —
+                                  </span>
+                                </td>
+                              );
+                            }
+
                             const isPaid = member.months && member.months[m] === 'paid';
                             const mName = getLocalizedMonthName(m, language);
                             return (
@@ -1264,13 +1419,15 @@ export const FundPage: React.FC = () => {
                           <td className="py-3 px-3 text-center whitespace-nowrap">
                             <span
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                                isFullyPaid
-                                    ? 'bg-[#E8EFEA] text-[#2D5A41]'
+                                member.isComplete
+                                  ? 'bg-[#E8EFEA] text-[#2D5A41]'
+                                  : member.isDue
+                                  ? 'bg-rose-50 text-rose-700'
                                   : 'bg-[#F7F5F0] text-[#5C665F]'
                               }`}
                             >
-                              {isFullyPaid && <CheckCircle2 className="w-3 h-3 text-[#2D5A41]" />}
-                              <span>{formatMonthProgress(member.paidCount, 12, language)}</span>
+                              {member.isComplete && <CheckCircle2 className="w-3 h-3 text-[#2D5A41]" />}
+                              <span>{formatMonthProgress(member.paidApplicableCount, member.totalApplicable, language)}</span>
                             </span>
                           </td>
                         </tr>
@@ -1514,7 +1671,7 @@ export const FundPage: React.FC = () => {
                     ? 'حدد تفاصيل اشتراكك الشهري وتبرعك الإنساني لحفظ الإيصال.'
                     : language === 'en'
                     ? 'Select your monthly contribution and humanitarian donation details to save receipt.'
-                    : 'আপনার মাসিক চাঁদা ও মানবিক অনুদানের তথ্য নির্বাচন করে রসিদ সংরক্ষণ করুন।'}
+                    : 'আপনার জমাকৃত মাসিক অবদান ও মানবিক অনুদানের তথ্য নির্বাচন করে রসিদ সংরক্ষণ করুন।'}
                 </p>
               </div>
 

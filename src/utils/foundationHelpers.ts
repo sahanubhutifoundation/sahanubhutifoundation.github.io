@@ -35,6 +35,27 @@ export function formatMonthProgress(paidCount: number, totalMonths: number = 12,
 }
 
 /**
+ * Returns the array of applicable months for any accounting year.
+ * Foundation was established on 28/11/2024, so for 2024 December is the sole applicable month.
+ * Standard years (2025+) have all 12 calendar months.
+ */
+export function getApplicableMonthsForYear(year?: string | number): string[] {
+  const y = String(year || '').trim();
+  if (y === '2024') {
+    return ['Dec'];
+  }
+  return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+}
+
+export function isMonthApplicableForYear(monthKey: string, year?: string | number): boolean {
+  const y = String(year || '').trim();
+  if (y === '2024') {
+    return monthKey.toLowerCase() === 'dec';
+  }
+  return true;
+}
+
+/**
  * Parses date string supporting both YYYY-MM-DD and DD/MM/YYYY, with Bengali/Arabic numeral support
  */
 export function parseDateComponents(dateStr?: string): { day: string; month: string; year: string } | null {

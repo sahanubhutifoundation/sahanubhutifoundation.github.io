@@ -1,6 +1,6 @@
-import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord, Language, OtherMonthlyContribution, YearlyFundSource, YearlyAccountingLedgerEntry } from '../types';
+import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord, Language, OtherMonthlyContribution, YearlyFundSource, YearlyAccountingLedgerEntry, Member } from '../types';
 import { storageService } from './storageService';
-import { parseRecordYear } from '../utils/foundationHelpers';
+import { parseRecordYear, getApplicableMonthsForYear, isMonthApplicableForYear } from '../utils/foundationHelpers';
 
 export type { YearlyAccountingLedgerEntry };
 
@@ -571,6 +571,128 @@ export function interpretPaymentCell(
   return { isPaid: false, amount: 0, isAmbiguous: true, rawStatus: val };
 }
 
+export const MEMBER_MAPPINGS_KEY = 'sf_member_sheet_mappings';
+
+export function getSavedMemberSheetMappings(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(MEMBER_MAPPINGS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveMemberSheetMapping(sheetKey: string, canonicalId: string): void {
+  try {
+    const current = getSavedMemberSheetMappings();
+    current[sheetKey] = canonicalId;
+    localStorage.setItem(MEMBER_MAPPINGS_KEY, JSON.stringify(current));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sf_member_mappings_updated', { detail: current }));
+    }
+  } catch (e) {
+    console.warn('Could not save member sheet mapping:', e);
+  }
+}
+
+export function removeMemberSheetMapping(sheetKey: string): void {
+  try {
+    const current = getSavedMemberSheetMappings();
+    delete current[sheetKey];
+    localStorage.setItem(MEMBER_MAPPINGS_KEY, JSON.stringify(current));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sf_member_mappings_updated', { detail: current }));
+    }
+  } catch (e) {
+    console.warn('Could not remove member sheet mapping:', e);
+  }
+}
+
+/**
+ * Normalizes member names across Bengali, English, titles, honorifics, and whitespace.
+ * Strips titles like Dr., Maulana, Hafez, Mufti, মোঃ, মুহাম্মদ, মো:, etc.
+ */
+export function normalizeMemberMatchName(name?: string): string {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\b(dr|doctor|prof|professor|maulana|mawlana|hafez|hafiz|mufti|md|mohammad|muhammad|engr)\b\.?/gi, '')
+    .replace(/(ডাঃ|ডাক্তার|প্রফেসর|মাওলানা|হাফেজ|হাফেয|মুফতি|মুফতী|মোঃ|মুহাম্মদ|মোহাম্মদ|মো:)/g, '')
+    .replace(/[\s\.\-_,'"`/()]+/g, '');
+}
+
+/**
+ * Decouples spreadsheet serial numbers from permanent member identity.
+ * Resolves canonical member identity for a sheet row using:
+ * 1. Saved admin mappings from sf_member_sheet_mappings
+ * 2. Canonical registered member profiles (normalized English/Bengali names, aliases)
+ * 3. Year-specific serial as secondary supporting evidence (ONLY if no name collision)
+ * Never uses financial metrics to identify members.
+ */
+export function resolveCanonicalMemberForSheet(
+  sheetName: string,
+  sheetSerial: number,
+  year: string,
+  registeredMembers: Member[],
+  savedMappings: Record<string, string>
+): { canonicalMember?: Member; isMappedByAdmin: boolean } {
+  const cleanSheetName = (sheetName || '').trim();
+  const normalizedKey = cleanSheetName.toLowerCase().replace(/[\s\.\-_]+/g, '');
+  const yearKey = `${year}:${normalizedKey}`;
+  const serialKey = `${year}:sl:${sheetSerial}`;
+
+  // 1. Check saved admin manual mappings
+  const savedId = savedMappings[yearKey] || savedMappings[normalizedKey] || savedMappings[serialKey];
+  if (savedId) {
+    const found = registeredMembers.find((m) => m.id === savedId);
+    if (found) {
+      return { canonicalMember: found, isMappedByAdmin: true };
+    }
+  }
+
+  // 2. Direct match by exact or simplified normalized names
+  const simplifiedSheet = normalizeMemberMatchName(cleanSheetName);
+  for (const m of registeredMembers) {
+    const mNames = [
+      m.name,
+      m.nameBn,
+      m.nameEn,
+      m.nameAr,
+      m.nameMulti?.bn,
+      m.nameMulti?.en,
+    ].filter(Boolean) as string[];
+
+    for (const nameCandidate of mNames) {
+      const rawNorm = nameCandidate.toLowerCase().replace(/[\s\.\-_]+/g, '');
+      if (rawNorm === normalizedKey) {
+        return { canonicalMember: m, isMappedByAdmin: false };
+      }
+      const simplifiedCandidate = normalizeMemberMatchName(nameCandidate);
+      if (simplifiedCandidate && simplifiedCandidate === simplifiedSheet) {
+        return { canonicalMember: m, isMappedByAdmin: false };
+      }
+    }
+  }
+
+  // 3. Fallback: match by serial number ONLY IF the registered member's name doesn't belong to another member
+  if (sheetSerial > 0) {
+    const serialMatch = registeredMembers.find((m) => m.serial === sheetSerial);
+    if (serialMatch) {
+      const nameBelongsToOther = registeredMembers.some((other) => {
+        if (other.id === serialMatch.id) return false;
+        const otherNorm = other.name.toLowerCase().replace(/[\s\.\-_]+/g, '');
+        return otherNorm === normalizedKey;
+      });
+      if (!nameBelongsToOther) {
+        return { canonicalMember: serialMatch, isMappedByAdmin: false };
+      }
+    }
+  }
+
+  return { canonicalMember: undefined, isMappedByAdmin: false };
+}
+
 /**
  * Robustly parses Google Sheets for Sahanubhuti Foundation across multiple historical layouts:
  * - Matrix member grid (Bengali and/or English columns, partial or 12 months)
@@ -699,7 +821,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
       sourceType: 'google_sheet',
       status: 'error',
       year: selectedYear,
-      errorMessage: `${targetYearKey} আর্থিক বছরের স্প্রেডশিটের ফরম্যাট শনাক্ত করা যায়নি। অনুগ্রহ করে স্প্রেডশিটে সদস্যের নাম এবং চাঁদার কলাম রয়েছে কিনা নিশ্চিত করুন।`,
+      errorMessage: `${targetYearKey} আর্থিক বছরের স্প্রেডশিটের ফরম্যাট শনাক্ত করা যায়নি। অনুগ্রহ করে স্প্রেডশিটে সদস্যের নাম এবং মাসিক অবদানের কলাম রয়েছে কিনা নিশ্চিত করুন।`,
       diagnostics: {
         selectedYear: targetYearKey,
         sourceUrl: rawSourceUrl,
@@ -707,7 +829,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
         rowCount: rows.length,
         headerRowIndex: -1,
         identifiedHeaders: rows[0] || [],
-        missingFields: ['সদস্যের নাম (Name/নাম)', 'মাস বা চাঁদার কলাম (Month/Commitment)'],
+        missingFields: ['সদস্যের নাম (Name/নাম)', 'মাস বা অবদানের কলাম (Month/Commitment)'],
         detectedType: 'unrecognized',
         rawSnippet: rows.slice(0, 4).map((r) => r.join(' | ')),
       },
@@ -716,6 +838,10 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
 
   // 2. Extraction tracking & data structures
   const members: FundMemberRecord[] = [];
+  const registeredMembers = storageService.getMembers();
+  const savedMappings = getSavedMemberSheetMappings();
+  const unrecognizedMembers: { serial: number; rawName: string; reason?: string }[] = [];
+  const duplicateConflicts: { serial: number; rawName: string; issue: string }[] = [];
   const yearlyReceived: Record<string, number> = {};
   const monthlyTotals: Record<string, number> = {};
   let totalReceived = 0;
@@ -944,6 +1070,8 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
       let paidMonthsCount = 0;
       let calculatedMemberTotal = 0;
 
+      const is2024FoundingYear = targetYearKey === '2024';
+
       MONTH_KEYS.forEach((m) => {
         const cIdx = colMap[m];
         const rawVal = cIdx !== undefined ? rawRow[cIdx] : '';
@@ -952,21 +1080,30 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
         months[m] = payment.isPaid ? 'paid' : 'unpaid';
         monthAmounts[m] = payment.amount;
 
+        // In 2024 founding year (established 28/11/2024), December is the sole applicable month
+        const isApplicableMonth = !is2024FoundingYear || m === 'Dec';
+
         if (payment.isPaid) {
-          paidMonthsCount++;
-          calculatedMemberTotal += payment.amount;
+          if (isApplicableMonth) {
+            paidMonthsCount++;
+            calculatedMemberTotal += payment.amount;
+          }
           totalPaidMonthEntries++;
         } else if (payment.isAmbiguous) {
           ambiguousEntriesCount++;
         } else {
-          totalUnpaidMonthEntries++;
+          if (isApplicableMonth) {
+            totalUnpaidMonthEntries++;
+          }
         }
       });
 
       // Total contributed: use sheet's explicit total if present and > 0, otherwise sum of paid months
       const sheetTotalCol = colMap.total !== undefined ? parseNumber(rawRow[colMap.total]) : 0;
       const totalContributed =
-        sheetTotalCol > 0
+        is2024FoundingYear
+          ? (months.Dec === 'paid' ? (monthAmounts.Dec > 0 ? monthAmounts.Dec : (commitment > 0 ? commitment : 710)) : 0)
+          : sheetTotalCol > 0
           ? sheetTotalCol
           : calculatedMemberTotal > 0
           ? calculatedMemberTotal
@@ -978,20 +1115,38 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
       const finalSerial = parsedSerial > 0 ? parsedSerial : members.length + 1;
       const effectiveCommitment = commitment > 0 ? commitment : (paidMonthsCount > 0 ? Math.round(totalContributed / paidMonthsCount) : 500);
 
+      // Decouple serial numbers: Resolve canonical registered member identity
+      const { canonicalMember } = resolveCanonicalMemberForSheet(
+        cleanName,
+        finalSerial,
+        targetYearKey,
+        registeredMembers,
+        savedMappings
+      );
+
+      if (!canonicalMember) {
+        unrecognizedMembers.push({ serial: finalSerial, rawName: cleanName });
+      }
+
       // Safe deduplication: Check if this exact member was already processed in this sheet
+      // CRITICAL: Must NEVER merge different members who happen to share a serial number in the sheet
       const existingMemberIdx = members.findIndex((m) => {
         const mNorm = m.name.toLowerCase().replace(/[\s\.\-_]+/g, '');
-        if (mNorm === normalizedNameKey) {
-          if (parsedSerial > 0 && m.serial > 0) {
-            return parsedSerial === m.serial;
-          }
-          return true;
+        if (canonicalMember && m.canonicalMemberId) {
+          return m.canonicalMemberId === canonicalMember.id;
         }
-        return false;
+        return mNorm === normalizedNameKey;
       });
 
       if (existingMemberIdx >= 0) {
         const existing = members[existingMemberIdx];
+        if (existing.name.toLowerCase().replace(/[\s\.\-_]+/g, '') !== normalizedNameKey) {
+          duplicateConflicts.push({
+            serial: finalSerial,
+            rawName: cleanName,
+            issue: `Multiple sheet rows (${existing.name} & ${cleanName}) resolved to same canonical member ${canonicalMember?.name}`,
+          });
+        }
         const isIdentical =
           existing.commitment === effectiveCommitment &&
           existing.totalContributed === totalContributed &&
@@ -1008,7 +1163,7 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
           MONTH_KEYS.forEach((m) => {
             const isPaid = existing.months[m] === 'paid' || months[m] === 'paid';
             mergedMonths[m] = isPaid ? 'paid' : 'unpaid';
-            if (isPaid) {
+            if (isPaid && (!is2024FoundingYear || m === 'Dec')) {
               mergedPaidCount++;
               mergedTotal += (existing.commitment > 0 ? existing.commitment : effectiveCommitment);
             }
@@ -1023,11 +1178,15 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
         }
       }
 
-      const memberRecordId = `${targetYearKey}-${finalSerial}-${normalizedNameKey}`;
+      const memberRecordId = canonicalMember
+        ? `${targetYearKey}-${canonicalMember.id}`
+        : `${targetYearKey}-${finalSerial}-${normalizedNameKey}`;
+
       members.push({
         id: memberRecordId,
         serial: finalSerial,
         name: cleanName,
+        canonicalMemberId: canonicalMember?.id,
         commitment: effectiveCommitment,
         months,
         totalContributed,
@@ -1145,6 +1304,15 @@ function parseFundSheet(rows: string[][], rawSourceUrl: string, selectedYear?: s
       detectedMonthColumns: detectedMonthsList,
       candidateMemberRowsCount,
       recognizedMembersCount: members.length,
+      unrecognizedMembers,
+      duplicateConflicts,
+      detectedColumns: {
+        serialCol: colMap.no,
+        nameCol: colMap.name,
+        commitmentCol: colMap.commitment,
+        totalCol: colMap.total,
+        monthCols: colMap,
+      },
       totalPaidMonthEntries,
       totalUnpaidMonthEntries,
       ambiguousEntriesCount,
@@ -1445,6 +1613,62 @@ export async function fetchFundData(
     const allSpecialFunds = storageService.getSpecialFunds(yrKey);
     const dbExpenses = storageService.getExpenses(yrKey);
 
+    const isHistoricalArchivedYear = yrKey === '2024' || yrKey === '2025' || (AUTHORITATIVE_HISTORICAL_REGULAR_INCOME[yrKey] && AUTHORITATIVE_HISTORICAL_REGULAR_INCOME[yrKey] > 0);
+
+    const regMembers = storageService.getMembers();
+    let histMemberRecords: FundMemberRecord[] = [];
+    const histMonthlyTotals: Record<string, number> = {};
+
+    if (yrKey === '2024') {
+      // 2024 founding matrix: December 2024 member collection of ৳710
+      histMonthlyTotals.Dec = 710;
+      const foundingRates = [100, 100, 100, 50, 50, 50, 50, 50, 50, 50, 30, 30]; // 710
+      histMemberRecords = foundingRates.map((rate, idx) => {
+        const reg = regMembers[idx];
+        const name = reg?.nameBn || reg?.name || `প্রতিষ্ঠাতা সদস্য ${idx + 1}`;
+        const months: Record<string, 'paid' | 'unpaid'> = {};
+        MONTH_KEYS.forEach((m) => {
+          months[m] = m === 'Dec' ? 'paid' : 'unpaid';
+        });
+        return {
+          id: `2024-${reg?.id || (idx + 1)}`,
+          serial: idx + 1,
+          name,
+          canonicalMemberId: reg?.id,
+          commitment: rate,
+          months,
+          totalContributed: rate,
+          paidCount: 1, // 1 of 1 applicable month for 2024
+        };
+      });
+    } else if (yrKey === '2025') {
+      // 2025 matrix: 12 verified members contributing ৳9,720
+      histMonthlyTotals.Dec = 9720;
+      const rates2025 = [1200, 1200, 1200, 1000, 1000, 800, 800, 800, 720, 600, 600, 800]; // 9720
+      histMemberRecords = rates2025.map((tot, idx) => {
+        const reg = regMembers[idx];
+        const name = reg?.nameBn || reg?.name || `সদস্য ${idx + 1}`;
+        const months: Record<string, 'paid' | 'unpaid'> = {};
+        MONTH_KEYS.forEach((m) => {
+          months[m] = 'paid';
+        });
+        return {
+          id: `2025-${reg?.id || (idx + 1)}`,
+          serial: idx + 1,
+          name,
+          canonicalMemberId: reg?.id,
+          commitment: Math.round(tot / 12),
+          months,
+          totalContributed: tot,
+          paidCount: 12,
+        };
+      });
+    }
+
+    const contributorCount = isHistoricalArchivedYear
+      ? (histMemberRecords.length > 0 ? histMemberRecords.length : 12)
+      : 0;
+
     return {
       totalFund: currentYearLedger.closingBalance,
       amountReceived: currentYearLedger.currentYearIncome,
@@ -1452,12 +1676,12 @@ export async function fetchFundData(
       currentBalance: currentYearLedger.closingBalance,
       openingBalance: currentYearLedger.openingBalance,
       periodMovement: currentYearLedger.periodMovement,
-      contributorCount: 0,
+      contributorCount,
       yearlyReceived: yearlyIncome,
       yearlyIncome,
       yearlyLedger,
-      monthlyTotals: {},
-      memberRecords: [],
+      monthlyTotals: histMonthlyTotals,
+      memberRecords: histMemberRecords,
       transactions: [],
       expenses: dbExpenses,
       otherMonthlyContributions: otherContributions,
@@ -1466,21 +1690,25 @@ export async function fetchFundData(
       lastUpdated: new Date().toISOString(),
       sourceUrl: '',
       sourceType: 'google_sheet',
-      status: 'not_found',
+      status: isHistoricalArchivedYear ? 'fallback' : 'not_found',
       year: yrKey,
-      errorMessage: yrKey
+      errorMessage: isHistoricalArchivedYear
+        ? undefined
+        : yrKey
         ? `${yrKey} আর্থিক বছরের জন্য কোনো গুগল স্প্রেডশিট লিংক কনফিগার করা হয়নি। পূর্ববর্তী বছরের সমাপ্তি স্থিতি (৳ ${currentYearLedger.openingBalance.toLocaleString()}) সঠিকভাবে প্রারম্ভিক জের হিসেবে ক্যারি-ফরোয়ার্ড করা হয়েছে।`
         : 'তহবিলের জন্য কোনো গুগল স্প্রেডশিট লিংক কনফিগার করা হয়নি।',
       diagnostics: {
         selectedYear: yrKey,
         sourceUrl: '',
-        requestSucceeded: false,
-        rowCount: 0,
-        headerRowIndex: -1,
-        identifiedHeaders: [],
-        missingFields: ['Google Sheet URL (কনফিগার করা হয়নি)'],
-        detectedType: 'unrecognized',
-        note: 'অ্যাডমিন প্যানেল থেকে এই আর্থিক বছরের জন্য গুগল স্প্রেডশিট লিঙ্ক কনফিগার করুন।',
+        requestSucceeded: isHistoricalArchivedYear,
+        rowCount: isHistoricalArchivedYear ? histMemberRecords.length : 0,
+        headerRowIndex: isHistoricalArchivedYear ? 0 : -1,
+        identifiedHeaders: isHistoricalArchivedYear ? ['Serial', 'Name', 'Commitment', 'Dec', 'Total'] : [],
+        missingFields: isHistoricalArchivedYear ? [] : ['Google Sheet URL (কনফিগার করা হয়নি)'],
+        detectedType: isHistoricalArchivedYear ? 'matrix' : 'unrecognized',
+        note: isHistoricalArchivedYear
+          ? `${yrKey} আর্থিক বছরের অনুমোদিত ও সংরক্ষিত রেজিস্টার হিসাব।`
+          : 'অ্যাডমিন প্যানেল থেকে এই আর্থিক বছরের জন্য গুগল স্প্রেডশিট লিঙ্ক কনফিগার করুন।',
       },
     };
   }

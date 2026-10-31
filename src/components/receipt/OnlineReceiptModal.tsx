@@ -5,6 +5,7 @@ import { DonationReceiptCard, ReceiptData } from './DonationReceiptCard';
 import { downloadReceiptElement, downloadReceiptsZip } from '../../utils/receiptDownload';
 import { getDeterministicReceiptNumber } from '../../utils/receiptNumbering';
 import { toBengaliNumeral, BENGALI_MONTH_NAMES, ORDERED_MONTH_KEYS } from '../../utils/bengaliWords';
+import { isMonthApplicableForYear } from '../../utils/foundationHelpers';
 import { fetchFundData } from '../../services/fundService';
 import {
   FileText,
@@ -161,9 +162,10 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
 
       let matchedRecIndex = -1;
 
-      // Rule A: Exact or normalized name match against sheet records
+      // Rule A: Direct canonical ID match or exact/normalized name match against sheet records
       matchedRecIndex = activeYearRecords.findIndex((rec, idx) => {
         if (matchedSheetIndices.has(idx)) return false;
+        if (rec.canonicalMemberId && rec.canonicalMemberId === m.id) return true;
         const recNorm = normalizeIdentity(rec.name);
         return recNorm && (recNorm === mEnNorm || recNorm === mBnNorm || recNorm === mNameNorm);
       });
@@ -472,14 +474,14 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-xl font-bold tracking-tight">
-                {language === 'ar' ? 'إيصال الاشتراك الشهري والتبرع' : language === 'en' ? 'Online Donation & Contribution Receipt' : 'অনলাইন চাঁদা ও অনুদান রসিদ'}
+                {language === 'ar' ? 'إيصال المساهمة الشهرية والتبرع الإنساني' : language === 'en' ? 'Online Contribution & Donation Receipt' : 'অনলাইন মাসিক অবদান ও অনুদান রসিদ'}
               </h2>
               <p className="text-[11px] sm:text-xs text-emerald-200/80">
                 {language === 'ar'
                   ? 'حدد تفاصيل اشتراكك الشهري وتبرعك الإنساني لحفظ الإيصال.'
                   : language === 'en'
                   ? 'Select your monthly contribution and humanitarian donation details to save receipt.'
-                  : 'আপনার মাসিক চাঁদা ও মানবিক অনুদানের তথ্য নির্বাচন করে রসিদ সংরক্ষণ করুন।'}
+                  : 'আপনার জমাকৃত মাসিক অবদান ও মানবিক অনুদানের তথ্য নির্বাচন করে রসিদ সংরক্ষণ করুন।'}
               </p>
             </div>
           </div>
@@ -634,9 +636,23 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                   {ORDERED_MONTH_KEYS.map((m) => {
-                    const isPaid = memberMonthStatus[m]?.isPaid;
+                    const isApplicable = isMonthApplicableForYear(m, selectedYear);
+                    const isPaid = isApplicable && Boolean(memberMonthStatus[m]?.isPaid);
                     const isSelected = selectedMonths.includes(m);
                     const monthNameBn = BENGALI_MONTH_NAMES[m] || m;
+
+                    if (!isApplicable) {
+                      return (
+                        <div
+                          key={m}
+                          className="py-2 px-2.5 rounded-lg text-xs font-medium border text-center flex flex-col items-center justify-center gap-0.5 bg-gray-50 text-gray-400 border-dashed border-gray-200 select-none opacity-60"
+                          title="প্রতিষ্ঠার পূর্ববর্তী (Pre-foundation)"
+                        >
+                          <span className="font-bold text-gray-400">{monthNameBn}</span>
+                          <span className="text-[10px] text-gray-400">প্রতিষ্ঠার পূর্ববর্তী</span>
+                        </div>
+                      );
+                    }
 
                     return (
                       <button

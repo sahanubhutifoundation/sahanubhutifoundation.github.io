@@ -232,7 +232,7 @@ export const DonationReceiptCard: React.FC<DonationReceiptCardProps> = ({
               <tr>
                 <td className="py-2.5 px-3 align-middle min-w-0">
                   <div className="font-semibold text-emerald-950 break-words leading-normal">
-                    ফাউন্ডেশন মাসিক কল্যাণ তহবিল চাঁদা
+                    ফাউন্ডেশন মাসিক আর্থিক অবদান
                   </div>
                   <div className="text-[11px] text-gray-500 mt-1 break-words leading-normal">
                     নিয়মিত মাসিক সঞ্চয় ও মানবকল্যাণ তহবিল

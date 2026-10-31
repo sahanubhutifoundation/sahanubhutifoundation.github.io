@@ -75,7 +75,7 @@ export const OtherMonthlyContributionsSection: React.FC<OtherMonthlyContribution
         <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
         <span>
           {language === 'bn'
-            ? 'এই অনুদানসমূহ নিয়মিত সদস্য চাঁদার বাইরে মূল সাধারণ তহবিলে সরাসরি যুক্ত হয়েছে এবং মূল তহবিল গণনায় অন্তর্ভুক্ত।'
+            ? 'এই অনুদানসমূহ নিয়মিত সদস্য অবদানের বাইরে মূল সাধারণ তহবিলে সরাসরি যুক্ত হয়েছে এবং মূল তহবিল গণনায় অন্তর্ভুক্ত।'
             : language === 'ar'
             ? 'هذه التبرعات مضافة مباشرة إلى الصندوق العام الرئيسي وتدخل في حسابات الرصيد الكلي.'
             : 'These contributions are deposited directly into the main general fund and included in the total fund balance.'}

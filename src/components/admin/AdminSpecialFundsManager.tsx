@@ -467,7 +467,7 @@ export const AdminSpecialFundsManager: React.FC<AdminSpecialFundsManagerProps> =
         { id: 'rd-1', donorName: 'জলিল', amount: 2000, isAnonymous: false, isInKind: false, notes: 'নগদ অনুদান' },
         { id: 'rd-2', donorName: 'দাউদ ও শরীফ', amount: 1500, isAnonymous: false, isInKind: false, notes: 'যৌথ নগদ অনুদান' },
         { id: 'rd-3', donorName: 'করিম', amount: 1000, isAnonymous: false, isInKind: false, notes: 'নগদ অনুদান' },
-        { id: 'rd-4', donorName: '১০ জন প্রতিজন ৫০০ করে (১০ × ৫০০)', amount: 5000, isAnonymous: false, isInKind: false, notes: '১০ জন সদস্যের চাঁদা' },
+        { id: 'rd-4', donorName: '১০ জন প্রতিজন ৫০০ করে (১০ × ৫০০)', amount: 5000, isAnonymous: false, isInKind: false, notes: '১০ জন সদস্যের অবদান' },
         { id: 'rd-5', donorName: 'মোবাশ্বের ও তোফাজ্জল', amount: 500, isAnonymous: false, isInKind: false, notes: 'যৌথ নগদ অনুদান' },
         { id: 'rd-6', donorName: '২ জন প্রতিজন ৩০০ করে (২ × ৩০০)', amount: 600, isAnonymous: false, isInKind: false, notes: '২ জনের অনুদান' },
         { id: 'rd-7', donorName: '৩ জন প্রতিজন ১০০ করে (৩ × ১০০)', amount: 300, isAnonymous: false, isInKind: false, notes: '৩ জনের অনুদান' },
