@@ -7,7 +7,7 @@ import { MemberAvatar } from '../components/MemberAvatar';
 import { MemberSerialBadge } from '../components/MemberSerialBadge';
 import { MemberSocialIcons } from '../components/MemberSocialIcons';
 import { storageService } from '../services/storageService';
-import { User, ArrowLeft, Calendar, MapPin, ShieldCheck } from 'lucide-react';
+import { User, ArrowLeft, Calendar, MapPin, ShieldCheck, Coins, Lock } from 'lucide-react';
 import {
   WhatsAppIcon,
   ImoIcon,
@@ -16,13 +16,24 @@ import {
 } from '../components/ContactIcons';
 import { Member, Designation, FoundationConfig } from '../types';
 import { toBengaliDigits, getMemberLocalizedField } from '../utils/foundationHelpers';
+import { fundPrivacyService } from '../services/fundPrivacyService';
+import { FundPasswordModal } from '../components/fund/FundPasswordModal';
+import { MemberContributionHistoryModal } from '../components/member/MemberContributionHistoryModal';
+import { OnlineReceiptModal } from '../components/receipt/OnlineReceiptModal';
 
 export const MemberDetailPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
   const { t, language, isRTL } = useLanguage();
+  const { id } = useParams<{ id: string }>();
   const [member, setMember] = useState<Member | null>(null);
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [config, setConfig] = useState<FoundationConfig>(() => storageService.getConfig());
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [receiptPreselect, setReceiptPreselect] = useState<{ year: string; paidMonths: string[] }>({
+    year: '2026',
+    paidMonths: [],
+  });
 
   const loadData = () => {
     const list = storageService.getMembers();
@@ -64,6 +75,19 @@ export const MemberDetailPage: React.FC = () => {
     }
     return undefined;
   }, [member, designations]);
+
+  const handleOpenContributionHistory = () => {
+    if (fundPrivacyService.isAccessGranted()) {
+      setIsHistoryModalOpen(true);
+    } else {
+      setIsPasswordModalOpen(true);
+    }
+  };
+
+  const handleOpenReceiptModal = (_memberId: string, year: string, paidMonths: string[]) => {
+    setReceiptPreselect({ year, paidMonths });
+    setIsReceiptModalOpen(true);
+  };
 
   if (!member) {
     return (
@@ -220,9 +244,85 @@ export const MemberDetailPage: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Monthly Contribution History Section */}
+            <div className="pt-5 border-t border-[#EBE8E0]">
+              <div className="p-4 rounded-xl bg-[#F9F7F3] border border-[#E8E4DA] flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-center sm:text-start">
+                  <div className="text-xs font-bold text-[#1E3A2F] flex items-center justify-center sm:justify-start gap-1.5">
+                    <Coins className="w-4 h-4 text-[#2D5A41]" />
+                    <span>
+                      {language === 'ar'
+                        ? 'سجل المساهمات الشهرية'
+                        : language === 'en'
+                        ? 'Monthly Contribution History'
+                        : 'মাসিক অবদানের হিসাব'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#7A877E] mt-0.5">
+                    {language === 'ar'
+                      ? 'عرض وتوثيق المساهمات المالية الشهرية المعتمدة وتحميل الإيصالات'
+                      : language === 'en'
+                      ? 'View verified monthly financial contributions & download receipts'
+                      : 'যাচাইকৃত মাসিক অবদানের সালভিত্তিক হিসাব ও রসিদ সংরক্ষণ'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenContributionHistory}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-all"
+                >
+                  <Coins className="w-3.5 h-3.5" />
+                  <span>
+                    {language === 'ar'
+                      ? 'عرض الحساب'
+                      : language === 'en'
+                      ? 'View History'
+                      : 'হিসাব দেখুন'}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Fund Access Password Modal (reusing fund privacy PIN session) */}
+      <FundPasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+        onSuccess={() => {
+          setIsPasswordModalOpen(false);
+          setIsHistoryModalOpen(true);
+        }}
+      />
+
+      {/* Member Contribution History Modal */}
+      {isHistoryModalOpen && member && (
+        <MemberContributionHistoryModal
+          isOpen={isHistoryModalOpen}
+          onClose={() => setIsHistoryModalOpen(false)}
+          member={member}
+          onOpenReceiptModal={handleOpenReceiptModal}
+        />
+      )}
+
+      {/* Online Receipt Modal (Preselected and locked to this member) */}
+      {isReceiptModalOpen && member && (
+        <OnlineReceiptModal
+          isOpen={isReceiptModalOpen}
+          onClose={() => setIsReceiptModalOpen(false)}
+          config={config}
+          membersList={storageService.getMembers()}
+          yearlySources={config.yearlyFundSources || []}
+          currentYear={receiptPreselect.year || '2026'}
+          preselectedMemberId={member.id}
+          readOnlyMember={true}
+          preselectedYear={receiptPreselect.year}
+          initialSelectedMonths={receiptPreselect.paidMonths}
+        />
+      )}
     </div>
   );
 };
+

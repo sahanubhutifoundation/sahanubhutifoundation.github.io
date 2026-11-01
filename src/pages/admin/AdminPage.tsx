@@ -23,6 +23,8 @@ import { BackupRestoreModal } from '../../components/admin/BackupRestoreModal';
 import { ActivityCategoryManager } from '../../components/admin/ActivityCategoryManager';
 import { ActivityCategoryInlineSelector } from '../../components/admin/ActivityCategoryInlineSelector';
 import { GalleryBulkUploadModal } from '../../components/admin/GalleryBulkUploadModal';
+import { AdminFundProfileLinkingManager } from '../../components/admin/AdminFundProfileLinkingManager';
+import { AdminSheetMappingModal } from '../../components/admin/AdminSheetMappingModal';
 import { getActivityUuid } from '../../utils/foundationHelpers';
 import {
   FoundationConfig,
@@ -84,6 +86,7 @@ import {
   AlertCircle,
   Crop,
   UploadCloud,
+  Link2,
 } from 'lucide-react';
 
 export const AdminPage: React.FC = () => {
@@ -92,8 +95,9 @@ export const AdminPage: React.FC = () => {
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [activeSection, setActiveSection] = useState<AdminSection>('overview');
-  const [memberSubTab, setMemberSubTab] = useState<'list' | 'designations' | 'style'>('list');
+  const [memberSubTab, setMemberSubTab] = useState<'list' | 'designations' | 'style' | 'profile-linking'>('list');
   const [fundSubTab, setFundSubTab] = useState<'sheet' | 'other_contributions' | 'special_funds' | 'ledger' | 'privacy' | 'receipt_settings'>('sheet');
+  const [mappingModalSource, setMappingModalSource] = useState<YearlyFundSource | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // State data
@@ -1936,6 +1940,19 @@ export const AdminPage: React.FC = () => {
               <Sliders className="w-3.5 h-3.5" />
               <span>কার্ড প্রদর্শন শৈলী</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setMemberSubTab('profile-linking')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                memberSubTab === 'profile-linking'
+                  ? 'bg-white text-[#2D5A41] shadow-xs border border-[#EBE8E0]'
+                  : 'text-[#5C665F] hover:text-[#2D3630]'
+              }`}
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              <span>শিট ↔ প্রোফাইল লিঙ্কিং (Fund Linking)</span>
+            </button>
           </div>
 
           {memberSubTab === 'designations' && (
@@ -1958,6 +1975,14 @@ export const AdminPage: React.FC = () => {
               onShowToast={showToast}
               currentSection="members"
               hideSubNav={true}
+            />
+          )}
+
+          {memberSubTab === 'profile-linking' && (
+            <AdminFundProfileLinkingManager
+              members={members}
+              yearlySources={config.yearlyFundSources || []}
+              showToast={showToast}
             />
           )}
 
@@ -4888,6 +4913,20 @@ export const AdminPage: React.FC = () => {
 
                           <button
                             type="button"
+                            onClick={() => setMappingModalSource(src)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${
+                              src.manualMapping
+                                ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                                : 'border-[#EBE8E0] bg-white hover:bg-[#F7F5F0] text-[#5C665F]'
+                            }`}
+                            title="শিটের কলাম ও হেডার রো ম্যানুয়ালি কনফিগার করুন"
+                          >
+                            <Sliders className="w-3 h-3 text-[#2D5A41]" />
+                            <span>{src.manualMapping ? 'ম্যানুয়াল ম্যাপিং (সক্রিয়)' : 'কলাম ম্যাপিং'}</span>
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => handleEditYearSource(src)}
                             className="p-1 rounded-lg border border-[#EBE8E0] text-[#2D3630] hover:bg-[#F7F5F0] transition-colors"
                             title="সম্পাদনা"
@@ -5062,6 +5101,31 @@ export const AdminPage: React.FC = () => {
                   );
                 })}
               </div>
+
+              {mappingModalSource && (
+                <AdminSheetMappingModal
+                  isOpen={Boolean(mappingModalSource)}
+                  onClose={() => setMappingModalSource(null)}
+                  yearlySource={mappingModalSource}
+                  onSaveMapping={(source, mapping) => {
+                    const updatedSources = (config.yearlyFundSources || []).map((s) => {
+                      if (s.year === source.year) {
+                        return { ...s, manualMapping: mapping };
+                      }
+                      return s;
+                    });
+                    const updatedConfig = { ...config, yearlyFundSources: updatedSources };
+                    setConfig(updatedConfig);
+                    storageService.saveConfig(updatedConfig);
+                    setMappingModalSource(null);
+                    showToast(
+                      mapping
+                        ? `${source.year} সালের ম্যানুয়াল কলাম ম্যাপিং সংরক্ষিত হয়েছে`
+                        : `${source.year} সালের ম্যাপিং স্বয়ংক্রিয় ডিটেকশনে রিসেট করা হয়েছে`
+                    );
+                  }}
+                />
+              )}
             </div>
 
             {/* 2. Opening Expense Balance Audit Card */}

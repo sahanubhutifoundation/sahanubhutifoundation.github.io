@@ -14,6 +14,7 @@ import {
   SpecialFundRecord,
   SpecialFundDonation,
   SpecialFundExpense,
+  FundProfileLinkRecord,
 } from '../types';
 import {
   initialConfig,
@@ -41,10 +42,23 @@ const KEYS = {
   EXPENSES: 'sf_foundation_expenses',
   OTHER_CONTRIBUTIONS: 'sf_foundation_other_contributions',
   SPECIAL_FUNDS: 'sf_foundation_special_funds',
+  PROFILE_LINKS: 'sf_foundation_profile_links',
 };
 
 // Helper for local storage access with safe error fallbacks
+const memoryStore: Record<string, string> = {};
+
 function getLocalItem<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    if (memoryStore[key]) {
+      try {
+        return JSON.parse(memoryStore[key]) as T;
+      } catch {
+        return fallback;
+      }
+    }
+    return fallback;
+  }
   try {
     const item = localStorage.getItem(key);
     if (!item) return fallback;
@@ -56,6 +70,10 @@ function getLocalItem<T>(key: string, fallback: T): T {
 }
 
 function setLocalItem<T>(key: string, value: T): void {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    memoryStore[key] = JSON.stringify(value);
+    return;
+  }
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
@@ -1295,7 +1313,88 @@ export const storageService = {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('sf_data_updated'));
     }
-    return { success: true, data: updated };
+  },
+
+  // --------------------------------------------------------------------------
+  // FEATURE: FUND MEMBER ↔ REGISTERED PROFILE LINKING
+  // --------------------------------------------------------------------------
+
+  getFundProfileLinks(year?: string): FundProfileLinkRecord[] {
+    const list = getLocalItem<FundProfileLinkRecord[]>(KEYS.PROFILE_LINKS, []);
+    if (!year || year === 'all') {
+      return list;
+    }
+    const targetYr = String(year).trim();
+    return list.filter((l) => String(l.year).trim() === targetYr);
+  },
+
+  saveFundProfileLink(link: FundProfileLinkRecord): FundProfileLinkRecord[] {
+    const all = this.getFundProfileLinks('all');
+    const id = link.id || `fpl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const cleanItem: FundProfileLinkRecord = {
+      ...link,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const idx = all.findIndex(
+      (l) => l.id === id || (String(l.year).trim() === String(cleanItem.year).trim() && l.canonicalFundMemberId === cleanItem.canonicalFundMemberId)
+    );
+    let updated: FundProfileLinkRecord[];
+    if (idx >= 0) {
+      updated = [...all];
+      updated[idx] = cleanItem;
+    } else {
+      updated = [cleanItem, ...all];
+    }
+
+    setLocalItem(KEYS.PROFILE_LINKS, updated);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sf_fund_profile_links_updated', { detail: updated }));
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+    }
+
+    return updated;
+  },
+
+  saveAllFundProfileLinks(links: FundProfileLinkRecord[]): FundProfileLinkRecord[] {
+    setLocalItem(KEYS.PROFILE_LINKS, links);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sf_fund_profile_links_updated', { detail: links }));
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+    }
+    return links;
+  },
+
+  deleteFundProfileLink(id: string): FundProfileLinkRecord[] {
+    const all = this.getFundProfileLinks('all');
+    const updated = all.filter((l) => l.id !== id);
+    setLocalItem(KEYS.PROFILE_LINKS, updated);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sf_fund_profile_links_updated', { detail: updated }));
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+    }
+    return updated;
+  },
+
+  getFundProfileLinkForMember(memberId: string, year?: string): FundProfileLinkRecord | undefined {
+    const links = this.getFundProfileLinks(year);
+    return links.find((l) => l.linkedProfileId === memberId && l.status === 'linked');
+  },
+
+  getFundProfileLinkForSheetRecord(year: string, sheetSerial?: number, sheetName?: string): FundProfileLinkRecord | undefined {
+    const links = this.getFundProfileLinks(year);
+    const cleanName = (sheetName || '').trim().toLowerCase().replace(/[\s\.\-_]+/g, '');
+    return links.find((l) => {
+      if (String(l.year).trim() !== String(year).trim()) return false;
+      if (sheetSerial && l.sheetSerial === sheetSerial) return true;
+      if (cleanName && l.sheetMemberName.toLowerCase().replace(/[\s\.\-_]+/g, '') === cleanName) return true;
+      return false;
+    });
   },
 
   async deleteDesignationAsync(id: string): Promise<OperationResult<Designation[]>> {

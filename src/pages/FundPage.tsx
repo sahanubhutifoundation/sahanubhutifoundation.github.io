@@ -286,11 +286,16 @@ export const FundPage: React.FC = () => {
         loadData(false);
       }
     };
+    const handleLinksUpdate = () => {
+      loadData(true);
+    };
     window.addEventListener('sf_fund_privacy_changed', handlePrivacyEvent);
     window.addEventListener('sf_config_updated', handlePrivacyEvent);
+    window.addEventListener('sf_fund_profile_links_updated', handleLinksUpdate);
     return () => {
       window.removeEventListener('sf_fund_privacy_changed', handlePrivacyEvent);
       window.removeEventListener('sf_config_updated', handlePrivacyEvent);
+      window.removeEventListener('sf_fund_profile_links_updated', handleLinksUpdate);
     };
   }, [loadData]);
 
@@ -1347,7 +1352,11 @@ export const FundPage: React.FC = () => {
                     {filteredMembers.map((member) => {
                       const safeName = (member.name || '').trim();
                       const resolved = resolveContributionMemberName(safeName);
-                      const matchedMemberId = member.canonicalMemberId || resolved.memberId || (safeName ? memberNameMap.get(safeName.toLowerCase())?.id : undefined);
+                      // Strict rule: profile link is ONLY active if explicitly verified & approved by admin
+                      const isApprovedLink = Boolean(
+                        member.linkedProfileId && (member.isMappedByAdmin || selectedYear === '2024' || selectedYear === '2025')
+                      );
+                      const targetProfileId = isApprovedLink ? member.linkedProfileId : undefined;
                       const displayName = resolved.displayName || safeName || 'সদস্য';
 
                       return (
@@ -1356,9 +1365,9 @@ export const FundPage: React.FC = () => {
                             {formatLocalizedNumber(member.serial, language)}
                           </td>
                           <td className="py-3 px-4 font-semibold text-[#2D3630] whitespace-nowrap">
-                            {memberLinkSettings.makeProfileLink && matchedMemberId ? (
+                            {memberLinkSettings.makeProfileLink && targetProfileId ? (
                               <Link
-                                to={`/members/${matchedMemberId}`}
+                                to={`/members/${targetProfileId}`}
                                 className="text-[#2D5A41] hover:underline inline-flex items-center gap-1 group"
                                 title={t('viewMemberProfileTitle')}
                               >
@@ -1366,7 +1375,7 @@ export const FundPage: React.FC = () => {
                                 <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                               </Link>
                             ) : (
-                              <span>{displayName}</span>
+                              <span className="text-[#2D3630]">{displayName}</span>
                             )}
                           </td>
                           <td className="py-3 px-3 text-right font-mono text-[#5C665F] whitespace-nowrap">

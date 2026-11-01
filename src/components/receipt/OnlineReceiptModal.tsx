@@ -32,6 +32,10 @@ interface OnlineReceiptModalProps {
   memberRecords?: FundMemberRecord[];
   onYearChange?: (year: string) => void;
   isLoadingYearData?: boolean;
+  preselectedMemberId?: string;
+  readOnlyMember?: boolean;
+  preselectedYear?: string;
+  initialSelectedMonths?: string[];
 }
 
 export interface UnifiedReceiptMember {
@@ -54,11 +58,15 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
   memberRecords = [],
   onYearChange,
   isLoadingYearData = false,
+  preselectedMemberId,
+  readOnlyMember = false,
+  preselectedYear,
+  initialSelectedMonths,
 }) => {
   const { language } = useLanguage();
-  const [selectedYear, setSelectedYear] = useState<string>(currentYear);
-  const [selectedMemberId, setSelectedMemberId] = useState<string>('');
-  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [selectedYear, setSelectedYear] = useState<string>(preselectedYear || currentYear);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>(preselectedMemberId || '');
+  const [selectedMonths, setSelectedMonths] = useState<string[]>(initialSelectedMonths || []);
   const [multiMonthMode, setMultiMonthMode] = useState<'single' | 'separate'>('single');
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
@@ -76,12 +84,22 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const batchContainerRef = useRef<HTMLDivElement>(null);
 
-  // Sync year prop with state only when modal opens or parent explicitly sets it
+  // Sync year and member props with state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setSelectedYear(currentYear);
+      if (preselectedYear) {
+        setSelectedYear(preselectedYear);
+      } else {
+        setSelectedYear(currentYear);
+      }
+      if (preselectedMemberId) {
+        setSelectedMemberId(preselectedMemberId);
+      }
+      if (initialSelectedMonths && initialSelectedMonths.length > 0) {
+        setSelectedMonths(initialSelectedMonths);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, currentYear, preselectedYear, preselectedMemberId, initialSelectedMonths]);
 
   // Keep records map populated whenever parent updates memberRecords for currentYear
   useEffect(() => {
@@ -528,21 +546,35 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
           <div className={`lg:col-span-5 flex-col gap-5 border-b lg:border-b-0 lg:border-r border-gray-200 lg:pr-6 pb-6 lg:pb-0 ${mobileTab === 'controls' ? 'flex' : 'hidden lg:flex'}`}>
             {/* Member Selector (Placed First) */}
             <div>
-              <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5 mb-1.5 uppercase tracking-wide">
-                <User className="w-3.5 h-3.5 text-emerald-700" />
-                <span>১. সদস্যের নাম নির্বাচন করুন</span>
+              <label className="text-xs font-bold text-gray-700 flex items-center justify-between mb-1.5 uppercase tracking-wide">
+                <span className="flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>১. সদস্যের নাম</span>
+                </span>
+                {readOnlyMember && (
+                  <span className="text-[11px] font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    লক করা প্রোফাইল
+                  </span>
+                )}
               </label>
-              <select
-                value={selectedMemberId}
-                onChange={(e) => setSelectedMemberId(e.target.value)}
-                className="w-full text-sm font-medium border border-gray-300 rounded-lg p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-emerald-600 focus:border-transparent outline-none shadow-sm"
-              >
-                {availableMembers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.displayName}
-                  </option>
-                ))}
-              </select>
+              {readOnlyMember ? (
+                <div className="w-full text-sm font-semibold border border-emerald-300 rounded-lg p-2.5 bg-emerald-50/60 text-emerald-950 flex items-center justify-between">
+                  <span>{selectedMemberEntry?.displayName || currentMember?.nameBn || currentMember?.name || 'সদস্য'}</span>
+                  <span className="text-xs text-emerald-700 font-mono">#{selectedMemberEntry?.serial || currentMember?.serial || ''}</span>
+                </div>
+              ) : (
+                <select
+                  value={selectedMemberId}
+                  onChange={(e) => setSelectedMemberId(e.target.value)}
+                  className="w-full text-sm font-medium border border-gray-300 rounded-lg p-2.5 bg-white text-gray-900 focus:ring-2 focus:ring-emerald-600 focus:border-transparent outline-none shadow-sm"
+                >
+                  {availableMembers.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.displayName}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {/* Year Selector (Placed Second) */}

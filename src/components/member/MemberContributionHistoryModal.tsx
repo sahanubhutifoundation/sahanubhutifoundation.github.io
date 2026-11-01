@@ -1,0 +1,366 @@
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Download,
+  ShieldCheck,
+  AlertCircle,
+  FileText,
+  UserCheck
+} from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
+import { Member } from '../../types';
+import {
+  getMemberContributionHistory,
+  MemberContributionHistoryResult,
+  MemberYearContributionSummary,
+  MONTH_KEYS,
+  getLocalizedMonthName
+} from '../../services/fundService';
+import { formatLocalizedAmount, formatLocalizedNumber } from '../../utils/foundationHelpers';
+
+interface MemberContributionHistoryModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  member: Member;
+  onOpenReceiptModal: (memberId: string, year: string, paidMonths: string[]) => void;
+}
+
+export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryModalProps> = ({
+  isOpen,
+  onClose,
+  member,
+  onOpenReceiptModal,
+}) => {
+  const { language } = useLanguage();
+  const [data, setData] = useState<MemberContributionHistoryResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState<string>('2026');
+
+  useEffect(() => {
+    if (!isOpen || !member.id) return;
+    let isMounted = true;
+    setLoading(true);
+
+    getMemberContributionHistory(member.id, selectedYear)
+      .then((res) => {
+        if (isMounted) {
+          setData(res);
+          if (res && res.availableYears.length > 0 && !res.availableYears.includes(selectedYear)) {
+            setSelectedYear(res.activeYear);
+          }
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.warn('Error loading member contribution history:', err);
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, member.id, selectedYear]);
+
+  if (!isOpen) return null;
+
+  const activeSummary: MemberYearContributionSummary | undefined = data?.yearSummaries[selectedYear];
+  const is2024 = selectedYear === '2024';
+
+  const paidMonthsForActiveYear = (activeSummary?.months || [])
+    .filter((m) => m.status === 'paid')
+    .map((m) => m.month);
+
+  const memberDisplayName =
+    (language === 'bn' ? member.nameBn : language === 'en' ? member.nameEn : member.nameAr) ||
+    member.nameBn ||
+    member.name;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#E0DBCF] flex flex-col max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-[#EBE8E0] bg-[#FAF8F5] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#E8F0EC] text-[#2D5A41] flex items-center justify-center font-bold">
+              <UserCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-[#1E3A2F] text-base sm:text-lg">
+                  {memberDisplayName}
+                </h3>
+                {member.serial && (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#E8F0EC] text-[#2D5A41]">
+                    #{formatLocalizedNumber(member.serial, language)}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[#5C665F]">
+                {language === 'ar'
+                  ? 'سجل المساهمات المالية الشهرية المعتمدة'
+                  : language === 'en'
+                  ? 'Verified Monthly Financial Contribution Record'
+                  : 'যাচাইকৃত ব্যক্তিগত মাসিক অবদানের হিসাব'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Modal Content */}
+        <div className="p-5 flex-1 overflow-y-auto space-y-5">
+          {/* Year Tabs */}
+          <div className="flex items-center gap-2 border-b border-gray-200 pb-3 overflow-x-auto">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5" />
+              {language === 'ar' ? 'السنة:' : language === 'en' ? 'Year:' : 'আর্থিক সাল:'}
+            </span>
+            {(data?.availableYears || ['2024', '2025', '2026']).map((yr) => (
+              <button
+                key={yr}
+                type="button"
+                onClick={() => setSelectedYear(yr)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  selectedYear === yr
+                    ? 'bg-[#2D5A41] text-white shadow-xs'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {formatLocalizedNumber(yr, language)}
+                {yr === '2024' && (
+                  <span className="ml-1 text-[10px] opacity-80">
+                    ({language === 'ar' ? 'التأسيس' : language === 'en' ? 'Founding' : 'প্রতিষ্ঠা'})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {loading ? (
+            <div className="py-12 text-center text-xs text-gray-500">
+              {language === 'ar' ? 'جارٍ تحميل السجل...' : language === 'en' ? 'Loading record...' : 'হিসাব লোড করা হচ্ছে...'}
+            </div>
+          ) : (
+            <>
+              {/* Year Summary Card */}
+              {activeSummary && (
+                <div className="p-4 rounded-xl border bg-[#FDFCF9] border-[#E8E4DA] space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-[#1E3A2F]">
+                        {formatLocalizedNumber(selectedYear, language)} {language === 'ar' ? 'مساهمات عام' : language === 'en' ? 'Annual Overview' : 'সালের সারসংক্ষেপ'}
+                      </span>
+                      {activeSummary.isLinked ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-800">
+                          <ShieldCheck className="w-3 h-3" />
+                          <span>
+                            {language === 'ar'
+                              ? 'مرتبط ومعتمد'
+                              : language === 'en'
+                              ? 'Verified Linked'
+                              : 'ভেরিফাইড লিংকড'}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-800">
+                          <AlertCircle className="w-3 h-3" />
+                          <span>
+                            {language === 'ar'
+                              ? 'غير مرتبط بالسجل'
+                              : language === 'en'
+                              ? 'Unlinked in Sheet'
+                              : 'শিটে লিঙ্ক করা হয়নি'}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500">
+                        {language === 'ar' ? 'إجمالي المدفوع:' : language === 'en' ? 'Total Paid:' : 'মোট জমা:'}
+                      </div>
+                      <div className="text-base font-bold font-mono text-[#2D5A41]">
+                        ৳ {formatLocalizedAmount(activeSummary.totalContributed, language)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Badges row */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-[#EBE8E0] text-xs">
+                    <div>
+                      <span className="text-gray-500 block">
+                        {language === 'ar' ? 'الشهور المسددة' : language === 'en' ? 'Paid Months' : 'পরিশোধিত মাস'}
+                      </span>
+                      <span className="font-semibold text-gray-800">
+                        {formatLocalizedNumber(activeSummary.paidMonthsCount, language)} / {formatLocalizedNumber(activeSummary.applicableMonthsCount, language)} {language === 'ar' ? 'شهر' : language === 'en' ? 'mo' : 'মাস'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">
+                        {language === 'ar' ? 'القسط الشهري' : language === 'en' ? 'Monthly Rate' : 'মাসিক ধার্য'}
+                      </span>
+                      <span className="font-semibold text-gray-800 font-mono">
+                        ৳ {formatLocalizedAmount(activeSummary.commitment, language)}
+                      </span>
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="text-gray-500 block">
+                        {language === 'ar' ? 'اسم السجل' : language === 'en' ? 'Sheet Name' : 'রেজিস্টারের নাম'}
+                      </span>
+                      <span className="font-semibold text-gray-800 truncate block" title={activeSummary.sheetMemberName || memberDisplayName}>
+                        {activeSummary.sheetMemberName || memberDisplayName}
+                      </span>
+                    </div>
+                  </div>
+
+                  {is2024 && (
+                    <div className="p-2.5 rounded-lg bg-[#F5F2EB] border border-[#E2DDD2] text-[11px] text-[#5C665F]">
+                      ℹ️ {language === 'ar'
+                        ? 'تأسست مؤسسة ساهانوبهوتي في ۲۸ نوفمبر ۲۰۲۴، لذا يعتبر شهر ديسمبر ۲۰۲۴ الشهر الوحيد الخاضع للمساهمة لهذا العام.'
+                        : language === 'en'
+                        ? 'Sahanubhuti Foundation was founded on 28 November 2024; December 2024 is the sole applicable contribution month for this year.'
+                        : 'সহানুভূতি ফাউন্ডেশন ২৮ নভেম্বর ২০২৪ তারিখে প্রতিষ্ঠিত হয়। ফলে ২০২৪ সালের জন্য কেবল ডিসেম্বর মাস প্রযোজ্য হিসাব হিসেবে গণ্য।'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Month by Month Grid */}
+              <div>
+                <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2.5 flex items-center justify-between">
+                  <span>
+                    {language === 'ar'
+                      ? 'تفاصيل الشهور'
+                      : language === 'en'
+                      ? 'Monthly Breakdown'
+                      : 'মাসভিত্তিক অবদানের অবস্থা'}
+                  </span>
+                  <span className="text-[11px] font-normal text-gray-500">
+                    {formatLocalizedNumber(selectedYear, language)}
+                  </span>
+                </h4>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {(activeSummary?.months || MONTH_KEYS.map((m) => ({ month: m, status: 'unpaid' as const, amount: 0 }))).map((mItem) => {
+                    const monthLabel = getLocalizedMonthName(mItem.month, language);
+
+                    if (mItem.status === 'pre_foundation') {
+                      return (
+                        <div
+                          key={mItem.month}
+                          className="p-2.5 rounded-xl border border-gray-200 bg-gray-50/70 text-gray-400 text-center select-none"
+                          title={
+                            language === 'ar'
+                              ? 'قبل تأسيس المؤسسة (تأسست في ۲۸ نوفمبر ۲۰۲৪)'
+                              : language === 'en'
+                              ? 'Pre-foundation period (established 28 Nov 2024)'
+                              : 'প্রতিষ্ঠার পূর্ববর্তী (২৮ নভেম্বর ২০২৪ এ প্রতিষ্ঠিত)'
+                          }
+                        >
+                          <div className="text-[11px] font-medium text-gray-400">{monthLabel}</div>
+                          <div className="text-xs font-bold my-0.5">—</div>
+                          <div className="text-[9px] text-gray-400">
+                            {language === 'ar' ? 'قبل التأسيس' : language === 'en' ? 'Pre-founding' : 'প্রতিষ্ঠা-পূর্ব'}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const isPaid = mItem.status === 'paid';
+
+                    return (
+                      <div
+                        key={mItem.month}
+                        className={`p-2.5 rounded-xl border transition-all text-center ${
+                          isPaid
+                            ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 shadow-2xs'
+                            : 'bg-red-50/40 border-red-200/70 text-red-900'
+                        }`}
+                      >
+                        <div className="text-[11px] font-medium text-gray-700">{monthLabel}</div>
+                        <div className="text-xs font-bold font-mono my-0.5">
+                          {isPaid ? `৳ ${formatLocalizedAmount(mItem.amount, language)}` : '৳ 0'}
+                        </div>
+                        <div className="flex items-center justify-center gap-1 text-[10px] font-semibold">
+                          {isPaid ? (
+                            <>
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span className="text-emerald-700">
+                                {language === 'ar' ? 'مدفوع' : language === 'en' ? 'Paid' : 'পরিশোধিত'}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-3 h-3 text-red-400" />
+                              <span className="text-red-600">
+                                {language === 'ar' ? 'غير مسدد' : language === 'en' ? 'Pending' : 'বকেয়া'}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Cumulative Multi-year Total & Receipt Action */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-[#1E3A2F] to-[#2D5A41] text-white flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs text-emerald-200">
+                    {language === 'ar'
+                      ? 'إجمالي المساهمات التراكمية (جميع السنوات المعتمدة):'
+                      : language === 'en'
+                      ? 'Cumulative Contributions (All Verified Years):'
+                      : 'সর্বমোট জমা (সকল অনুমোদিত বছর মিলিয়ে):'}
+                  </div>
+                  <div className="text-xl font-bold font-mono text-white">
+                    ৳ {formatLocalizedAmount(data?.cumulativeTotal || 0, language)}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenReceiptModal(member.id, selectedYear, paidMonthsForActiveYear);
+                  }}
+                  disabled={paidMonthsForActiveYear.length === 0}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white text-[#1E3A2F] hover:bg-emerald-50 text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <FileText className="w-4 h-4 text-[#2D5A41]" />
+                  <span>
+                    {language === 'ar'
+                      ? 'تحميل إيصال المساهمة'
+                      : language === 'en'
+                      ? 'Download Contribution Receipt'
+                      : 'রসিদ ডাউনলোড করুন'}
+                  </span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-[#EBE8E0] bg-[#FAF8F5] flex items-center justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-200 rounded-xl transition-colors"
+          >
+            {language === 'ar' ? 'إغلاق' : language === 'en' ? 'Close' : 'বন্ধ করুন'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

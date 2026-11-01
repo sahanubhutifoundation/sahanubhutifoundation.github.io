@@ -370,6 +370,19 @@ export interface SpecialFundRecord {
   updatedAt?: string;
 }
 
+export interface SheetManualMapping {
+  headerRowIndex?: number;
+  nameColIndex?: number;
+  serialColIndex?: number;
+  commitmentColIndex?: number;
+  totalColIndex?: number;
+  monthColIndices?: Record<string, number>;
+  paymentFormat?: 'auto' | 'boolean_marker' | 'numeric_amount' | 'checkmark';
+  excludedRowIndices?: number[];
+  confirmedAt?: string;
+  confirmedBy?: string;
+}
+
 export interface YearlyFundSource {
   year: string;
   url: string;
@@ -379,6 +392,7 @@ export interface YearlyFundSource {
   isPublic: boolean;
   isDefault?: boolean;
   notes?: string;
+  manualMapping?: SheetManualMapping;
 }
 
 export interface FundExpenseHeadings {
@@ -441,13 +455,37 @@ export interface FundTransaction {
   voucherNo?: string;
 }
 
+export interface FundProfileLinkRecord {
+  id: string; // unique mapping identifier
+  year: string; // accounting year e.g. '2026', '2025', '2024'
+  sourceSpreadsheetId?: string;
+  sheetGid?: string;
+  sourceRow?: number;
+  sheetSerial?: number;
+  sheetMemberName: string;
+  canonicalFundMemberId: string;
+  linkedProfileId?: string; // canonical registered Member.id
+  linkedProfileName?: string;
+  status: 'linked' | 'unlinked' | 'needs_review' | 'conflict';
+  confirmedByAdmin: boolean;
+  updatedAt: string;
+  notes?: string;
+}
+
 export interface FundMemberRecord {
   id?: string;
   serial: number;
   name: string;
   canonicalMemberId?: string;
+  linkedProfileId?: string;
+  linkedProfileName?: string;
+  isMappedByAdmin?: boolean;
+  sourceRow?: number;
+  year?: string;
+  sheetGid?: string;
   commitment: number;
   months: { [month: string]: 'paid' | 'unpaid' };
+  monthlyAmounts?: { [month: string]: number };
   totalContributed: number;
   paidCount: number;
 }
