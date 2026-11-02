@@ -84,7 +84,20 @@ export const MemberDetailPage: React.FC = () => {
     }
   };
 
+  const [receiptNotice, setReceiptNotice] = useState<string | null>(null);
+
   const handleOpenReceiptModal = (_memberId: string, year: string, paidMonths: string[]) => {
+    if (!storageService.isReceiptDownloadEnabled()) {
+      setReceiptNotice(
+        language === 'ar'
+          ? 'عذراً، خدمة تنزيل الإيصالات غير متاحة حالياً. يرجى المحاولة لاحقاً.'
+          : language === 'en'
+          ? 'Sorry, receipt downloads are temporarily unavailable. Please try again later.'
+          : 'দুঃখিত, রসিদ ডাউনলোড সুবিধাটি আপাতত বন্ধ রয়েছে। অনুগ্রহ করে পরে চেষ্টা করুন।'
+      );
+      return;
+    }
+    setReceiptNotice(null);
     setReceiptPreselect({ year, paidMonths });
     setIsReceiptModalOpen(true);
   };
@@ -282,6 +295,19 @@ export const MemberDetailPage: React.FC = () => {
                   </span>
                 </button>
               </div>
+
+              {receiptNotice && (
+                <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between">
+                  <span>{receiptNotice}</span>
+                  <button
+                    type="button"
+                    onClick={() => setReceiptNotice(null)}
+                    className="text-amber-700 hover:text-amber-900 ml-2 font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

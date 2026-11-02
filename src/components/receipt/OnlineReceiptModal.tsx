@@ -7,6 +7,7 @@ import { getDeterministicReceiptNumber } from '../../utils/receiptNumbering';
 import { toBengaliNumeral, BENGALI_MONTH_NAMES, ORDERED_MONTH_KEYS } from '../../utils/bengaliWords';
 import { isMonthApplicableForYear } from '../../utils/foundationHelpers';
 import { fetchFundData } from '../../services/fundService';
+import { storageService } from '../../services/storageService';
 import {
   FileText,
   Download,
@@ -472,6 +473,56 @@ export const OnlineReceiptModal: React.FC<OnlineReceiptModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  const isReceiptDownloadPermitted =
+    config.fundVisibility?.showPublicReceiptDownload !== false &&
+    storageService.isReceiptDownloadEnabled();
+
+  if (!isReceiptDownloadPermitted) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+        onClick={onClose}
+      >
+        <div
+          className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 text-center space-y-4 border border-gray-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+            title="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 mx-auto flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-bold text-gray-900">
+            {language === 'ar'
+              ? 'خدمة تنزيل الإيصالات غير متاحة حالياً'
+              : language === 'en'
+              ? 'Receipt Downloads Temporarily Unavailable'
+              : 'রসিদ ডাউনলোড সাময়িকভাবে বন্ধ'}
+          </h3>
+          <p className="text-xs text-gray-600 leading-relaxed">
+            {language === 'ar'
+              ? 'عذراً، خدمة تنزيل الإيصالات غير متاحة حالياً. يرجى المحاولة لاحقاً.'
+              : language === 'en'
+              ? 'Sorry, receipt downloads are temporarily unavailable. Please try again later.'
+              : 'দুঃখিত, রসিদ ডাউনলোড সুবিধাটি আপাতত বন্ধ রয়েছে। অনুগ্রহ করে পরে চেষ্টা করুন।'}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold transition-colors cursor-pointer"
+          >
+            {language === 'ar' ? 'إغلاق' : language === 'en' ? 'Close' : 'বন্ধ করুন'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const paidMonthsCount = ORDERED_MONTH_KEYS.filter((m) => memberMonthStatus[m]?.isPaid).length;
 

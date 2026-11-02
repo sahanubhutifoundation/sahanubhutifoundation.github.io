@@ -14,10 +14,10 @@ import {
   parseRecordYear,
   getApplicableMonthsForYear,
   isMonthApplicableForYear,
-  toBengaliDigits
+  toBengaliDigits,
 } from '../utils/foundationHelpers';
 import { storageService } from '../services/storageService';
-import { fetchFundData, MONTH_KEYS, MONTH_NAMES_BN, getLocalizedMonthName } from '../services/fundService';
+import { fetchFundData, getCachedFundData, MONTH_KEYS, MONTH_NAMES_BN, getLocalizedMonthName } from '../services/fundService';
 import {
   FundData,
   FundMemberRecord,
@@ -241,28 +241,53 @@ export const FundPage: React.FC = () => {
       } catch (e) {
         console.warn('Fund load error:', e);
         if (reqId === activeRequestIdRef.current) {
-          setFundData({
-            totalFund: 0,
-            amountReceived: 0,
-            amountSpent: 0,
-            currentBalance: 0,
-            contributorCount: 0,
-            yearlyReceived: {},
-            monthlyTotals: {},
-            transactions: [],
-            expenses: [],
-            lastUpdated: new Date().toISOString(),
-            sourceUrl: '',
-            sourceType: 'google_sheet',
-            status: 'error',
-            year: selectedYear,
-            errorMessage:
-              language === 'ar'
-                ? `تعذر تحميل بيانات عام ${formatLocalizedNumber(selectedYear, language)}.`
-                : language === 'en'
-                ? `Failed to load records for financial year ${formatLocalizedNumber(selectedYear, language)}.`
-                : `${formatLocalizedNumber(selectedYear, language)} আর্থিক বছরের তথ্য লোড করতে সমস্যা হয়েছে।`,
-          });
+          const cached = getCachedFundData(selectedYear);
+          if (cached && cached.memberRecords && cached.memberRecords.length > 0) {
+            setFundData({
+              ...cached,
+              status: 'fallback',
+              isStale: true,
+              errorMessage:
+                language === 'ar'
+                  ? 'تعذر الاتصال بـ Google Sheets. يتم عرض آخر بيانات معتمدة.'
+                  : language === 'en'
+                  ? 'Unable to retrieve data from Google Sheets. Showing last verified offline records.'
+                  : 'Google Sheet থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি। সর্বশেষ ভেরিফাইড অফলাইন তথ্য প্রদর্শিত হচ্ছে।',
+            });
+          } else {
+            setFundData((prev) => {
+              if (prev && prev.memberRecords && prev.memberRecords.length > 0) {
+                return {
+                  ...prev,
+                  status: 'fallback',
+                  isStale: true,
+                  errorMessage: 'Google Sheet থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি। পূর্ববর্তী ভেরিফাইড তথ্য সংরক্ষিত আছে।',
+                };
+              }
+              return {
+                totalFund: 0,
+                amountReceived: 0,
+                amountSpent: 0,
+                currentBalance: 0,
+                contributorCount: 0,
+                yearlyReceived: {},
+                monthlyTotals: {},
+                transactions: [],
+                expenses: [],
+                lastUpdated: new Date().toISOString(),
+                sourceUrl: '',
+                sourceType: 'google_sheet',
+                status: 'fetch_error',
+                year: selectedYear,
+                errorMessage:
+                  language === 'ar'
+                    ? 'تعذر الاتصال بـ Google Sheets.'
+                    : language === 'en'
+                    ? 'Unable to retrieve data from Google Sheets.'
+                    : 'Google Sheet থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি।',
+              };
+            });
+          }
         }
       } finally {
         if (reqId === activeRequestIdRef.current) {
@@ -289,12 +314,20 @@ export const FundPage: React.FC = () => {
     const handleLinksUpdate = () => {
       loadData(true);
     };
+    const handleVisibilityUpdate = () => {
+      setVisibility(storageService.getFundVisibility());
+      setConfig(storageService.getConfig());
+    };
     window.addEventListener('sf_fund_privacy_changed', handlePrivacyEvent);
     window.addEventListener('sf_config_updated', handlePrivacyEvent);
+    window.addEventListener('sf_config_updated', handleVisibilityUpdate);
+    window.addEventListener('sf_fund_visibility_updated', handleVisibilityUpdate);
     window.addEventListener('sf_fund_profile_links_updated', handleLinksUpdate);
     return () => {
       window.removeEventListener('sf_fund_privacy_changed', handlePrivacyEvent);
       window.removeEventListener('sf_config_updated', handlePrivacyEvent);
+      window.removeEventListener('sf_config_updated', handleVisibilityUpdate);
+      window.removeEventListener('sf_fund_visibility_updated', handleVisibilityUpdate);
       window.removeEventListener('sf_fund_profile_links_updated', handleLinksUpdate);
     };
   }, [loadData]);
@@ -1353,9 +1386,7 @@ export const FundPage: React.FC = () => {
                       const safeName = (member.name || '').trim();
                       const resolved = resolveContributionMemberName(safeName);
                       // Strict rule: profile link is ONLY active if explicitly verified & approved by admin
-                      const isApprovedLink = Boolean(
-                        member.linkedProfileId && (member.isMappedByAdmin || selectedYear === '2024' || selectedYear === '2025')
-                      );
+                      const isApprovedLink = Boolean(member.linkedProfileId && member.isMappedByAdmin);
                       const targetProfileId = isApprovedLink ? member.linkedProfileId : undefined;
                       const displayName = resolved.displayName || safeName || 'সদস্য';
 

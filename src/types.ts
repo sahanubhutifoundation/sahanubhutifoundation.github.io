@@ -564,7 +564,17 @@ export interface FundData {
   lastUpdated: string;
   sourceUrl: string;
   sourceType: 'google_sheet' | 'api' | 'manual';
-  status: 'live' | 'fallback' | 'error' | 'not_found';
+  status:
+    | 'live'
+    | 'fallback'
+    | 'error'
+    | 'not_found'
+    | 'access_denied'
+    | 'fetch_error'
+    | 'invalid_layout'
+    | 'empty_sheet';
+  lastSyncTime?: string;
+  isStale?: boolean;
   errorMessage?: string;
   diagnostics?: FundDiagnostics;
   expenseRatio?: number;

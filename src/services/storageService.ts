@@ -298,10 +298,17 @@ export const storageService = {
     return cfg.fundVisibility;
   },
 
+  isReceiptDownloadEnabled(): boolean {
+    return this.getFundVisibility().showPublicReceiptDownload !== false;
+  },
+
   saveFundVisibility(visibility: FundVisibilitySettings): FundVisibilitySettings {
     const cfg = this.getConfig();
     const updated = { ...cfg, fundVisibility: visibility };
     this.saveConfig(updated);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sf_fund_visibility_updated', { detail: visibility }));
+    }
     return visibility;
   },
 

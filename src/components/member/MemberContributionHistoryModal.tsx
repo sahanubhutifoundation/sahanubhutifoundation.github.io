@@ -20,6 +20,7 @@ import {
   getLocalizedMonthName
 } from '../../services/fundService';
 import { formatLocalizedAmount, formatLocalizedNumber } from '../../utils/foundationHelpers';
+import { storageService } from '../../services/storageService';
 
 interface MemberContributionHistoryModalProps {
   isOpen: boolean;
@@ -38,6 +39,22 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
   const [data, setData] = useState<MemberContributionHistoryResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState<string>('2026');
+  const [isReceiptDownloadEnabled, setIsReceiptDownloadEnabled] = useState(() =>
+    storageService.isReceiptDownloadEnabled()
+  );
+  const [receiptDisabledNotice, setReceiptDisabledNotice] = useState(false);
+
+  useEffect(() => {
+    const handleSync = () => {
+      setIsReceiptDownloadEnabled(storageService.isReceiptDownloadEnabled());
+    };
+    window.addEventListener('sf_fund_visibility_updated', handleSync);
+    window.addEventListener('sf_config_updated', handleSync);
+    return () => {
+      window.removeEventListener('sf_fund_visibility_updated', handleSync);
+      window.removeEventListener('sf_config_updated', handleSync);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen || !member.id) return;
@@ -328,24 +345,66 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    onOpenReceiptModal(member.id, selectedYear, paidMonthsForActiveYear);
-                  }}
-                  disabled={paidMonthsForActiveYear.length === 0}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white text-[#1E3A2F] hover:bg-emerald-50 text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <FileText className="w-4 h-4 text-[#2D5A41]" />
-                  <span>
-                    {language === 'ar'
-                      ? 'تحميل إيصال المساهمة'
-                      : language === 'en'
-                      ? 'Download Contribution Receipt'
-                      : 'রসিদ ডাউনলোড করুন'}
-                  </span>
-                </button>
+                <div className="flex flex-col items-end gap-1.5 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isReceiptDownloadEnabled) {
+                        setReceiptDisabledNotice(true);
+                        return;
+                      }
+                      onOpenReceiptModal(member.id, selectedYear, paidMonthsForActiveYear);
+                    }}
+                    disabled={isReceiptDownloadEnabled && paidMonthsForActiveYear.length === 0}
+                    className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all ${
+                      isReceiptDownloadEnabled
+                        ? 'bg-white text-[#1E3A2F] hover:bg-emerald-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
+                        : 'bg-white/90 text-amber-900 border border-amber-300 hover:bg-white cursor-pointer'
+                    }`}
+                  >
+                    <FileText className={`w-4 h-4 ${isReceiptDownloadEnabled ? 'text-[#2D5A41]' : 'text-amber-700'}`} />
+                    <span>
+                      {language === 'ar'
+                        ? 'تحميل إيصال المساهمة'
+                        : language === 'en'
+                        ? 'Download Contribution Receipt'
+                        : 'রসিদ ডাউনলোড করুন'}
+                    </span>
+                  </button>
+
+                  {!isReceiptDownloadEnabled && (
+                    <span className="text-[11px] text-amber-200 font-medium">
+                      {language === 'ar'
+                        ? 'خدمة تنزيل الإيصالات غير متاحة حالياً'
+                        : language === 'en'
+                        ? 'Receipt downloads currently unavailable'
+                        : 'রসিদ ডাউনলোড সুবিধাটি আপাতত বন্ধ'}
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {receiptDisabledNotice && (
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2.5 text-xs animate-fadeIn">
+                  <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-semibold">
+                      {language === 'ar'
+                        ? 'عذراً، خدمة تنزيل الإيصالات غير متاحة حالياً. يرجى المحاولة لاحقاً.'
+                        : language === 'en'
+                        ? 'Sorry, receipt downloads are temporarily unavailable. Please try again later.'
+                        : 'দুঃখিত, রসিদ ডাউনলোড সুবিধাটি আপাতত বন্ধ রয়েছে। অনুগ্রহ করে পরে চেষ্টা করুন।'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReceiptDisabledNotice(false)}
+                    className="text-amber-700 hover:text-amber-900 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

@@ -694,7 +694,6 @@ export function resolveCanonicalMemberForSheet(
   const foundLink = profileLinks.find((l) => {
     if (String(l.year).trim() !== String(year).trim()) return false;
     if (l.canonicalFundMemberId && l.canonicalFundMemberId === canonicalFundMemberId) return true;
-    if (sheetSerial > 0 && l.sheetSerial === sheetSerial) return true;
     const lNorm = (l.sheetMemberName || '').toLowerCase().replace(/[\s\.\-_]+/g, '');
     return lNorm && lNorm === normalizedKey;
   });
@@ -731,7 +730,8 @@ export function resolveCanonicalMemberForSheet(
   }
 
   // 2. Second Priority: Check saved admin manual mappings from sf_member_sheet_mappings
-  const savedId = savedMappings[yearKey] || savedMappings[normalizedKey] || savedMappings[serialKey];
+  // Strictly matched by yearKey or normalizedKey; never match by serial alone
+  const savedId = savedMappings[yearKey] || savedMappings[normalizedKey];
   if (savedId) {
     const found = registeredMembers.find((m) => m.id === savedId);
     if (found) {
@@ -773,27 +773,7 @@ export function resolveCanonicalMemberForSheet(
     }
   }
 
-  // 4. Fallback: match by serial number ONLY IF the registered member's name doesn't belong to another member
-  if (sheetSerial > 0) {
-    const serialMatch = registeredMembers.find((m) => m.serial === sheetSerial);
-    if (serialMatch) {
-      const nameBelongsToOther = registeredMembers.some((other) => {
-        if (other.id === serialMatch.id) return false;
-        const otherNorm = other.name.toLowerCase().replace(/[\s\.\-_]+/g, '');
-        return otherNorm === normalizedKey;
-      });
-      if (!nameBelongsToOther) {
-        return {
-          canonicalMember: serialMatch,
-          isMappedByAdmin: false,
-          linkedProfileId: undefined,
-          linkedProfileName: serialMatch.nameBn || serialMatch.name,
-          linkStatus: 'needs_review',
-        };
-      }
-    }
-  }
-
+  // Strictly DO NOT match by serial number or partial name alone to prevent identity collisions
   return {
     canonicalMember: undefined,
     isMappedByAdmin: false,
@@ -1215,7 +1195,7 @@ export function parseFundSheet(
 
     const isMemberRow =
       nameCell.length >= 2 &&
-      (hasSerial || hasCommitment || hasTotal || hasAnyMonthValue);
+      (hasSerial || hasCommitment || hasTotal || hasAnyMonthValue || nonEmp.length >= 2);
 
     if (isMemberRow) {
       const commitment = colMap.commitment !== undefined ? parseNumber(rawRow[colMap.commitment]) : 0;
@@ -1269,7 +1249,29 @@ export function parseFundSheet(
       const finalSerial = parsedSerial > 0 ? parsedSerial : members.length + 1;
       const effectiveCommitment = commitment > 0 ? commitment : (paidMonthsCount > 0 ? Math.round(totalContributed / paidMonthsCount) : 500);
 
-      // Decouple serial numbers: Resolve canonical registered member identity
+      // Safe deduplication: Only exclude exact duplicate rows (e.g. repeated table headers in multi-page sheets)
+      // CRITICAL RULE: Profile linking is purely a UI navigation feature and must NEVER merge or delete source rows!
+      // Two different members (e.g. Abdul Aziz & Abdur Rakib, or two members sharing serial 26) must ALWAYS remain separate!
+      const isDuplicateRow = members.some((existing) => {
+        const isSameName = existing.name.toLowerCase().replace(/[\s\.\-_]+/g, '') === normalizedNameKey;
+        const isIdenticalNumbers =
+          existing.serial === finalSerial &&
+          existing.commitment === effectiveCommitment &&
+          existing.totalContributed === totalContributed &&
+          MONTH_KEYS.every((m) => existing.months[m] === months[m]);
+        return isSameName && isIdenticalNumbers;
+      });
+
+      if (isDuplicateRow) {
+        summaryRowsExcludedCount++;
+        skippedSummaryRows.push(`Duplicate row excluded: ${cleanName}`);
+        continue;
+      }
+
+      // Canonical Fund Member ID: unique identifier for this sheet contributor
+      const canonicalFundMemberId = `${targetYearKey}-${finalSerial}-${normalizedNameKey}`;
+
+      // Resolve registered profile link solely for UI click navigation
       const {
         canonicalMember,
         isMappedByAdmin,
@@ -1284,74 +1286,18 @@ export function parseFundSheet(
         r + 1
       );
 
-      if (!canonicalMember) {
+      if (!canonicalMember && !isMappedByAdmin) {
         unrecognizedMembers.push({ serial: finalSerial, rawName: cleanName });
       }
 
-      // Safe deduplication: Check if this exact member was already processed in this sheet
-      // CRITICAL: Must NEVER merge different members who happen to share a serial number in the sheet
-      const existingMemberIdx = members.findIndex((m) => {
-        const mNorm = m.name.toLowerCase().replace(/[\s\.\-_]+/g, '');
-        if (canonicalMember && m.canonicalMemberId) {
-          return m.canonicalMemberId === canonicalMember.id;
-        }
-        return mNorm === normalizedNameKey;
-      });
-
-      if (existingMemberIdx >= 0) {
-        const existing = members[existingMemberIdx];
-        if (existing.name.toLowerCase().replace(/[\s\.\-_]+/g, '') !== normalizedNameKey) {
-          duplicateConflicts.push({
-            serial: finalSerial,
-            rawName: cleanName,
-            issue: `Multiple sheet rows (${existing.name} & ${cleanName}) resolved to same canonical member ${canonicalMember?.name}`,
-          });
-        }
-        const isIdentical =
-          existing.commitment === effectiveCommitment &&
-          existing.totalContributed === totalContributed &&
-          MONTH_KEYS.every((m) => existing.months[m] === months[m]);
-
-        if (isIdentical) {
-          summaryRowsExcludedCount++;
-          skippedSummaryRows.push(`Duplicate member row excluded: ${cleanName}`);
-          continue;
-        } else {
-          let mergedPaidCount = 0;
-          let mergedTotal = 0;
-          const mergedMonths: Record<string, 'paid' | 'unpaid'> = {};
-          const mergedAmounts: Record<string, number> = { ...(existing.monthlyAmounts || {}) };
-          MONTH_KEYS.forEach((m) => {
-            const isPaid = existing.months[m] === 'paid' || months[m] === 'paid';
-            mergedMonths[m] = isPaid ? 'paid' : 'unpaid';
-            if (monthAmounts[m] && monthAmounts[m] > 0) {
-              mergedAmounts[m] = Math.max(mergedAmounts[m] || 0, monthAmounts[m]);
-            }
-            if (isPaid && (!is2024FoundingYear || m === 'Dec')) {
-              mergedPaidCount++;
-              mergedTotal += (existing.commitment > 0 ? existing.commitment : effectiveCommitment);
-            }
-          });
-          members[existingMemberIdx] = {
-            ...existing,
-            months: mergedMonths,
-            monthlyAmounts: mergedAmounts,
-            paidCount: mergedPaidCount,
-            totalContributed: Math.max(existing.totalContributed, totalContributed, mergedTotal),
-          };
-          continue;
-        }
-      }
-
-      const memberRecordId = canonicalMember
-        ? `${targetYearKey}-${canonicalMember.id}`
-        : `${targetYearKey}-${finalSerial}-${normalizedNameKey}`;
+      // Stable, unique row-based record ID preserving distinct rows even with shared serials
+      const memberRecordId = `${targetYearKey}-row${r + 1}-${normalizedNameKey || finalSerial}`;
 
       members.push({
         id: memberRecordId,
         serial: finalSerial,
         name: cleanName,
-        canonicalMemberId: canonicalMember?.id,
+        canonicalMemberId: canonicalFundMemberId,
         linkedProfileId: isMappedByAdmin ? linkedProfileId : undefined,
         linkedProfileName: isMappedByAdmin ? linkedProfileName : undefined,
         isMappedByAdmin: !!isMappedByAdmin,
@@ -1647,7 +1593,7 @@ function parseGenericTransactions(rows: string[][], rawSourceUrl: string, select
  * Saves successfully loaded fund data in local cache
  */
 function cacheFundData(data: FundData, year?: string): void {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+  if (typeof localStorage === 'undefined') {
     return;
   }
   try {
@@ -1664,7 +1610,7 @@ function cacheFundData(data: FundData, year?: string): void {
  * Gets cached fund data as fallback for a specific year
  */
 export function getCachedFundData(year?: string): FundData | null {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+  if (typeof localStorage === 'undefined') {
     return null;
   }
   try {
@@ -1799,22 +1745,50 @@ export async function fetchFundData(
     if (yrKey === '2024') {
       // 2024 founding matrix: December 2024 member collection of ৳710
       histMonthlyTotals.Dec = 710;
-      const foundingRates = [100, 100, 100, 50, 50, 50, 50, 50, 50, 50, 30, 30]; // 710
-      histMemberRecords = foundingRates.map((rate, idx) => {
-        const reg = regMembers[idx];
-        const name = reg?.nameBn || reg?.name || `প্রতিষ্ঠাতা সদস্য ${idx + 1}`;
+      // Authoritative founding members of Sahanubhuti Foundation (founded 28/11/2024)
+      const foundingMembers2024 = [
+        { serial: 1, name: 'আব্দুল বাসির হুজুর', rate: 100, amounts: { Dec: 100 } },
+        { serial: 2, name: 'আব্দুল আজিজ', rate: 100, amounts: { Oct: 100, Nov: 100, Dec: 100 } },
+        { serial: 3, name: 'আব্দুর রাকিব', rate: 100, amounts: { Dec: 100 } },
+        { serial: 4, name: 'মোবাশ্বের হোসেন', rate: 50, amounts: { Dec: 50 } },
+        { serial: 5, name: 'ইসমাইল হোসেন', rate: 50, amounts: { Dec: 50 } },
+        { serial: 6, name: 'আরাফাত চৌধুরী', rate: 50, amounts: { Dec: 50 } },
+        { serial: 7, name: 'দাউদ ইসলাম', rate: 50, amounts: { Dec: 50 } },
+        { serial: 8, name: 'শরীয়ত উল্লাহ', rate: 50, amounts: { Dec: 50 } },
+        { serial: 9, name: 'আব্দুর রহমান', rate: 50, amounts: { Dec: 50 } },
+        { serial: 10, name: 'আব্দুল হাকিম', rate: 50, amounts: { Dec: 50 } },
+        { serial: 11, name: 'আব্দুল আলী জিহাদ', rate: 30, amounts: { Dec: 30 } },
+        { serial: 12, name: 'মোশাররফ হোসেন', rate: 30, amounts: { Dec: 30 } },
+      ];
+      const savedMappings = getSavedMemberSheetMappings();
+      histMemberRecords = foundingMembers2024.map((fm) => {
         const months: Record<string, 'paid' | 'unpaid'> = {};
         MONTH_KEYS.forEach((m) => {
           months[m] = m === 'Dec' ? 'paid' : 'unpaid';
         });
+        const norm = fm.name.toLowerCase().replace(/[\s\.\-_]+/g, '');
+        const { canonicalMember, isMappedByAdmin, linkedProfileId, linkedProfileName } = resolveCanonicalMemberForSheet(
+          fm.name,
+          fm.serial,
+          '2024',
+          regMembers,
+          savedMappings,
+          fm.serial
+        );
         return {
-          id: `2024-${reg?.id || (idx + 1)}`,
-          serial: idx + 1,
-          name,
-          canonicalMemberId: reg?.id,
-          commitment: rate,
+          id: `2024-row${fm.serial}-${norm}`,
+          serial: fm.serial,
+          name: fm.name,
+          canonicalMemberId: `2024-${fm.serial}-${norm}`,
+          linkedProfileId: isMappedByAdmin ? linkedProfileId : undefined,
+          linkedProfileName: isMappedByAdmin ? linkedProfileName : undefined,
+          isMappedByAdmin: !!isMappedByAdmin,
+          sourceRow: fm.serial,
+          year: '2024',
+          commitment: fm.rate,
           months,
-          totalContributed: rate,
+          monthlyAmounts: fm.amounts,
+          totalContributed: fm.amounts.Dec || fm.rate,
           paidCount: 1, // 1 of 1 applicable month for 2024
         };
       });
@@ -1970,6 +1944,8 @@ export async function fetchFundData(
   const mappingKey = `${effectiveSourceUrl}#${effectiveGid || '0'}`;
   const activeManualMapping = targetSrc?.manualMapping || savedLayoutMappings[mappingKey] || savedLayoutMappings[effectiveSourceUrl];
 
+  let failureReason: 'not_found' | 'access_denied' | 'fetch_error' | 'invalid_layout' = 'fetch_error';
+
   // Attempt 1: Fetch via export URL (Google Sheets export format=csv)
   try {
     const res = await fetch(exportUrl, {
@@ -1978,15 +1954,30 @@ export async function fetchFundData(
       cache: forceFresh ? 'no-store' : 'default',
     });
 
+    if (res.status === 404) failureReason = 'not_found';
+    else if (res.status === 401 || res.status === 403) failureReason = 'access_denied';
+
     if (res.ok) {
       const text = await res.text();
-      if (text && text.length > 50) {
+      if (text && text.length > 30) {
         const rows = parseCSV(text);
-        if (rows.length >= 3) {
+        if (rows.length >= 2) {
           const result = parseFundSheet(rows, effectiveSourceUrl, selectedYear, activeManualMapping);
-          result.year = selectedYear;
-          cacheFundData(result, selectedYear);
-          return result;
+          if (result.status === 'error' || result.diagnostics?.detectedType === 'unrecognized') {
+            failureReason = 'invalid_layout';
+          } else {
+            result.year = selectedYear;
+            result.isStale = false;
+            result.lastSyncTime = new Date().toISOString();
+            if (result.memberRecords && result.memberRecords.length === 0) {
+              result.status = 'empty_sheet';
+              result.errorMessage = 'স্প্রেডশিটে কোনো সদস্যের রেকর্ড পাওয়া যায়নি।';
+            } else {
+              result.status = 'live';
+            }
+            cacheFundData(result, selectedYear);
+            return result;
+          }
         }
       }
     }
@@ -2002,15 +1993,30 @@ export async function fetchFundData(
       cache: forceFresh ? 'no-store' : 'default',
     });
 
+    if (res.status === 404) failureReason = 'not_found';
+    else if (res.status === 401 || res.status === 403) failureReason = 'access_denied';
+
     if (res.ok) {
       const text = await res.text();
-      if (text && text.length > 50) {
+      if (text && text.length > 30) {
         const rows = parseCSV(text);
-        if (rows.length >= 3) {
+        if (rows.length >= 2) {
           const result = parseFundSheet(rows, effectiveSourceUrl, selectedYear, activeManualMapping);
-          result.year = selectedYear;
-          cacheFundData(result, selectedYear);
-          return result;
+          if (result.status === 'error' || result.diagnostics?.detectedType === 'unrecognized') {
+            failureReason = 'invalid_layout';
+          } else {
+            result.year = selectedYear;
+            result.isStale = false;
+            result.lastSyncTime = new Date().toISOString();
+            if (result.memberRecords && result.memberRecords.length === 0) {
+              result.status = 'empty_sheet';
+              result.errorMessage = 'স্প্রেডশিটে কোনো সদস্যের রেকর্ড পাওয়া যায়নি।';
+            } else {
+              result.status = 'live';
+            }
+            cacheFundData(result, selectedYear);
+            return result;
+          }
         }
       }
     }
@@ -2018,18 +2024,30 @@ export async function fetchFundData(
     console.warn('Fallback gviz fetch failed...', err);
   }
 
-  // Attempt 3: If network fails, serve previously cached verified data FOR THIS SPECIFIC YEAR
+  // Attempt 3: If network or parse fails, PRESERVE PREVIOUSLY VERIFIED DATA FOR THIS SPECIFIC YEAR
+  // Strict rule: Never delete valid records, reset to zero, or overwrite with empty data on failed fetch
   const cached = getCachedFundData(selectedYear);
-  if (cached) {
+  if (cached && cached.memberRecords && cached.memberRecords.length > 0) {
+    let honestNotice = 'Google Sheet থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি। সর্বশেষ ভেরিফাইড অফলাইন তথ্য প্রদর্শিত হচ্ছে।';
+    if (failureReason === 'not_found') {
+      honestNotice = 'Google Sheet পাওয়া যায়নি। সর্বশেষ ভেরিফাইড অফলাইন তথ্য প্রদর্শিত হচ্ছে।';
+    } else if (failureReason === 'access_denied') {
+      honestNotice = 'Google Sheet-এর অনুমতি পাওয়া যাচ্ছে না। সর্বশেষ ভেরিফাইড অফলাইন তথ্য প্রদর্শিত হচ্ছে।';
+    } else if (failureReason === 'invalid_layout') {
+      honestNotice = 'Sheet-এর বিন্যাস শনাক্ত করা যায়নি; Admin-এর যাচাই প্রয়োজন। সর্বশেষ ভেরিফাইড অফলাইন তথ্য প্রদর্শিত হচ্ছে।';
+    }
+
     return {
       ...cached,
       status: 'fallback',
+      isStale: true,
+      lastSyncTime: cached.lastUpdated,
       year: selectedYear,
-      errorMessage: 'সর্বশেষ সংগৃহীত অফলাইন তথ্য প্রদর্শিত হচ্ছে।',
+      errorMessage: honestNotice,
     };
   }
 
-  // Clear source-unavailable state with continuous ledger carry-forward preserved
+  // Clear source-unavailable state with continuous ledger carry-forward preserved without fabricating income
   const yrKey = selectedYear || defaultYear;
   const yearlyLedger = computeContinuousYearlyFundLedger(
     {},
@@ -2056,6 +2074,15 @@ export async function fetchFundData(
     yearlyIncome[y] = yearlyLedger[y].currentYearIncome;
   });
 
+  let honestMessage = 'Google Sheet থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি।';
+  if (failureReason === 'not_found') {
+    honestMessage = 'Google Sheet পাওয়া যায়নি।';
+  } else if (failureReason === 'access_denied') {
+    honestMessage = 'Google Sheet-এর অনুমতি পাওয়া যাচ্ছে না।';
+  } else if (failureReason === 'invalid_layout') {
+    honestMessage = 'Sheet-এর বিন্যাস শনাক্ত করা যায়নি; Admin-এর যাচাই প্রয়োজন।';
+  }
+
   return {
     totalFund: currentYearLedger.closingBalance,
     amountReceived: currentYearLedger.currentYearIncome,
@@ -2073,11 +2100,9 @@ export async function fetchFundData(
     lastUpdated: new Date().toISOString(),
     sourceUrl: effectiveSourceUrl,
     sourceType: 'google_sheet',
-    status: 'error',
+    status: failureReason,
     year: selectedYear,
-    errorMessage: selectedYear
-      ? `${selectedYear} আর্থিক বছরের গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা যায়নি। পূর্ববর্তী বছরের সমাপ্তি স্থিতি (৳ ${currentYearLedger.openingBalance.toLocaleString()}) সংরক্ষিত রয়েছে।`
-      : 'গুগল স্প্রেডশিট থেকে তথ্য সংগ্রহ করা সম্ভব হয়নি। স্প্রেডশিটের শেয়ারিং পারমিশন যাচাই করুন।',
+    errorMessage: honestMessage,
     diagnostics: {
       selectedYear: selectedYear || '',
       sourceUrl: effectiveSourceUrl,
@@ -2085,7 +2110,7 @@ export async function fetchFundData(
       rowCount: 0,
       headerRowIndex: -1,
       identifiedHeaders: [],
-      missingFields: ['Network / Access Failure: Google Sheets export endpoints unreachable'],
+      missingFields: [`Source status: ${failureReason}`],
       detectedType: 'unrecognized',
       note: 'স্প্রেডশিটের শেয়ারিং পারমিশন "Anyone with the link can view" কিনা তা নিশ্চিত করুন।',
     },
@@ -2165,11 +2190,10 @@ export async function getMemberContributionHistory(
 
     let rec: FundMemberRecord | undefined;
     if (fundData && fundData.memberRecords) {
-      // Priority 1: Match by confirmed profile link
+      // Priority 1: Match by confirmed profile link (canonicalFundMemberId or linkedProfileId)
       if (profileLink && profileLink.confirmedByAdmin) {
         rec = fundData.memberRecords.find((m) => {
-          if (profileLink.canonicalFundMemberId && m.id === profileLink.canonicalFundMemberId) return true;
-          if (profileLink.sheetSerial && m.serial === profileLink.sheetSerial) return true;
+          if (profileLink.canonicalFundMemberId && (m.id === profileLink.canonicalFundMemberId || m.canonicalMemberId === profileLink.canonicalFundMemberId)) return true;
           return m.linkedProfileId === profileId;
         });
       }
@@ -2177,13 +2201,9 @@ export async function getMemberContributionHistory(
       if (!rec) {
         rec = fundData.memberRecords.find((m) => m.linkedProfileId === profileId);
       }
-      // Priority 3: Canonical ID match ONLY if verified
+      // Priority 3: Canonical ID match ONLY if verified by admin
       if (!rec) {
         rec = fundData.memberRecords.find((m) => m.canonicalMemberId === profileId && m.isMappedByAdmin);
-      }
-      // Fallback for 2024 and 2025 archived records
-      if (!rec && (yr === '2024' || yr === '2025')) {
-        rec = fundData.memberRecords.find((m) => m.canonicalMemberId === profileId);
       }
     }
 

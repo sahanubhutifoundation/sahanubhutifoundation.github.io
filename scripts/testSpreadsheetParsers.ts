@@ -11,9 +11,27 @@ import {
   getMemberContributionHistory,
 } from '../src/services/fundService';
 import { storageService } from '../src/services/storageService';
-import { fundPrivacyService } from '../src/services/fundPrivacyService';
 import { getDeterministicReceiptNumber } from '../src/utils/receiptNumbering';
 import { FundProfileLinkRecord, Member, SheetManualMapping } from '../src/types';
+
+// Polyfill global localStorage for NodeJS test execution
+if (typeof globalThis.localStorage === 'undefined') {
+  const store: Record<string, string> = {};
+  globalThis.localStorage = {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => {
+      store[key] = String(value);
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      Object.keys(store).forEach((k) => delete store[k]);
+    },
+    key: (index: number) => Object.keys(store)[index] || null,
+    length: 0,
+  } as any;
+}
 
 async function runAllTests() {
   console.log('================================================================');
@@ -229,6 +247,121 @@ async function runAllTests() {
 
   assert(rNo1 === rNo2, `Receipt number is deterministic: ${rNo1} === ${rNo2}`);
   assert(rNo1 !== rNoSeparate, `Consolidated multi-month differs from single month: ${rNo1} vs ${rNoSeparate}`);
+
+  // TEST 11: 2024 Abdul Aziz / Abdur Rakib Identity Collision Resolution
+  console.log('\n--- TEST 11: 2024 Abdul Aziz & Abdur Rakib Identity Separation ---');
+  const fund2024 = await fetchFundData('', true, '2024');
+  assert(fund2024.memberRecords !== undefined, '2024 historical fund members exist');
+  const abdulAziz = fund2024.memberRecords?.find((m) => m.name === 'আব্দুল আজিজ');
+  const abdurRakib = fund2024.memberRecords?.find((m) => m.name === 'আব্দুর রাকিব');
+
+  assert(abdulAziz !== undefined, 'আব্দুল আজিজ restored as distinct member in 2024');
+  assert(abdurRakib !== undefined, 'আব্দুর রাকিব preserved as distinct member in 2024');
+  assert(abdulAziz?.serial === 2, 'আব্দুল আজিজ has Serial 2');
+  assert(abdulAziz?.commitment === 100, 'আব্দুল আজিজ has monthly rate ৳100');
+  assert(abdulAziz?.totalContributed === 100, 'আব্দুল আজিজ has December 2024 contribution ৳100');
+  assert(abdulAziz?.id !== abdurRakib?.id, 'Unique IDs: Abdul Aziz and Abdur Rakib do not share ID');
+
+  // TEST 12: Dual Serial 26 Coexistence (Istiak hosain zihan & Maulana Abdul Hamid)
+  console.log('\n--- TEST 12: Shared Serial 26 Independent Coexistence ---');
+  const serial26Grid: string[][] = [
+    ['SL', 'Name', 'Commitment', 'Jan', 'Total'],
+    ['26', 'Istiak hosain zihan', '20', '20', '20'],
+    ['26', 'Maulana Abdul Hamid', '30', '30', '30'],
+  ];
+  const parsed26 = parseFundSheet(serial26Grid, 'https://example.com/serial26', '2026');
+  assert(parsed26.memberRecords.length === 2, 'Both members sharing Serial 26 parsed successfully');
+  assert(parsed26.memberRecords[0].name === 'Istiak hosain zihan', 'First serial 26 is Istiak hosain zihan');
+  assert(parsed26.memberRecords[1].name === 'Maulana Abdul Hamid', 'Second serial 26 is Maulana Abdul Hamid');
+  assert(parsed26.memberRecords[0].id !== parsed26.memberRecords[1].id, 'Distinct record IDs based on source row and name');
+  assert(parsed26.amountReceived === 50, 'Both contributions counted towards total: ৳20 + ৳30 = ৳50');
+
+  // TEST 13: 11 Members Extraction (Including 0-contribution / pending member)
+  console.log('\n--- TEST 13: 11 Members Matrix Extraction ---');
+  const matrix11Rows: string[][] = [
+    ['No', 'Name', 'Commitment', 'Jan', 'Feb', 'Mar', 'Total'],
+    ['1', 'Abdul Basir Hujur', '100', '100', '100', '100', '300'],
+    ['2', 'Abdur Rakib', '100', '100', '100', '100', '300'],
+    ['3', 'Mobasser Hosen', '100', '100', '100', '100', '300'],
+    ['4', 'Abdul Aziz', '100', '100', '100', '100', '300'],
+    ['5', 'Ismail Hossain', '50', '50', '50', '50', '150'],
+    ['6', 'Arafat Chowdhury', '50', '50', '50', '50', '150'],
+    ['7', 'Daudul Islam', '50', '50', '50', '0', '100'],
+    ['8', 'Shariatullah', '50', '0', '0', '0', '0'], // 0 contributions, pending
+    ['9', 'Abdur Rahman', '50', '50', '50', '0', '100'],
+    ['10', 'Abdul Hakim', '100', '100', '100', '100', '300'],
+    ['11', 'Abdul Ali Jihad', '20', '20', '20', '20', '60'],
+  ];
+  const parsed11 = parseFundSheet(matrix11Rows, 'https://example.com/11members', '2026');
+  assert(parsed11.memberRecords.length === 11, `Extracted exactly 11 member records (actual: ${parsed11.memberRecords.length})`);
+  const shariatullah = parsed11.memberRecords.find((m) => m.name === 'Shariatullah');
+  assert(shariatullah !== undefined, 'Shariatullah with 0 payments preserved in member list');
+  assert(shariatullah?.totalContributed === 0, 'Shariatullah total is 0');
+  assert(shariatullah?.paidCount === 0, 'Shariatullah paid count is 0');
+
+  // TEST 14: Profile Linking Independence
+  console.log('\n--- TEST 14: Profile Linking Independence ---');
+  const initialTotal = parsed11.amountReceived;
+  const initialCount = parsed11.memberRecords.length;
+
+  // Simulate admin linking Shariatullah to a profile
+  const linkRecord: FundProfileLinkRecord = {
+    id: 'link-shariatullah',
+    year: '2026',
+    sheetMemberName: 'Shariatullah',
+    canonicalFundMemberId: '2026-8-shariatullah',
+    linkedProfileId: 'reg-shariatullah-99',
+    linkedProfileName: 'শরীয়ত উল্লাহ',
+    status: 'linked',
+    confirmedByAdmin: true,
+    updatedAt: new Date().toISOString(),
+  };
+  storageService.saveFundProfileLink(linkRecord);
+
+  const parsedAfterLink = parseFundSheet(matrix11Rows, 'https://example.com/11members', '2026');
+  assert(parsedAfterLink.amountReceived === initialTotal, 'Linking profile leaves financial total unchanged');
+  assert(parsedAfterLink.memberRecords.length === initialCount, 'Linking profile leaves member count unchanged');
+
+  // Simulate unlinking
+  storageService.deleteFundProfileLink(linkRecord.id);
+  const parsedAfterUnlink = parseFundSheet(matrix11Rows, 'https://example.com/11members', '2026');
+  assert(parsedAfterUnlink.amountReceived === initialTotal, 'Unlinking profile leaves financial total unchanged');
+  assert(parsedAfterUnlink.memberRecords.length === initialCount, 'Unlinking profile leaves member count unchanged');
+
+  // TEST 15: Source Availability States & Stale Data Preservation
+  console.log('\n--- TEST 15: Source Availability States & Stale Data Preservation ---');
+  // Simulate network failure when cached data exists
+  const dummyCachedData = {
+    ...parsed11,
+    year: '2099',
+    lastUpdated: '2026-11-01T00:00:00.000Z',
+  };
+  localStorage.setItem('sf_fund_cache_data_v4_2099', JSON.stringify(dummyCachedData));
+
+  // Fetch with invalid URL to simulate network failure
+  const failRes = await fetchFundData('https://invalid-non-existent-domain-12345.com/sheet', true, '2099');
+  assert(failRes.status === 'fallback', 'Failed fetch preserves previously cached verified data with status === "fallback"');
+  assert(failRes.isStale === true, 'Failed fetch marks data as isStale === true');
+  assert(failRes.memberRecords !== undefined && failRes.memberRecords.length === 11, 'All 11 verified member records safely preserved on network error');
+  assert(failRes.amountReceived === parsed11.amountReceived, 'Financial total remains intact on network error');
+
+  // TEST 16: Safe Reconciliation (Re-import does not duplicate income)
+  console.log('\n--- TEST 16: Re-import Safe Reconciliation ---');
+  const import1 = parseFundSheet(matrix11Rows, 'https://example.com/repeat', '2026');
+  const import2 = parseFundSheet(matrix11Rows, 'https://example.com/repeat', '2026');
+  assert(import1.amountReceived === import2.amountReceived, `Re-import total matches exactly: ৳${import1.amountReceived} === ৳${import2.amountReceived}`);
+  assert(import1.memberRecords.length === import2.memberRecords.length, 'Re-import does not duplicate member records');
+
+  // TEST 17: Centralized Receipt Download Control (Single Source of Truth)
+  console.log('\n--- TEST 17: Centralized Receipt Download Control (showPublicReceiptDownload) ---');
+  // State A: When showPublicReceiptDownload is OFF
+  const visOff = storageService.getFundVisibility();
+  storageService.saveFundVisibility({ ...visOff, showPublicReceiptDownload: false });
+  assert(storageService.isReceiptDownloadEnabled() === false, 'storageService reports receipt downloads disabled when showPublicReceiptDownload = false');
+
+  // State B: When showPublicReceiptDownload is ON
+  storageService.saveFundVisibility({ ...visOff, showPublicReceiptDownload: true });
+  assert(storageService.isReceiptDownloadEnabled() === true, 'storageService reports receipt downloads enabled when showPublicReceiptDownload = true');
 
   console.log('\n================================================================');
   console.log(`🏁 TEST RESULTS: ${passedTests} / ${totalTests} TESTS PASSED (${Math.round((passedTests / totalTests) * 100)}%)`);
