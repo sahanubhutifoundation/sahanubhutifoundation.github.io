@@ -49,7 +49,7 @@ const KEYS = {
 const memoryStore: Record<string, string> = {};
 
 function getLocalItem<T>(key: string, fallback: T): T {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+  if (typeof localStorage === 'undefined') {
     if (memoryStore[key]) {
       try {
         return JSON.parse(memoryStore[key]) as T;
@@ -70,7 +70,7 @@ function getLocalItem<T>(key: string, fallback: T): T {
 }
 
 function setLocalItem<T>(key: string, value: T): void {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+  if (typeof localStorage === 'undefined') {
     memoryStore[key] = JSON.stringify(value);
     return;
   }
@@ -1388,6 +1388,116 @@ export const storageService = {
     return updated;
   },
 
+  async fetchFundProfileLinksAsync(year?: string): Promise<OperationResult<FundProfileLinkRecord[]>> {
+    if (supabaseService.isAvailable()) {
+      try {
+        const res = await supabaseService.fetchFundProfileLinksDetailed();
+        if (res.success && res.data) {
+          setLocalItem(KEYS.PROFILE_LINKS, res.data);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('sf_fund_profile_links_updated', { detail: res.data }));
+          }
+          const filtered = !year || year === 'all'
+            ? res.data
+            : res.data.filter((l) => String(l.year).trim() === String(year).trim());
+          return { success: true, data: filtered };
+        }
+        // If query failed with a network error, return error result without wiping cache
+        return res;
+      } catch (err: any) {
+        return {
+          success: false,
+          error: err?.message || 'সদস্য ম্যাপিং লোড করার সময় অপ্রত্যাশিত ত্রুটি ঘটেছে।',
+        };
+      }
+    }
+
+    return { success: true, data: this.getFundProfileLinks(year) };
+  },
+
+  async saveFundProfileLinkAsync(link: FundProfileLinkRecord): Promise<OperationResult<FundProfileLinkRecord[]>> {
+    const all = this.getFundProfileLinks('all');
+    const id = link.id || `fpl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const cleanItem: FundProfileLinkRecord = {
+      ...link,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const idx = all.findIndex(
+      (l) => l.id === id || (String(l.year).trim() === String(cleanItem.year).trim() && l.canonicalFundMemberId === cleanItem.canonicalFundMemberId)
+    );
+    let updated: FundProfileLinkRecord[];
+    if (idx >= 0) {
+      updated = [...all];
+      updated[idx] = cleanItem;
+    } else {
+      updated = [cleanItem, ...all];
+    }
+
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.saveFundProfileLinksDetailed(updated);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'সদস্য ম্যাপিং ক্লাউড ডাটাবেজে সংরক্ষণ করা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const confirmedData = res.data || updated;
+      setLocalItem(KEYS.PROFILE_LINKS, confirmedData);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sf_fund_profile_links_updated', { detail: confirmedData }));
+        window.dispatchEvent(new Event('sf_data_updated'));
+        window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+      }
+      return { success: true, data: confirmedData };
+    }
+
+    // Local fallback when Supabase is not configured
+    setLocalItem(KEYS.PROFILE_LINKS, updated);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sf_fund_profile_links_updated', { detail: updated }));
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
+  async deleteFundProfileLinkAsync(id: string): Promise<OperationResult<FundProfileLinkRecord[]>> {
+    const all = this.getFundProfileLinks('all');
+    const updated = all.filter((l) => l.id !== id);
+
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.saveFundProfileLinksDetailed(updated);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'সদস্য ম্যাপিং ক্লাউড ডাটাবেজ থেকে মুছে ফেলা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const confirmedData = res.data || updated;
+      setLocalItem(KEYS.PROFILE_LINKS, confirmedData);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sf_fund_profile_links_updated', { detail: confirmedData }));
+        window.dispatchEvent(new Event('sf_data_updated'));
+        window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+      }
+      return { success: true, data: confirmedData };
+    }
+
+    setLocalItem(KEYS.PROFILE_LINKS, updated);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sf_fund_profile_links_updated', { detail: updated }));
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+    }
+    return { success: true, data: updated };
+  },
+
   getFundProfileLinkForMember(memberId: string, year?: string): FundProfileLinkRecord | undefined {
     const links = this.getFundProfileLinks(year);
     return links.find((l) => l.linkedProfileId === memberId && l.status === 'linked');
@@ -1823,6 +1933,13 @@ export const storageService = {
       if (cloudSocial && cloudSocial.length > 0) {
         setLocalItem(KEYS.SOCIAL, cloudSocial);
         synced.push('social');
+      }
+
+      // 10. Fund Profile Links (Persistent Cross-browser mappings)
+      const cloudLinksRes = await supabaseService.fetchFundProfileLinksDetailed();
+      if (cloudLinksRes.success && cloudLinksRes.data && cloudLinksRes.data.length > 0) {
+        setLocalItem(KEYS.PROFILE_LINKS, cloudLinksRes.data);
+        synced.push('profile_links');
       }
 
       if (typeof window !== 'undefined' && synced.length > 0) {

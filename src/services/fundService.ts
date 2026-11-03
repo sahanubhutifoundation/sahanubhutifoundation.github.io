@@ -2119,21 +2119,25 @@ export async function fetchFundData(
 
 export interface MemberMonthContributionStatus {
   month: (typeof MONTH_KEYS)[number];
-  status: 'paid' | 'unpaid' | 'pre_foundation';
+  status: 'paid' | 'due' | 'unpaid' | 'not_applicable' | 'pre_foundation' | 'future';
   amount: number;
+  reason?: string;
 }
 
 export interface MemberYearContributionSummary {
   year: string;
   isLinked: boolean;
-  linkStatus: 'linked' | 'unlinked' | 'needs_review' | 'conflict';
+  linkStatus: 'linked' | 'unlinked' | 'needs_review' | 'conflict' | 'backend_error';
   sheetMemberName?: string;
   sheetSerial?: number;
   commitment: number;
   paidMonthsCount: number;
   applicableMonthsCount: number;
+  dueMonthsCount: number;
   totalContributed: number;
   months: MemberMonthContributionStatus[];
+  backendError?: string;
+  isContributionStarted?: boolean;
 }
 
 export interface MemberContributionHistoryResult {
@@ -2144,10 +2148,49 @@ export interface MemberContributionHistoryResult {
   cumulativeTotal: number;
 }
 
+export interface MemberContributionStart {
+  year: number;
+  month: number; // 1-12
+  isExplicit: boolean;
+}
+
+/**
+ * Extracts and parses a member's effective contribution start period
+ * from Admin-confirmed contributionStartDate or joiningDate.
+ */
+export function parseMemberContributionStart(member?: Member): MemberContributionStart | null {
+  if (!member) return null;
+  const candidate = (member.contributionStartDate || member.joiningDate || '').trim();
+  if (!candidate) return null;
+
+  // Format: YYYY-MM or YYYY-MM-DD
+  const match = candidate.match(/^(\d{4})[-/.](\d{1,2})/);
+  if (match) {
+    const yr = parseInt(match[1], 10);
+    const mo = parseInt(match[2], 10);
+    if (!isNaN(yr) && !isNaN(mo) && mo >= 1 && mo <= 12) {
+      return { year: yr, month: mo, isExplicit: Boolean(member.contributionStartDate) };
+    }
+  }
+
+  // Format: YYYY only
+  const yrMatch = candidate.match(/^(\d{4})$/);
+  if (yrMatch) {
+    const yr = parseInt(yrMatch[1], 10);
+    if (!isNaN(yr)) {
+      return { year: yr, month: 1, isExplicit: Boolean(member.contributionStartDate) };
+    }
+  }
+
+  return null;
+}
+
 /**
  * Retrieves personal monthly contribution history strictly for a single verified registered member.
  * Reuses the existing Fund Page password authorization session.
  * For 2024 founding year (established 28/11/2024), January–November are marked as pre_foundation (muted).
+ * Ensures cross-browser persistence by querying backend when cache is unpopulated.
+ * Correctly distinguishes 3 monthly states: not_applicable, paid, and due based on contribution start date.
  */
 export async function getMemberContributionHistory(
   profileId: string,
@@ -2158,6 +2201,27 @@ export async function getMemberContributionHistory(
   if (!member) {
     return null;
   }
+
+  // Ensure persistent cross-browser profile links are available
+  let cloudFetchFailed = false;
+  let cloudFetchError: string | undefined;
+  if (storageService.getFundProfileLinks('all').length === 0) {
+    try {
+      const cloudRes = await storageService.fetchFundProfileLinksAsync('all');
+      if (!cloudRes.success) {
+        cloudFetchFailed = true;
+        cloudFetchError = cloudRes.error;
+      }
+    } catch (e: any) {
+      cloudFetchFailed = true;
+      cloudFetchError = e?.message || 'সদস্য ম্যাপিং ক্লাউড থেকে লোড করা যায়নি।';
+    }
+  }
+
+  const memberStart = parseMemberContributionStart(member);
+  const now = new Date();
+  const currentReportingYear = now.getFullYear();
+  const currentReportingMonth = now.getMonth() + 1; // 1-12
 
   const config = storageService.getConfig();
   const yearsSet = new Set<string>(['2024', '2025', '2026']);
@@ -2171,8 +2235,8 @@ export async function getMemberContributionHistory(
   let cumulativeTotal = 0;
 
   for (const yr of availableYears) {
+    const yrNum = parseInt(yr, 10);
     const is2024FoundingYear = yr === '2024';
-    const applicableMonthsCount = is2024FoundingYear ? 1 : 12;
 
     // Check explicit confirmed profile links
     const profileLink = storageService.getFundProfileLinkForMember(profileId, yr);
@@ -2205,70 +2269,131 @@ export async function getMemberContributionHistory(
       if (!rec) {
         rec = fundData.memberRecords.find((m) => m.canonicalMemberId === profileId && m.isMappedByAdmin);
       }
+      // Priority 4: Exact normalized name match if not explicitly unlinked and no conflict
+      if (!rec && (!profileLink || profileLink.status !== 'unlinked')) {
+        const memNorm = normalizeMemberMatchName(member.nameBn || member.name);
+        if (memNorm) {
+          rec = fundData.memberRecords.find((m) => {
+            if (m.linkedProfileId && m.linkedProfileId !== profileId) return false;
+            return normalizeMemberMatchName(m.name) === memNorm;
+          });
+        }
+      }
     }
 
-    if (rec) {
-      const monthsList: MemberMonthContributionStatus[] = MONTH_KEYS.map((m) => {
-        if (is2024FoundingYear && m !== 'Dec') {
-          return {
-            month: m,
-            status: 'pre_foundation',
-            amount: 0,
-          };
-        }
-        const isPaid = rec!.months[m] === 'paid';
-        const amt = rec!.monthlyAmounts?.[m] ?? (isPaid ? (rec!.commitment || 500) : 0);
+    // Determine year-specific contribution rate (use source record rate or defaults)
+    const yearCommitment = rec?.commitment || (is2024FoundingYear ? 100 : 500);
+
+    const monthsList: MemberMonthContributionStatus[] = MONTH_KEYS.map((m, mIdxZero) => {
+      const mIdx = mIdxZero + 1; // 1-12
+
+      // Rule 1: 2024 Founding Period (Foundation formed 28 Nov 2024)
+      if (is2024FoundingYear && m !== 'Dec') {
         return {
           month: m,
-          status: isPaid ? 'paid' : 'unpaid',
-          amount: amt,
+          status: 'pre_foundation',
+          amount: 0,
+          reason: 'প্রতিষ্ঠা পূর্ববর্তী সময় (২৮ নভেম্বর ২০২৪ এর পূর্বে)',
         };
-      });
+      }
 
-      const summary: MemberYearContributionSummary = {
-        year: yr,
-        isLinked: true,
-        linkStatus: 'linked',
-        sheetMemberName: rec.name,
-        sheetSerial: rec.serial,
-        commitment: rec.commitment,
-        paidMonthsCount: rec.paidCount,
-        applicableMonthsCount,
-        totalContributed: rec.totalContributed,
-        months: monthsList,
-      };
-
-      yearSummaries[yr] = summary;
-      cumulativeTotal += rec.totalContributed;
-    } else {
-      const monthsList: MemberMonthContributionStatus[] = MONTH_KEYS.map((m) => {
-        if (is2024FoundingYear && m !== 'Dec') {
+      // Rule 2: Member's individual contribution start period
+      if (memberStart) {
+        const isBeforeStart = yrNum < memberStart.year || (yrNum === memberStart.year && mIdx < memberStart.month);
+        if (isBeforeStart) {
           return {
             month: m,
-            status: 'pre_foundation',
+            status: 'not_applicable',
             amount: 0,
+            reason: 'সদস্যের যোগদানের পূর্ববর্তী মাস',
           };
         }
+      } else if (!rec) {
+        // Unknown start date and no record for this year: do not manufacture false arrears
         return {
           month: m,
-          status: 'unpaid',
+          status: 'not_applicable',
+          amount: 0,
+          reason: 'অবদান শুরু নির্ধারণ করা যায়নি',
+        };
+      }
+
+      // Rule 3: Check verified payment from sheet
+      const isPaid = rec?.months[m] === 'paid';
+      const paidAmt = rec?.monthlyAmounts?.[m] ?? (isPaid ? yearCommitment : 0);
+
+      if (isPaid && paidAmt > 0) {
+        return {
+          month: m,
+          status: 'paid',
+          amount: paidAmt,
+        };
+      }
+
+      // Rule 4: Future months check
+      const isFutureMonth = yrNum > currentReportingYear || (yrNum === currentReportingYear && mIdx > currentReportingMonth);
+      if (isFutureMonth) {
+        return {
+          month: m,
+          status: 'future',
+          amount: 0,
+          reason: 'আসন্ন মাস',
+        };
+      }
+
+      // Rule 5: Applicable month without payment -> Due (বকেয়া)
+      // Only mark due if the member is verified linked to this year's sheet
+      if (rec) {
+        return {
+          month: m,
+          status: 'due',
           amount: 0,
         };
-      });
+      }
 
-      yearSummaries[yr] = {
-        year: yr,
-        isLinked: false,
-        linkStatus: profileLink ? profileLink.status : 'unlinked',
-        sheetMemberName: profileLink?.sheetMemberName,
-        sheetSerial: profileLink?.sheetSerial,
-        commitment: 500,
-        paidMonthsCount: 0,
-        applicableMonthsCount,
-        totalContributed: 0,
-        months: monthsList,
+      return {
+        month: m,
+        status: 'not_applicable',
+        amount: 0,
       };
+    });
+
+    const paidMonths = monthsList.filter((m) => m.status === 'paid');
+    const dueMonths = monthsList.filter((m) => m.status === 'due');
+    const applicableMonths = monthsList.filter((m) => m.status === 'paid' || m.status === 'due');
+
+    const paidMonthsCount = paidMonths.length;
+    const dueMonthsCount = dueMonths.length;
+    const applicableMonthsCount = applicableMonths.length;
+    const totalContributed = paidMonths.reduce((sum, m) => sum + m.amount, 0);
+
+    let linkStatus: 'linked' | 'unlinked' | 'needs_review' | 'conflict' | 'backend_error' = 'unlinked';
+    if (rec) {
+      linkStatus = 'linked';
+    } else if (cloudFetchFailed) {
+      linkStatus = 'backend_error';
+    } else if (profileLink) {
+      linkStatus = profileLink.status;
     }
+
+    const summary: MemberYearContributionSummary = {
+      year: yr,
+      isLinked: Boolean(rec),
+      linkStatus,
+      sheetMemberName: rec?.name || profileLink?.sheetMemberName,
+      sheetSerial: rec?.serial || profileLink?.sheetSerial,
+      commitment: yearCommitment,
+      paidMonthsCount,
+      applicableMonthsCount,
+      dueMonthsCount,
+      totalContributed,
+      months: monthsList,
+      backendError: cloudFetchError,
+      isContributionStarted: !memberStart || yrNum >= memberStart.year,
+    };
+
+    yearSummaries[yr] = summary;
+    cumulativeTotal += totalContributed;
   }
 
   return {

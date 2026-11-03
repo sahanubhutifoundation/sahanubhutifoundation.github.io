@@ -2694,7 +2694,18 @@ export const AdminPage: React.FC = () => {
                         <span className="text-[10px] text-[#7A877E]">ঐচ্ছিক — কার্ডে বা বিস্তারিত পেজে প্রদর্শিত হবে</span>
                       </div>
 
-                      <div className="flex flex-col justify-center space-y-2 pt-1 sm:pt-4">
+                      <div>
+                        <label className="block font-bold text-[#2D3630] mb-1">অবদান শুরুর তারিখ (Contribution Start Date)</label>
+                        <input
+                          type="date"
+                          value={editingMember.contributionStartDate || ''}
+                          onChange={(e) => setEditingMember({ ...editingMember, contributionStartDate: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-white text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                        />
+                        <span className="text-[10px] text-[#7A877E]">ঐচ্ছিক — নির্ধারিত না থাকলে সদস্য হওয়ার তারিখ বিবেচিত হবে</span>
+                      </div>
+
+                      <div className="sm:col-span-2 flex flex-col justify-center space-y-2 pt-1">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"

@@ -44,11 +44,14 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
   const [linkingRecord, setLinkingRecord] = useState<FundMemberRecord | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string>('');
   const [profileSearchQuery, setProfileSearchQuery] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const loadLinksAndSheetData = async (forceFresh = false) => {
     setLoading(true);
     try {
-      const savedLinks = storageService.getFundProfileLinks(selectedYear);
+      // 1. Fetch persistent cross-browser links from backend/cloud
+      const cloudRes = await storageService.fetchFundProfileLinksAsync(selectedYear);
+      const savedLinks = cloudRes.data || storageService.getFundProfileLinks(selectedYear);
       setLinks(savedLinks);
 
       const src = yearlySources.find((s) => s.year === selectedYear);
@@ -175,7 +178,7 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
   }, [finalizedRows, searchQuery, filterStatus]);
 
   // Handle Link / Change Confirmation
-  const handleSaveLink = (record: FundMemberRecord, profileId: string, confirmed: boolean) => {
+  const handleSaveLink = async (record: FundMemberRecord, profileId: string, confirmed: boolean) => {
     const targetMember = members.find((m) => m.id === profileId);
     if (!targetMember) {
       showToast('নিবন্ধিত সদস্য নির্বাচন করুন', 'error');
@@ -201,14 +204,25 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
       updatedAt: new Date().toISOString(),
     };
 
-    storageService.saveFundProfileLink(linkRecord);
-    setLinks(storageService.getFundProfileLinks(selectedYear));
-    setLinkingRecord(null);
-    showToast(`${cleanName} ↔ ${targetMember.nameBn || targetMember.name} লিঙ্ক সফলভাবে সংরক্ষিত হয়েছে`, 'success');
+    setIsSaving(true);
+    try {
+      const res = await storageService.saveFundProfileLinkAsync(linkRecord);
+      if (!res.success) {
+        showToast(res.error || 'সদস্য ম্যাপিং ক্লাউড ডাটাবেজে সংরক্ষণ করা যায়নি।', 'error');
+        return;
+      }
+      setLinks(storageService.getFundProfileLinks(selectedYear));
+      setLinkingRecord(null);
+      showToast(`${cleanName} ↔ ${targetMember.nameBn || targetMember.name} লিঙ্ক সফলভাবে ক্লাউড ডাটাবেজে সংরক্ষিত হয়েছে`, 'success');
+    } catch (err: any) {
+      showToast(err?.message || 'সদস্য ম্যাপিং সংরক্ষণে ত্রুটি দেখা দিয়েছে', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Handle Unlink
-  const handleUnlink = (record: FundMemberRecord) => {
+  const handleUnlink = async (record: FundMemberRecord) => {
     const cleanName = (record.name || '').trim();
     const norm = cleanName.toLowerCase().replace(/[\s\.\-_]+/g, '');
     const canonicalId = record.canonicalMemberId || `${selectedYear}-${record.serial}-${norm}`;
@@ -228,9 +242,20 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
       updatedAt: new Date().toISOString(),
     };
 
-    storageService.saveFundProfileLink(linkRecord);
-    setLinks(storageService.getFundProfileLinks(selectedYear));
-    showToast(`${cleanName} আনলিঙ্ক করা হয়েছে`, 'success');
+    setIsSaving(true);
+    try {
+      const res = await storageService.saveFundProfileLinkAsync(linkRecord);
+      if (!res.success) {
+        showToast(res.error || 'আনলিঙ্ক ক্লাউড ডাটাবেজে আপডেট করা যায়নি।', 'error');
+        return;
+      }
+      setLinks(storageService.getFundProfileLinks(selectedYear));
+      showToast(`${cleanName} আনলিঙ্ক সফলভাবে সম্পন্ন হয়েছে`, 'success');
+    } catch (err: any) {
+      showToast(err?.message || 'আনলিঙ্ক প্রক্রিয়ায় ত্রুটি ঘটেছে', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Quick Approve Candidate

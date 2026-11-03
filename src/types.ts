@@ -56,6 +56,7 @@ export interface Member {
   addressAr?: string;
   joiningDate?: string;
   showJoiningDate?: boolean;
+  contributionStartDate?: string;
   bio?: string;
   bioBn?: string;
   bioEn?: string;
@@ -782,6 +783,7 @@ export interface FoundationConfig {
   fundReconciliationMode?: 'detailed_ledger' | 'summary_authority' | 'reconciled';
   fundExpenseHeadings?: FundExpenseHeadings;
   fundMemberLinkSettings?: FundMemberLinkSettings;
+  fundProfileLinks?: FundProfileLinkRecord[];
   otherMonthlyContributions?: OtherMonthlyContribution[];
   specialFunds?: SpecialFundRecord[];
   contactPageConfig?: ContactPageConfig;

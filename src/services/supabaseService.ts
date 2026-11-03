@@ -10,6 +10,7 @@ import {
   ExpenseRecord,
   ContactMessage,
   SocialLink,
+  FundProfileLinkRecord,
 } from '../types';
 
 export interface OperationResult<T = any> {
@@ -383,6 +384,163 @@ export const supabaseService = {
         success: false,
         error: e?.message || String(e),
         details: 'Exception occurred during saveConfigDetailed',
+      };
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // FUND PROFILE LINKS (PERSISTENT CROSS-BROWSER MAPPINGS)
+  // --------------------------------------------------------------------------
+  async fetchFundProfileLinksDetailed(): Promise<OperationResult<FundProfileLinkRecord[]>> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return {
+        success: false,
+        error: 'ডাটাবেজ ক্লায়েন্ট ইনিশিয়ালাইজ করা যায়নি। সংযোগ সেটিংস চেক করুন।',
+        details: 'getSupabase() returned null',
+      };
+    }
+
+    try {
+      // 1. Try primary fund_settings table
+      const { data: fundRow, error: fundErr } = await supabase
+        .from('fund_settings')
+        .select('id, settings, updated_at')
+        .eq('id', 'primary_fund_settings')
+        .maybeSingle();
+
+      if (!fundErr && fundRow?.settings && Array.isArray(fundRow.settings.profileLinks)) {
+        return {
+          success: true,
+          data: fundRow.settings.profileLinks as FundProfileLinkRecord[],
+        };
+      }
+
+      // 2. Fallback to site_settings config if fund_settings had no data
+      const { data: configRow, error: configErr } = await supabase
+        .from('site_settings')
+        .select('config')
+        .eq('id', 'foundation_primary_config')
+        .maybeSingle();
+
+      if (!configErr && configRow?.config && Array.isArray(configRow.config.fundProfileLinks)) {
+        return {
+          success: true,
+          data: configRow.config.fundProfileLinks as FundProfileLinkRecord[],
+        };
+      }
+
+      if (fundErr && !isTableMissingError(fundErr) && configErr && !isTableMissingError(configErr)) {
+        return {
+          success: false,
+          error: `ক্লাউড ডাটাবেজ থেকে সদস্য ম্যাপিং তথ্য লোড করা যায়নি: ${fundErr.message || configErr.message}`,
+          code: fundErr.code || configErr.code,
+          details: fundErr.details || configErr.details,
+        };
+      }
+
+      return {
+        success: true,
+        data: [],
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || String(err),
+        details: 'Exception in fetchFundProfileLinksDetailed',
+      };
+    }
+  },
+
+  async saveFundProfileLinksDetailed(links: FundProfileLinkRecord[]): Promise<OperationResult<FundProfileLinkRecord[]>> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return {
+        success: false,
+        error: 'ডাটাবেজ ক্লায়েন্ট ইনিশিয়ালাইজ করা যায়নি। সংযোগ সেটিংস চেক করুন।',
+        details: 'getSupabase() returned null',
+      };
+    }
+
+    try {
+      const now = new Date().toISOString();
+      const sanitizedLinks = (links || []).map((l) => ({
+        id: l.id,
+        year: String(l.year).trim(),
+        sourceSpreadsheetId: l.sourceSpreadsheetId || '',
+        sheetGid: l.sheetGid || '',
+        sourceRow: l.sourceRow,
+        sheetSerial: l.sheetSerial,
+        sheetMemberName: (l.sheetMemberName || '').trim(),
+        canonicalFundMemberId: l.canonicalFundMemberId,
+        linkedProfileId: l.linkedProfileId || undefined,
+        linkedProfileName: l.linkedProfileName || undefined,
+        status: l.status,
+        confirmedByAdmin: Boolean(l.confirmedByAdmin),
+        updatedAt: l.updatedAt || now,
+        notes: l.notes || '',
+      }));
+
+      // 1. Primary write to fund_settings table
+      const { error: fundErr } = await supabase
+        .from('fund_settings')
+        .upsert(
+          {
+            id: 'primary_fund_settings',
+            settings: {
+              profileLinks: sanitizedLinks,
+              updatedAt: now,
+            },
+            updated_at: now,
+          },
+          { onConflict: 'id' }
+        );
+
+      if (fundErr) {
+        console.warn('fund_settings write failed, falling back to site_settings config:', fundErr.message);
+      }
+
+      // 2. Also dual-persist to site_settings config.fundProfileLinks
+      try {
+        const { data: currentConfigRow } = await supabase
+          .from('site_settings')
+          .select('config')
+          .eq('id', 'foundation_primary_config')
+          .maybeSingle();
+
+        if (currentConfigRow && currentConfigRow.config) {
+          const updatedConfig = {
+            ...currentConfigRow.config,
+            fundProfileLinks: sanitizedLinks,
+          };
+          await supabase
+            .from('site_settings')
+            .update({ config: updatedConfig, updated_at: now })
+            .eq('id', 'foundation_primary_config');
+        }
+      } catch (backupErr) {
+        console.warn('Backup config write warning:', backupErr);
+      }
+
+      // 3. Verification: Read back from primary fund_settings or site_settings
+      const verifyRes = await this.fetchFundProfileLinksDetailed();
+      if (!verifyRes.success || !verifyRes.data) {
+        return {
+          success: false,
+          error: fundErr?.message || 'সদস্য ম্যাপিং ক্লাউড ডাটাবেজে যাচাই করা সম্ভব হয়নি।',
+          details: 'Saved links could not be verified back from database',
+        };
+      }
+
+      return {
+        success: true,
+        data: verifyRes.data,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || String(err),
+        details: 'Exception in saveFundProfileLinksDetailed',
       };
     }
   },

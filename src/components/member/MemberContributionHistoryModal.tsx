@@ -176,7 +176,7 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
                       <span className="font-bold text-sm text-[#1E3A2F]">
                         {formatLocalizedNumber(selectedYear, language)} {language === 'ar' ? 'مساهمات عام' : language === 'en' ? 'Annual Overview' : 'সালের সারসংক্ষেপ'}
                       </span>
-                      {activeSummary.isLinked ? (
+                      {activeSummary.linkStatus === 'linked' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-800">
                           <ShieldCheck className="w-3 h-3" />
                           <span>
@@ -187,8 +187,30 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
                               : 'ভেরিফাইড লিংকড'}
                           </span>
                         </span>
-                      ) : (
+                      ) : activeSummary.linkStatus === 'backend_error' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-100 text-rose-800">
+                          <AlertCircle className="w-3 h-3" />
+                          <span>
+                            {language === 'ar'
+                              ? 'خطأ في الاتصال'
+                              : language === 'en'
+                              ? 'Connection Issue'
+                              : 'কানেকশন সমস্যা'}
+                          </span>
+                        </span>
+                      ) : activeSummary.linkStatus === 'needs_review' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-800">
+                          <AlertCircle className="w-3 h-3" />
+                          <span>
+                            {language === 'ar'
+                              ? 'قيد المراجعة'
+                              : language === 'en'
+                              ? 'Needs Review'
+                              : 'পর্যালোচনা প্রয়োজন'}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-700">
                           <AlertCircle className="w-3 h-3" />
                           <span>
                             {language === 'ar'
@@ -203,7 +225,7 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
 
                     <div className="text-right">
                       <div className="text-xs text-gray-500">
-                        {language === 'ar' ? 'إجمالي المدفوع:' : language === 'en' ? 'Total Paid:' : 'মোট জমা:'}
+                        {language === 'ar' ? 'إجمالي المدفوع:' : language === 'en' ? 'Total Contributed:' : 'মোট জমা:'}
                       </div>
                       <div className="text-base font-bold font-mono text-[#2D5A41]">
                         ৳ {formatLocalizedAmount(activeSummary.totalContributed, language)}
@@ -211,32 +233,62 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
                     </div>
                   </div>
 
-                  {/* Badges row */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-[#EBE8E0] text-xs">
-                    <div>
-                      <span className="text-gray-500 block">
-                        {language === 'ar' ? 'الشهور المسددة' : language === 'en' ? 'Paid Months' : 'পরিশোধিত মাস'}
-                      </span>
-                      <span className="font-semibold text-gray-800">
-                        {formatLocalizedNumber(activeSummary.paidMonthsCount, language)} / {formatLocalizedNumber(activeSummary.applicableMonthsCount, language)} {language === 'ar' ? 'شهر' : language === 'en' ? 'mo' : 'মাস'}
+                  {activeSummary.linkStatus === 'backend_error' && (
+                    <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>
+                        {language === 'ar'
+                          ? 'تعذر تحميل بيانات الربط بسبب مشكلة في الاتصال أو الخادم. يرجى التحقق من الاتصال والمحاولة لاحقاً.'
+                          : language === 'en'
+                          ? 'Could not load member mapping due to a network or server issue. Please check your connection and try again.'
+                          : 'সার্ভার বা নেটওয়ার্ক সমস্যার কারণে সদস্য ম্যাপিং তথ্য লোড করা যায়নি। অনুগ্রহ করে সংযোগ চেক করে পুনরায় চেষ্টা করুন।'}
                       </span>
                     </div>
-                    <div>
-                      <span className="text-gray-500 block">
-                        {language === 'ar' ? 'القسط الشهري' : language === 'en' ? 'Monthly Rate' : 'মাসিক ধার্য'}
+                  )}
+
+                  {/* Badges row with accurate monthly counts */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-[#EBE8E0] text-xs">
+                    <div className="p-2 rounded-lg bg-[#FAF8F5] border border-[#EBE8E0]">
+                      <span className="text-gray-500 block text-[11px]">
+                        {language === 'ar' ? 'الشهور المسددة' : language === 'en' ? 'Paid Months' : 'পরিশোধিত মাস'}
                       </span>
-                      <span className="font-semibold text-gray-800 font-mono">
+                      <span className="font-semibold text-emerald-800 text-sm">
+                        {formatLocalizedNumber(activeSummary.paidMonthsCount, language)} {language === 'ar' ? 'شهر' : language === 'en' ? 'mo' : 'মাস'}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-[#FAF8F5] border border-[#EBE8E0]">
+                      <span className="text-gray-500 block text-[11px]">
+                        {language === 'ar' ? 'الشهور المستحقة' : language === 'en' ? 'Applicable Months' : 'প্রযোজ্য মাস'}
+                      </span>
+                      <span className="font-semibold text-gray-800 text-sm">
+                        {formatLocalizedNumber(activeSummary.applicableMonthsCount, language)} {language === 'ar' ? 'شهر' : language === 'en' ? 'mo' : 'মাস'}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-[#FAF8F5] border border-[#EBE8E0]">
+                      <span className="text-gray-500 block text-[11px]">
+                        {language === 'ar' ? 'الشهور المتأخرة' : language === 'en' ? 'Due Months' : 'বকেয়া মাস'}
+                      </span>
+                      <span className={`font-semibold text-sm ${activeSummary.dueMonthsCount > 0 ? 'text-red-700' : 'text-gray-700'}`}>
+                        {formatLocalizedNumber(activeSummary.dueMonthsCount, language)} {language === 'ar' ? 'شهر' : language === 'en' ? 'mo' : 'মাস'}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-[#FAF8F5] border border-[#EBE8E0]">
+                      <span className="text-gray-500 block text-[11px]">
+                        {language === 'ar' ? 'المساهمة المحددة' : language === 'en' ? 'Monthly Rate' : 'মাসিক নির্ধারিত অবদান'}
+                      </span>
+                      <span className="font-semibold text-gray-800 font-mono text-sm">
                         ৳ {formatLocalizedAmount(activeSummary.commitment, language)}
                       </span>
                     </div>
-                    <div className="col-span-2 sm:col-span-1">
-                      <span className="text-gray-500 block">
-                        {language === 'ar' ? 'اسم السجل' : language === 'en' ? 'Sheet Name' : 'রেজিস্টারের নাম'}
-                      </span>
-                      <span className="font-semibold text-gray-800 truncate block" title={activeSummary.sheetMemberName || memberDisplayName}>
-                        {activeSummary.sheetMemberName || memberDisplayName}
-                      </span>
-                    </div>
+                  </div>
+
+                  <div className="text-xs text-gray-600 flex items-center justify-between pt-1">
+                    <span className="text-gray-500">
+                      {language === 'ar' ? 'اسم السجل:' : language === 'en' ? 'Registered Name:' : 'রেজিস্টারের নাম:'}
+                    </span>
+                    <span className="font-semibold text-gray-800 truncate" title={activeSummary.sheetMemberName || memberDisplayName}>
+                      {activeSummary.sheetMemberName || memberDisplayName}
+                    </span>
                   </div>
 
                   {is2024 && (
@@ -292,6 +344,51 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
                       );
                     }
 
+                    if (mItem.status === 'not_applicable') {
+                      return (
+                        <div
+                          key={mItem.month}
+                          className="p-2.5 rounded-xl border border-gray-200/80 bg-gray-50/80 text-gray-400 text-center select-none"
+                          title={
+                            language === 'ar'
+                              ? 'غير قابل للتطبيق (قبل بدء مساهمة العضو)'
+                              : language === 'en'
+                              ? 'Not Applicable (Before contribution start date)'
+                              : 'প্রযোজ্য নয় (সদস্যের অবদান শুরুর পূর্ববর্তী)'
+                          }
+                        >
+                          <div className="text-[11px] font-medium text-gray-400">{monthLabel}</div>
+                          <div className="text-xs font-bold my-0.5">—</div>
+                          <div className="text-[9px] text-gray-500 font-medium">
+                            {language === 'ar' ? 'غير قابل للتطبيق' : language === 'en' ? 'Not Applicable' : 'প্রযোজ্য নয়'}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (mItem.status === 'future') {
+                      return (
+                        <div
+                          key={mItem.month}
+                          className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-500 text-center select-none"
+                          title={
+                            language === 'ar'
+                              ? 'شهر قادم'
+                              : language === 'en'
+                              ? 'Upcoming Month'
+                              : 'আসন্ন মাস'
+                          }
+                        >
+                          <div className="text-[11px] font-medium text-slate-600">{monthLabel}</div>
+                          <div className="text-xs font-bold my-0.5">—</div>
+                          <div className="text-[9px] text-slate-500 flex items-center justify-center gap-1 font-medium">
+                            <Calendar className="w-2.5 h-2.5" />
+                            <span>{language === 'ar' ? 'قادم' : language === 'en' ? 'Upcoming' : 'আসন্ন'}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     const isPaid = mItem.status === 'paid';
 
                     return (
@@ -319,7 +416,7 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
                             <>
                               <Clock className="w-3 h-3 text-red-400" />
                               <span className="text-red-600">
-                                {language === 'ar' ? 'غير مسدد' : language === 'en' ? 'Pending' : 'বকেয়া'}
+                                {language === 'ar' ? 'مستحق' : language === 'en' ? 'Due' : 'বকেয়া'}
                               </span>
                             </>
                           )}

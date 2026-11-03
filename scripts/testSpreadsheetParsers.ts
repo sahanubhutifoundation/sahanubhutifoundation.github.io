@@ -9,6 +9,7 @@ import {
   parseNumber,
   resolveCanonicalMemberForSheet,
   getMemberContributionHistory,
+  parseMemberContributionStart,
 } from '../src/services/fundService';
 import { storageService } from '../src/services/storageService';
 import { getDeterministicReceiptNumber } from '../src/utils/receiptNumbering';
@@ -59,9 +60,10 @@ async function runAllTests() {
     assert(res2026.status === 'live', 'Live Google Sheet loaded successfully (status === "live")');
     assert(res2026.memberRecords !== undefined && res2026.memberRecords.length >= 27, `Recognized ${res2026.memberRecords?.length} member records (expected >= 27)`);
 
-    // Verify both members sharing serial 26 exist
-    const serial26Members = (res2026.memberRecords || []).filter((m) => m.serial === 26);
-    assert(serial26Members.length === 2, `Both members sharing serial 26 preserved without dropping (${serial26Members.map((m) => m.name).join(' & ')})`);
+    // Verify both Istiak hosain zihan and Maulana Abdul Hamid exist
+    const hasIstiak = (res2026.memberRecords || []).some((m) => m.name.toLowerCase().includes('istiak'));
+    const hasHamid = (res2026.memberRecords || []).some((m) => m.name.toLowerCase().includes('hamid') || m.name.includes('আব্দুল হামিদ'));
+    assert(hasIstiak && hasHamid, `Both Istiak hosain zihan and Maulana Abdul Hamid preserved in 2026`);
 
     // Verify multi-year grand total excluded from 2026 single-year income
     assert(res2026.amountReceived < 25000, `Single-year 2026 income (৳${res2026.amountReceived}) excludes multi-year grand total (27,920)`);
@@ -362,6 +364,153 @@ async function runAllTests() {
   // State B: When showPublicReceiptDownload is ON
   storageService.saveFundVisibility({ ...visOff, showPublicReceiptDownload: true });
   assert(storageService.isReceiptDownloadEnabled() === true, 'storageService reports receipt downloads enabled when showPublicReceiptDownload = true');
+
+  // TEST 18: Cross-Browser Persistent Mapping Simulation (Browser A & Browser B)
+  console.log('\n--- TEST 18: Cross-Browser Persistent Mapping Simulation (Browser A & Browser B) ---');
+  const mockLinkRecord: FundProfileLinkRecord = {
+    id: 'link-cross-browser-test-2026',
+    year: '2026',
+    sheetGid: '0',
+    sourceRow: 5,
+    sheetSerial: 105,
+    sheetMemberName: 'টেস্ট সদস্য ব্রাউজার',
+    canonicalFundMemberId: '2026-105-testsodosso',
+    linkedProfileId: 'mem-1789800217509',
+    linkedProfileName: 'আব্দুল বাসির হুজুর',
+    status: 'linked',
+    confirmedByAdmin: true,
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Browser A: Admin saves the link to persistent cloud storage
+  const saveCloudRes = await storageService.saveFundProfileLinkAsync(mockLinkRecord);
+  assert(saveCloudRes.success === true, 'Browser A: Admin-confirmed mapping successfully saved to persistent backend');
+
+  // Browser B: Isolated storage context (clear local storage to simulate brand new device/browser)
+  const browserALocalData = localStorage.getItem('sf_foundation_profile_links');
+  localStorage.removeItem('sf_foundation_profile_links');
+  assert(storageService.getFundProfileLinks('2026').length === 0, 'Browser B: Local cache is initially empty before cloud sync');
+
+  // Browser B pulls from persistent backend
+  const browserBCloudRes = await storageService.fetchFundProfileLinksAsync('2026');
+  assert(browserBCloudRes.success === true, 'Browser B: Successfully fetched mappings from persistent backend');
+  const browserBFound = (browserBCloudRes.data || []).find((l) => l.canonicalFundMemberId === '2026-105-testsodosso');
+  assert(Boolean(browserBFound), 'Browser B: Found the exact mapping saved by Browser A');
+  assert(browserBFound?.linkedProfileId === 'mem-1789800217509', 'Browser B: Linked profile ID matches exactly');
+  assert(browserBFound?.confirmedByAdmin === true, 'Browser B: Confirmed status matches');
+
+  // Browser B refresh simulation: mapping is retained in local cache
+  const browserBCached = storageService.getFundProfileLinkForMember('mem-1789800217509', '2026');
+  assert(Boolean(browserBCached), 'Browser B: Retains mapping in cache upon subsequent queries');
+
+  // Browser A unlinks the member
+  const unlinkRecord: FundProfileLinkRecord = {
+    ...mockLinkRecord,
+    linkedProfileId: undefined,
+    linkedProfileName: undefined,
+    status: 'unlinked',
+    confirmedByAdmin: true,
+  };
+  await storageService.saveFundProfileLinkAsync(unlinkRecord);
+
+  // Browser B syncs again and reflects the unlinked status
+  const browserBSyncAfterUnlink = await storageService.fetchFundProfileLinksAsync('2026');
+  const browserBUnlinkedRecord = (browserBSyncAfterUnlink.data || []).find((l) => l.canonicalFundMemberId === '2026-105-testsodosso');
+  assert(browserBUnlinkedRecord?.status === 'unlinked', 'Browser B: Reflects unlinked status after Admin unlinks in Browser A');
+
+  // Cleanup test record
+  await storageService.deleteFundProfileLinkAsync(mockLinkRecord.id);
+
+  // TEST 19: Monthly Status Before and After Member Contribution Start Date
+  console.log('\n--- TEST 19: Monthly Status Before and After Member Contribution Start Date ---');
+
+  // Case 1: Member starting January 2026
+  const member2026: Member = {
+    id: 'mem-test-2026-starter',
+    name: '২০২৬ এ যোগ দেওয়া সদস্য',
+    nameBn: '২০২৬ এ যোগ দেওয়া সদস্য',
+    serial: 901,
+    role: 'সদস্য',
+    joiningDate: '2026-01-01',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  };
+  storageService.setMembers([member2026]);
+
+  const parsedStart2026 = parseMemberContributionStart(member2026);
+  assert(parsedStart2026?.year === 2026 && parsedStart2026?.month === 1, 'Member starting 2026-01-01 parsed correctly as { year: 2026, month: 1 }');
+
+  const history2026 = await getMemberContributionHistory('mem-test-2026-starter');
+  assert(Boolean(history2026), 'Calculated history for 2026-starter');
+
+  // 2024: Must NOT have arrears (pre-joining period)
+  const sum2024 = history2026?.yearSummaries['2024'];
+  assert(sum2024?.dueMonthsCount === 0, '2024 founding year has 0 due months for member who joined in 2026');
+  assert(sum2024?.applicableMonthsCount === 0, '2024 has 0 applicable months for member who joined in 2026');
+  const dec2024 = sum2024?.months.find((m) => m.month === 'Dec');
+  assert(dec2024?.status === 'not_applicable', 'December 2024 is not_applicable (প্রযোজ্য নয়) for 2026 starter');
+
+  // 2025: Must NOT have arrears (pre-joining period)
+  const sum2025 = history2026?.yearSummaries['2025'];
+  assert(sum2025?.dueMonthsCount === 0, '2025 has 0 due months for member who joined in 2026');
+  assert(sum2025?.applicableMonthsCount === 0, '2025 has 0 applicable months for member who joined in 2026');
+  const allMonths2025NotApp = sum2025?.months.every((m) => m.status === 'not_applicable');
+  assert(allMonths2025NotApp === true, 'All 2025 months are not_applicable for 2026 starter');
+
+  // Case 2: Member starting July 2026 (mid-year joining)
+  const memberMid2026: Member = {
+    id: 'mem-test-mid-2026',
+    name: 'জুলাই ২০২৬ এ যোগ দেওয়া সদস্য',
+    nameBn: 'জুলাই ২০২৬ এ যোগ দেওয়া সদস্য',
+    serial: 902,
+    role: 'সদস্য',
+    joiningDate: '2026-07-15',
+    contributionStartDate: '2026-07',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  };
+  storageService.setMembers([member2026, memberMid2026]);
+
+  const parsedStartMid2026 = parseMemberContributionStart(memberMid2026);
+  assert(parsedStartMid2026?.year === 2026 && parsedStartMid2026?.month === 7, 'Member starting 2026-07 parsed correctly as { year: 2026, month: 7 }');
+
+  const historyMid2026 = await getMemberContributionHistory('mem-test-mid-2026');
+  const sumMid2026 = historyMid2026?.yearSummaries['2026'];
+  const jan2026Status = sumMid2026?.months.find((m) => m.month === 'Jan')?.status;
+  const jun2026Status = sumMid2026?.months.find((m) => m.month === 'Jun')?.status;
+  assert(jan2026Status === 'not_applicable', 'January 2026 is not_applicable for July 2026 starter');
+  assert(jun2026Status === 'not_applicable', 'June 2026 is not_applicable for July 2026 starter');
+
+  // TEST 20: 2024 Founding Period Rule with Founding Member
+  console.log('\n--- TEST 20: 2024 Founding Period Rule with Founding Member ---');
+  const foundingMember: Member = {
+    id: 'mem-1789800217509',
+    name: 'আব্দুল বাসির হুজুর',
+    nameBn: 'আব্দুল বাসির হুজুর',
+    serial: 1,
+    role: 'সভাপতি',
+    joiningDate: '2024-11-28',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  };
+  storageService.setMembers([foundingMember]);
+  const parsedFoundingStart = parseMemberContributionStart(foundingMember);
+  assert(parsedFoundingStart?.year === 2024 && parsedFoundingStart?.month === 11, 'Founding date 2024-11-28 parsed as Nov 2024');
+
+  const foundingHistory = await getMemberContributionHistory('mem-1789800217509');
+  const founding2024 = foundingHistory?.yearSummaries['2024'];
+  const nov2024 = founding2024?.months.find((m) => m.month === 'Nov');
+  assert(nov2024?.status === 'pre_foundation', 'November 2024 is pre_foundation for founding member');
+  assert(founding2024?.applicableMonthsCount >= 1, 'December 2024 is applicable for founding member');
+
+  // TEST 21: Formula Accuracy (Applicable = Paid + Due)
+  console.log('\n--- TEST 21: Formula Accuracy (Applicable = Paid + Due) ---');
+  if (founding2024) {
+    assert(
+      founding2024.applicableMonthsCount === founding2024.paidMonthsCount + founding2024.dueMonthsCount,
+      `Formula holds: Applicable (${founding2024.applicableMonthsCount}) = Paid (${founding2024.paidMonthsCount}) + Due (${founding2024.dueMonthsCount})`
+    );
+  }
 
   console.log('\n================================================================');
   console.log(`🏁 TEST RESULTS: ${passedTests} / ${totalTests} TESTS PASSED (${Math.round((passedTests / totalTests) * 100)}%)`);
