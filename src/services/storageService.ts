@@ -15,6 +15,7 @@ import {
   SpecialFundDonation,
   SpecialFundExpense,
   FundProfileLinkRecord,
+  FundContributionStartRecord,
 } from '../types';
 import {
   initialConfig,
@@ -43,6 +44,7 @@ const KEYS = {
   OTHER_CONTRIBUTIONS: 'sf_foundation_other_contributions',
   SPECIAL_FUNDS: 'sf_foundation_special_funds',
   PROFILE_LINKS: 'sf_foundation_profile_links',
+  CONTRIBUTION_STARTS: 'sf_foundation_contribution_starts',
 };
 
 // Helper for local storage access with safe error fallbacks
@@ -1512,6 +1514,110 @@ export const storageService = {
       if (cleanName && l.sheetMemberName.toLowerCase().replace(/[\s\.\-_]+/g, '') === cleanName) return true;
       return false;
     });
+  },
+
+  // --------------------------------------------------------------------------
+  // FEATURE: FUND MEMBER CONTRIBUTION START PERIOD (INDEPENDENT FROM PROFILE LINKING)
+  // --------------------------------------------------------------------------
+
+  getFundContributionStarts(): FundContributionStartRecord[] {
+    const list = getLocalItem<FundContributionStartRecord[]>(KEYS.CONTRIBUTION_STARTS, []);
+    if (list && list.length > 0) return list;
+    const cfgStarts = this.getConfig().fundContributionStarts;
+    return Array.isArray(cfgStarts) ? cfgStarts : [];
+  },
+
+  getFundContributionStartForMember(canonicalFundMemberIdOrProfileId: string): FundContributionStartRecord | undefined {
+    if (!canonicalFundMemberIdOrProfileId) return undefined;
+    const target = canonicalFundMemberIdOrProfileId.trim().toLowerCase();
+    const starts = this.getFundContributionStarts();
+    return starts.find((s) => {
+      if (s.canonicalFundMemberId && s.canonicalFundMemberId.toLowerCase() === target) return true;
+      if (s.memberId && s.memberId.toLowerCase() === target) return true;
+      if (s.id && s.id.toLowerCase() === target) return true;
+      return false;
+    });
+  },
+
+  saveFundContributionStart(startRecord: FundContributionStartRecord): FundContributionStartRecord[] {
+    const all = this.getFundContributionStarts();
+    const id = startRecord.id || `fcs-${startRecord.canonicalFundMemberId || Date.now()}`;
+    const cleanItem: FundContributionStartRecord = {
+      ...startRecord,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const idx = all.findIndex((s) => s.id === id || s.canonicalFundMemberId === cleanItem.canonicalFundMemberId);
+    let updated: FundContributionStartRecord[];
+    if (idx >= 0) {
+      updated = [...all];
+      updated[idx] = cleanItem;
+    } else {
+      updated = [cleanItem, ...all];
+    }
+
+    setLocalItem(KEYS.CONTRIBUTION_STARTS, updated);
+
+    // Also dual-persist into FoundationConfig
+    const currentConfig = this.getConfig();
+    currentConfig.fundContributionStarts = updated;
+    setLocalItem(KEYS.CONFIG, currentConfig);
+
+    // If linked to a registered member profile, also update member.contributionStartDate
+    if (cleanItem.memberId) {
+      const members = this.getMembers();
+      const mIdx = members.findIndex((m) => m.id === cleanItem.memberId);
+      if (mIdx >= 0) {
+        const startStr = `${cleanItem.startYear}-${String(cleanItem.startMonth).padStart(2, '0')}`;
+        members[mIdx].contributionStartDate = startStr;
+        setLocalItem(KEYS.MEMBERS, members);
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sf_fund_contribution_starts_updated', { detail: updated }));
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+    }
+
+    return updated;
+  },
+
+  async saveFundContributionStartAsync(startRecord: FundContributionStartRecord): Promise<OperationResult<FundContributionStartRecord[]>> {
+    const updated = this.saveFundContributionStart(startRecord);
+
+    if (supabaseService.isAvailable()) {
+      const res = await supabaseService.saveFundContributionStartsDetailed(updated);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || 'অবদান শুরুর সময় ক্লাউড ডাটাবেজে সংরক্ষণ করা যায়নি।',
+          code: res.code,
+          details: res.details,
+        };
+      }
+      const confirmedData = res.data || updated;
+      setLocalItem(KEYS.CONTRIBUTION_STARTS, confirmedData);
+      return { success: true, data: confirmedData };
+    }
+
+    return { success: true, data: updated };
+  },
+
+  async fetchFundContributionStartsAsync(): Promise<OperationResult<FundContributionStartRecord[]>> {
+    if (supabaseService.isAvailable()) {
+      try {
+        const res = await supabaseService.fetchFundContributionStartsDetailed();
+        if (res.success && res.data) {
+          setLocalItem(KEYS.CONTRIBUTION_STARTS, res.data);
+          return { success: true, data: res.data };
+        }
+      } catch (err: any) {
+        console.warn('fetchFundContributionStartsAsync notice:', err);
+      }
+    }
+    return { success: true, data: this.getFundContributionStarts() };
   },
 
   async deleteDesignationAsync(id: string): Promise<OperationResult<Designation[]>> {

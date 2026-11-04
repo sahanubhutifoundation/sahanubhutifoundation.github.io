@@ -922,6 +922,106 @@ export const initialActivities: Activity[] = [
     isPublished: true,
     createdAt: '2025-12-20T14:00:00.000Z',
   },
+  {
+    id: 'act-1789973764699',
+    slug: 'iftar-mahfil-2026-report',
+    title: {
+      bn: 'ইফতার মাহফিল ২০২৬: আয়-ব্যয় ও সমাপনী প্রতিবেদন',
+      en: 'Iftar Mahfil 2026: Income-Expenditure and Closing Report',
+      ar: 'حفل الإفطار ٢٠٢٦: تقرير الإيرادات والمصاريف والختامي',
+    },
+    summary: {
+      bn: 'রমজানুল মোবারক উপলক্ষে আয়োজিত ইফতার মাহফিলের আয়-ব্যয় ও সামগ্রিক কার্যক্রমের সমাপনী হিসাব।',
+      en: 'Income-expenditure and summary statement of the Iftar Mahfil organized on the occasion of holy Ramadan.',
+      ar: 'تقرير شامل لإيرادات ومصروفات حفل الإفطار السنوي لعام ٢٠٢٦.',
+    },
+    description: {
+      bn: 'আলহামদুলিল্লাহ, সকলের আন্তরিক অংশগ্রহণে ইফতার মাহফিল ২০২৬ সফলভাবে সম্পন্ন হয়েছে। সকল আয় ও ব্যয়ের হিসাব বিস্তারিতভাবে প্রকাশ করা হলো।',
+      en: 'By the grace of Almighty and collective participation, Iftar Mahfil 2026 was successfully concluded. Detailed financial records are presented.',
+      ar: 'الحمد لله، اكتمل حفل الإفطار بنجاح مع عرض كامل وشفاف لكافة المصروفات والإيرادات.',
+    },
+    date: '2026-03-20',
+    category: 'ধর্মীয় ও সামাজিক কার্যক্রম / আয়-ব্যয় প্রতিবেদন',
+    coverImage: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792833689157_dc12k2.png',
+    showOnMediaPage: true,
+    isPublished: true,
+    createdAt: '2026-03-20T10:00:00.000Z',
+  },
+  {
+    id: 'act-1789974023646',
+    slug: 'condolence-emergency-assistance',
+    title: {
+      bn: 'শোক প্রকাশ ও জরুরি সহায়তা খরচ সংক্রান্ত অবগতি',
+      en: 'Notice Regarding Condolence and Emergency Assistance Expenses',
+      ar: 'إشعار بشأن التعزية ومصاريف المساعدة الطارئة',
+    },
+    summary: {
+      bn: 'শোক প্রকাশ ও জরুরি সহায়তা কার্যক্রমে প্রয়োজনীয় খরচ সংক্রান্ত অবগতি ও অনুমোদন।',
+      en: 'Notice and record of expenses incurred for emergency condolence and humanitarian relief.',
+      ar: 'بيان المصروفات الخاصة بتقديم التعازي والمساعدات الإنسانية العاجلة.',
+    },
+    description: {
+      bn: 'পারিবারিক সংকট ও শোকাবহ মুহূর্তে জরুরি মানবিক সহায়তা হিসেবে প্রদত্ত ব্যয়ের হিসাব খাতায় সংরক্ষণ ও সকল সদস্যের অবগতির জন্য পেশ করা হলো।',
+      en: 'Record of emergency financial assistance provided during familial crisis for transparency and member information.',
+      ar: 'توثيق المساعدات المالية الطارئة المقدمة في أوقات الشدة لضمان الشفافية الكاملة.',
+    },
+    date: '2026-01-15',
+    category: 'সমাজসেবা / কল্যাণমূলক কাজ',
+    coverImage: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792780453658_i4se6p.png',
+    showOnMediaPage: true,
+    isPublished: true,
+    createdAt: '2026-01-15T10:00:00.000Z',
+  },
+  {
+    id: 'act-test-101',
+    slug: 'administrative-ledger-book-purchase',
+    title: {
+      bn: 'দাপ্তরিক ব্যয়: হিসাবের খাতা ক্রয় বাবদ',
+      en: 'Administrative Expense: Purchase of Accounting Ledger',
+      ar: 'المصاريف الإدارية: شراء دفتر الحسابات',
+    },
+    summary: {
+      bn: 'তহবিলের স্বচ্ছ ও সুশৃঙ্খল হিসাব সংরক্ষণের জন্য প্রয়োজনীয় হিসাবের খাতা ও স্টেশনারি ক্রয়।',
+      en: 'Procured accounting ledgers and stationery for organized, transparent financial record-keeping.',
+      ar: 'شراء دفاتر وسجلات محاسبية لتوثيق الحسابات بدقة وشفافية.',
+    },
+    description: {
+      bn: 'ফাউন্ডেশনের নিয়মিত ও টেকসই হিসাব ব্যবস্থাপনার স্বার্থে স্থায়ী রেজিস্টার খাতা ক্রয় বাবদ ব্যয় অনুমোদিত ও লিপিবদ্ধ হয়েছে।',
+      en: 'Disbursed and accounted for the procurement of official registers for long-term audit trail and records.',
+      ar: 'اعتماد وتوثيق مصاريف شراء الدفاتر المحاسبية الرسمية للمؤسسة.',
+    },
+    date: '2025-11-10',
+    category: 'খরচ সংক্রান্ত অবগতি',
+    coverImage: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792761502562_4933fb.png',
+    showOnMediaPage: true,
+    isPublished: true,
+    createdAt: '2025-11-10T10:00:00.000Z',
+  },
+  {
+    id: 'act-1792834090969',
+    slug: 'street-light-repair-expenses',
+    title: {
+      bn: 'রাস্তার লাইট স্থাপন/মেরামত ব্যয় সংক্রান্ত অবগতি',
+      en: 'Notification Regarding Street Light Installation/Repair Expenses',
+      ar: 'إشعار بشأن مصاريف تركيب/إصلاح إنارة الشارع',
+    },
+    summary: {
+      bn: 'এলাকার সাধারণ মানুষের নির্বিঘ্ন চলাচলের সুবিধার্থে রাস্তার লাইট স্থাপন ও মেরামতের খরচ।',
+      en: 'Expenses incurred for repairing and installing streetlights for safe public commute.',
+      ar: 'مصروفات صيانة وتركيب إنارة الشارع لتسهيل حركة أهالي المنطقة بأمان.',
+    },
+    description: {
+      bn: 'সামাজিক জনকল্যাণমূলক উদ্যোগ হিসেবে মৌলভী বাড়ি সংলগ্ন রাস্তার বাতি মেরামত ও নতুন লাইট স্থাপন বাবদ ব্যয় হিসাব খাতে যথাযথভাবে সংরক্ষিত হয়েছে।',
+      en: 'Social welfare initiative: expenses for street light repair and installation near Moulovi Bari have been verified and recorded.',
+      ar: 'مبادرة مجتمعية: تم تسجيل وتوثيق مصاريف صيانة إنارة الشوارع بجوار منزل مولفي باري.',
+    },
+    date: '2026-02-28',
+    category: 'সমাজসেবা / কল্যাণমূলক কাজ',
+    coverImage: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792834078797_c9sfyh.png',
+    showOnMediaPage: true,
+    isPublished: true,
+    createdAt: '2026-02-28T10:00:00.000Z',
+  },
 ];
 
 // Initial verified notice
@@ -946,12 +1046,62 @@ export const initialNotices: Notice[] = [
 ];
 
 // Initial members list
-// Note: We do NOT invent fake names or photos.
-// We provide placeholder for admin to easily add members via "+ Add Member" button!
 export const initialMembers: Member[] = [];
 
-// Initial gallery items
-export const initialGalleryItems: GalleryItem[] = [];
+// Initial general gallery items (distinct from activity media)
+export const initialGalleryItems: GalleryItem[] = [
+  {
+    id: 'gal-gen-1',
+    title: {
+      bn: 'প্রথম উদ্যোগের সফল বাস্তবায়ন',
+      en: 'Successful Implementation of the First Initiative',
+      ar: 'تنفيذ المبادرة الأولى بنجاح',
+    },
+    url: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792758711455_ndhmvp.png',
+    mediaUrl: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792758711455_ndhmvp.png',
+    thumbnailUrl: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792758711455_ndhmvp.png',
+    type: 'photo',
+    category: 'general',
+    date: '2025-09-25',
+    year: '2025',
+    isPublished: true,
+    createdAt: '2025-09-25T12:00:00.000Z',
+  },
+  {
+    id: 'gal-gen-2',
+    title: {
+      bn: 'মুরুব্বির সেবা বাবদ খরচ সংক্রান্ত (মাইনুদ্দিন কাকার বাড়ির মুরুব্বি)',
+      en: 'Elderly Care Assistance Expenses (Mainuddin Kaka House)',
+      ar: 'مصروفات رعاية كبار السن (منزل معين الدين)',
+    },
+    url: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792760998200_b4evn1.png',
+    mediaUrl: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792760998200_b4evn1.png',
+    thumbnailUrl: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792760998200_b4evn1.png',
+    type: 'photo',
+    category: 'general',
+    date: '2026-01-01',
+    year: '2026',
+    isPublished: true,
+    createdAt: '2026-01-01T10:00:00.000Z',
+  },
+  {
+    id: 'gal-gen-3',
+    title: {
+      bn: 'কবরস্থানের শ্রমিকদের নাস্তা বাবদ খরচ (ছোট ভাই আফনানের মৃত্যুতে)',
+      en: 'Graveyard Workers Refreshments (Demise of Brother Afnan)',
+      ar: 'وجبات عمال المقبرة (وفاة الأخ أفنان)',
+    },
+    url: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792760192262_en84pb.png',
+    mediaUrl: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792760192262_en84pb.png',
+    thumbnailUrl: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792760192262_en84pb.png',
+    type: 'photo',
+    category: 'general',
+    date: '2025-12-20',
+    year: '2025',
+    isPublished: true,
+    createdAt: '2025-12-20T14:00:00.000Z',
+  },
+];
 
 // Social links configuration
 export const initialSocialLinks: SocialLink[] = [

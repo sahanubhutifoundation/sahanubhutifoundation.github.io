@@ -431,6 +431,46 @@ export const translations: TranslationDictionary = {
     en: 'Due:',
     ar: 'المستحق:',
   },
+  outstandingAmountLabel: {
+    bn: 'বকেয়া টাকার পরিমাণ',
+    en: 'Outstanding Amount',
+    ar: 'المبلغ المستحق',
+  },
+  notMemberYetStatus: {
+    bn: 'সদস্য ছিলেন না',
+    en: 'Not a Member Yet',
+    ar: 'لم يكن عضواً بعد',
+  },
+  contributionNotStartedStatus: {
+    bn: 'অবদান শুরু হয়নি',
+    en: 'Contribution Not Started',
+    ar: 'لم تبدأ المساهمة',
+  },
+  notApplicableStatus: {
+    bn: 'প্রযোজ্য নয়',
+    en: 'Not Applicable',
+    ar: 'غير منطبق',
+  },
+  noVerifiedContributionInYear: {
+    bn: 'এই বছরে কোনো যাচাইকৃত অবদান পাওয়া যায়নি।',
+    en: 'No verified contribution found for this financial year.',
+    ar: 'لم يتم العثور على أي مساهمة معتمدة لهذه السنة المالية.',
+  },
+  contributionNotStartedYearMsg: {
+    bn: 'এই আর্থিক বছরে সদস্যটির অবদান শুরু হয়নি।',
+    en: 'Contribution has not started for this member in this financial year.',
+    ar: 'لم تبدأ مساهمة هذا العضو في هذه السنة المالية.',
+  },
+  contributionStartConfigTitle: {
+    bn: 'অবদান শুরুর সময় নির্ধারণ',
+    en: 'Set Contribution Start Period',
+    ar: 'تحديد فترة بدء المساهمة',
+  },
+  contributionStartNotSet: {
+    bn: 'শুরুর সময় নির্ধারণ করা হয়নি',
+    en: 'Start period not set',
+    ar: 'لم تحدد فترة البدء',
+  },
   separateFundBadge: {
     bn: 'পৃথক তহবিল',
     en: 'Separate Fund',

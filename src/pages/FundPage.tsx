@@ -1610,8 +1610,11 @@ export const FundPage: React.FC = () => {
                               </span>
                             </div>
                             {dueMonthsCount > 0 && (
-                              <div className="text-[11px] text-rose-600 font-medium">
-                                {t('dueMonthsCountLabel')} {formatLocalizedNumber(dueMonthsCount, language)} মাস
+                              <div className="flex items-center justify-between text-[11px] text-rose-600 font-medium pt-0.5">
+                                <span>{t('dueMonthsCountLabel')} {formatLocalizedNumber(dueMonthsCount, language)} মাস</span>
+                                <span className="font-mono font-bold">
+                                  {t('outstandingAmountLabel')}: ৳ {formatLocalizedAmount(member.dueAmount ?? (dueMonthsCount * member.commitment), language)}
+                                </span>
                               </div>
                             )}
                           </div>

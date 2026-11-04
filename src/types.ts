@@ -473,6 +473,21 @@ export interface FundProfileLinkRecord {
   notes?: string;
 }
 
+export interface FundContributionStartRecord {
+  id: string; // unique identifier e.g. fcs-2026-1-আব্দুলবাসিরহুজুর or fcs-mem-1
+  canonicalFundMemberId: string;
+  memberId?: string; // registered Member profile ID if linked
+  memberProfileId?: string;
+  memberName?: string;
+  startYear: number;
+  startMonth: number; // 1-12
+  startDate?: string; // Optional exact date string YYYY-MM or YYYY-MM-DD
+  confirmedByAdmin?: boolean;
+  configuredBy?: 'admin' | 'sheet' | 'system';
+  updatedAt: string;
+  notes?: string;
+}
+
 export interface FundMemberRecord {
   id?: string;
   serial: number;
@@ -495,6 +510,7 @@ export interface FundMemberRecord {
   latestPaidMonth?: string;
   paidApplicableCount?: number;
   totalApplicable?: number;
+  dueAmount?: number;
   isComplete?: boolean;
   isOngoing?: boolean;
   isDue?: boolean;
@@ -707,6 +723,8 @@ export interface FoundationConfig {
   openingExpenseBalance?: number;
   fundVisibility: FundVisibilitySettings;
   fundPrivacy?: FundPrivacySettings;
+  fundProfileLinks?: FundProfileLinkRecord[];
+  fundContributionStarts?: FundContributionStartRecord[];
   expenseCategories: string[];
   heroBadge?: MultilingualText;
   heroMessage: MultilingualText;
@@ -793,7 +811,6 @@ export interface FoundationConfig {
   fundReconciliationMode?: 'detailed_ledger' | 'summary_authority' | 'reconciled';
   fundExpenseHeadings?: FundExpenseHeadings;
   fundMemberLinkSettings?: FundMemberLinkSettings;
-  fundProfileLinks?: FundProfileLinkRecord[];
   otherMonthlyContributions?: OtherMonthlyContribution[];
   specialFunds?: SpecialFundRecord[];
   contactPageConfig?: ContactPageConfig;

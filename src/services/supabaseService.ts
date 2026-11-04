@@ -11,6 +11,7 @@ import {
   ContactMessage,
   SocialLink,
   FundProfileLinkRecord,
+  FundContributionStartRecord,
 } from '../types';
 
 export interface OperationResult<T = any> {
@@ -481,6 +482,15 @@ export const supabaseService = {
         notes: l.notes || '',
       }));
 
+      // Retrieve existing fund_settings so we never wipe contributionStarts
+      const { data: existingFundRow } = await supabase
+        .from('fund_settings')
+        .select('settings')
+        .eq('id', 'primary_fund_settings')
+        .maybeSingle();
+
+      const existingSettings = existingFundRow?.settings || {};
+
       // 1. Primary write to fund_settings table
       const { error: fundErr } = await supabase
         .from('fund_settings')
@@ -488,6 +498,7 @@ export const supabaseService = {
           {
             id: 'primary_fund_settings',
             settings: {
+              ...existingSettings,
               profileLinks: sanitizedLinks,
               updatedAt: now,
             },
@@ -541,6 +552,159 @@ export const supabaseService = {
         success: false,
         error: err?.message || String(err),
         details: 'Exception in saveFundProfileLinksDetailed',
+      };
+    }
+  },
+
+  async fetchFundContributionStartsDetailed(): Promise<OperationResult<FundContributionStartRecord[]>> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return {
+        success: false,
+        error: 'ডাটাবেজ সংযোগ সক্রিয় নেই।',
+        details: 'getSupabase() returned null',
+      };
+    }
+
+    try {
+      // 1. Try primary fund_settings table
+      const { data: fundRow, error: fundErr } = await supabase
+        .from('fund_settings')
+        .select('id, settings, updated_at')
+        .eq('id', 'primary_fund_settings')
+        .maybeSingle();
+
+      if (!fundErr && fundRow?.settings && Array.isArray(fundRow.settings.contributionStarts)) {
+        return {
+          success: true,
+          data: fundRow.settings.contributionStarts as FundContributionStartRecord[],
+        };
+      }
+
+      // 2. Fallback to site_settings config
+      const { data: configRow, error: configErr } = await supabase
+        .from('site_settings')
+        .select('config')
+        .eq('id', 'foundation_primary_config')
+        .maybeSingle();
+
+      if (!configErr && configRow?.config && Array.isArray(configRow.config.fundContributionStarts)) {
+        return {
+          success: true,
+          data: configRow.config.fundContributionStarts as FundContributionStartRecord[],
+        };
+      }
+
+      return {
+        success: true,
+        data: [],
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || String(err),
+        details: 'Exception in fetchFundContributionStartsDetailed',
+      };
+    }
+  },
+
+  async saveFundContributionStartsDetailed(
+    starts: FundContributionStartRecord[]
+  ): Promise<OperationResult<FundContributionStartRecord[]>> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return {
+        success: false,
+        error: 'ডাটাবেজ ক্লায়েন্ট ইনিশিয়ালাইজ করা যায়নি। সংযোগ সেটিংস চেক করুন।',
+        details: 'getSupabase() returned null',
+      };
+    }
+
+    try {
+      const now = new Date().toISOString();
+      const sanitizedStarts = (starts || []).map((s) => ({
+        id: s.id,
+        canonicalFundMemberId: s.canonicalFundMemberId,
+        memberId: s.memberId || undefined,
+        memberName: (s.memberName || '').trim(),
+        startYear: Number(s.startYear),
+        startMonth: Number(s.startMonth),
+        startDate: s.startDate || undefined,
+        confirmedByAdmin: Boolean(s.confirmedByAdmin),
+        updatedAt: s.updatedAt || now,
+        notes: s.notes || '',
+      }));
+
+      // Retrieve existing fund_settings so we never wipe profileLinks
+      const { data: existingFundRow } = await supabase
+        .from('fund_settings')
+        .select('settings')
+        .eq('id', 'primary_fund_settings')
+        .maybeSingle();
+
+      const existingSettings = existingFundRow?.settings || {};
+
+      // 1. Primary write to fund_settings
+      const { error: fundErr } = await supabase
+        .from('fund_settings')
+        .upsert(
+          {
+            id: 'primary_fund_settings',
+            settings: {
+              ...existingSettings,
+              contributionStarts: sanitizedStarts,
+              updatedAt: now,
+            },
+            updated_at: now,
+          },
+          { onConflict: 'id' }
+        );
+
+      if (fundErr) {
+        console.warn('fund_settings write failed for contributionStarts:', fundErr.message);
+      }
+
+      // 2. Dual-persist to site_settings config.fundContributionStarts
+      try {
+        const { data: currentConfigRow } = await supabase
+          .from('site_settings')
+          .select('config')
+          .eq('id', 'foundation_primary_config')
+          .maybeSingle();
+
+        if (currentConfigRow && currentConfigRow.config) {
+          const updatedConfig = {
+            ...currentConfigRow.config,
+            fundContributionStarts: sanitizedStarts,
+          };
+          await supabase
+            .from('site_settings')
+            .update({ config: updatedConfig, updated_at: now })
+            .eq('id', 'foundation_primary_config');
+        }
+      } catch (backupErr) {
+        console.warn('Backup config write warning for contributionStarts:', backupErr);
+      }
+
+      // 3. Verification read back
+      const verifyRes = await this.fetchFundContributionStartsDetailed();
+      if (!verifyRes.success || !verifyRes.data) {
+        return {
+          success: false,
+          error: fundErr?.message || 'অবদান শুরুর সময় ক্লাউড ডাটাবেজে যাচাই করা সম্ভব হয়নি।',
+          details: 'Saved contribution starts could not be verified back from database',
+        };
+      }
+
+      return {
+        success: true,
+        data: verifyRes.data,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || String(err),
+        details: 'Exception in saveFundContributionStartsDetailed',
       };
     }
   },

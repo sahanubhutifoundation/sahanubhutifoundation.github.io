@@ -15,11 +15,13 @@ import {
   Layers,
   Sparkles,
   Save,
-  Check
+  Check,
+  Calendar,
+  Clock
 } from 'lucide-react';
-import { Member, FundMemberRecord, FundProfileLinkRecord, YearlyFundSource } from '../../types';
+import { Member, FundMemberRecord, FundProfileLinkRecord, YearlyFundSource, FundContributionStartRecord } from '../../types';
 import { storageService } from '../../services/storageService';
-import { fetchFundData } from '../../services/fundService';
+import { fetchFundData, MONTH_KEYS, getLocalizedMonthName } from '../../services/fundService';
 import { formatLocalizedNumber } from '../../utils/foundationHelpers';
 
 interface AdminFundProfileLinkingManagerProps {
@@ -36,6 +38,7 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
   const [selectedYear, setSelectedYear] = useState<string>('2026');
   const [sheetRecords, setSheetRecords] = useState<FundMemberRecord[]>([]);
   const [links, setLinks] = useState<FundProfileLinkRecord[]>([]);
+  const [contributionStarts, setContributionStarts] = useState<FundContributionStartRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'linked' | 'needs_review' | 'unlinked' | 'conflict'>('all');
@@ -46,6 +49,17 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
   const [profileSearchQuery, setProfileSearchQuery] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Modal State for Setting Contribution Start Period
+  const [settingStartRecord, setSettingStartRecord] = useState<{
+    record: FundMemberRecord;
+    canonicalId: string;
+    existing?: FundContributionStartRecord;
+  } | null>(null);
+  const [startYear, setStartYear] = useState<number>(2026);
+  const [startMonth, setStartMonth] = useState<number>(1);
+  const [startDateExact, setStartDateExact] = useState<string>('');
+  const [startNotes, setStartNotes] = useState<string>('');
+
   const loadLinksAndSheetData = async (forceFresh = false) => {
     setLoading(true);
     try {
@@ -53,6 +67,10 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
       const cloudRes = await storageService.fetchFundProfileLinksAsync(selectedYear);
       const savedLinks = cloudRes.data || storageService.getFundProfileLinks(selectedYear);
       setLinks(savedLinks);
+
+      // 2. Fetch persistent contribution starts from backend/cloud
+      await storageService.fetchFundContributionStartsAsync();
+      setContributionStarts(storageService.getFundContributionStarts());
 
       const src = yearlySources.find((s) => s.year === selectedYear);
       const url = src?.url || '';
@@ -72,7 +90,7 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
     loadLinksAndSheetData(false);
   }, [selectedYear]);
 
-  // Combine Sheet Record with Active Profile Link
+  // Combine Sheet Record with Active Profile Link and Contribution Start
   const consolidatedRows = useMemo(() => {
     return sheetRecords.map((rec) => {
       const cleanName = (rec.name || '').trim();
@@ -112,15 +130,24 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
         }
       }
 
+      const contributionStart = contributionStarts.find((cs) => {
+        if (cs.canonicalFundMemberId && cs.canonicalFundMemberId === canonicalId) return true;
+        if (linkedProfile && cs.canonicalFundMemberId === linkedProfile.id) return true;
+        if (explicitLink?.linkedProfileId && cs.canonicalFundMemberId === explicitLink.linkedProfileId) return true;
+        const csNorm = (cs.canonicalFundMemberId || '').toLowerCase().replace(/[\s\.\-_]+/g, '');
+        return csNorm && csNorm === norm;
+      });
+
       return {
         sheetRecord: rec,
         canonicalId,
         explicitLink,
         linkedProfile,
         status,
+        contributionStart,
       };
     });
-  }, [sheetRecords, links, members, selectedYear]);
+  }, [sheetRecords, links, members, selectedYear, contributionStarts]);
 
   // Detect Conflicts: If multiple sheet records link to the same registered member profile
   const conflictsMap = useMemo(() => {
@@ -262,6 +289,40 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
   const handleQuickApprove = (row: typeof consolidatedRows[0]) => {
     if (!row.linkedProfile) return;
     handleSaveLink(row.sheetRecord, row.linkedProfile.id, true);
+  };
+
+  // Handle Save Contribution Start Period
+  const handleSaveContributionStart = async () => {
+    if (!settingStartRecord) return;
+    setIsSaving(true);
+    try {
+      const record = settingStartRecord.record;
+      const canonicalId = settingStartRecord.canonicalId;
+      const startRecord: FundContributionStartRecord = {
+        id: `start-${canonicalId}`,
+        canonicalFundMemberId: canonicalId,
+        memberProfileId: settingStartRecord.existing?.memberProfileId || record.linkedProfileId,
+        startYear: Number(startYear),
+        startMonth: Number(startMonth),
+        startDate: startDateExact || undefined,
+        notes: startNotes || undefined,
+        configuredBy: 'admin',
+        updatedAt: new Date().toISOString(),
+      };
+
+      const res = await storageService.saveFundContributionStartAsync(startRecord);
+      if (!res.success) {
+        showToast(res.error || 'অবদান শুরু ক্লাউড ডাটাবেজে সংরক্ষণ করা যায়নি।', 'error');
+        return;
+      }
+      setContributionStarts(storageService.getFundContributionStarts());
+      setSettingStartRecord(null);
+      showToast(`${record.name}-এর অবদান শুরুর সময় (${startMonth}/${startYear}) সফলভাবে সংরক্ষিত হয়েছে`, 'success');
+    } catch (err: any) {
+      showToast(err?.message || 'অবদান শুরুর সময় সংরক্ষণে সমস্যা হয়েছে', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Filtered members for modal search
@@ -472,6 +533,7 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
               <th className="py-3 px-3">শিটের নাম (Sheet Name)</th>
               <th className="py-3 px-3">স্ট্যাটাস (Status)</th>
               <th className="py-3 px-3">লিঙ্ককৃত নিবন্ধিত প্রোফাইল</th>
+              <th className="py-3 px-3">অবদান শুরুর সময়</th>
               <th className="py-3 px-3">মোট জমা</th>
               <th className="py-3 px-3 text-right">কার্যক্রম (Action)</th>
             </tr>
@@ -479,7 +541,7 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
           <tbody className="divide-y divide-[#EBE8E0]">
             {filteredRows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-gray-500 text-xs">
+                <td colSpan={7} className="py-8 text-center text-gray-500 text-xs">
                   {loading ? 'শিট রেকর্ড লোড করা হচ্ছে...' : 'কোনো সদস্য রেকর্ড পাওয়া যায়নি।'}
                 </td>
               </tr>
@@ -567,6 +629,21 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
                       )}
                     </td>
 
+                    {/* Contribution Start */}
+                    <td className="py-3 px-3">
+                      {row.contributionStart ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200">
+                          <Calendar className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                          <span className="font-semibold text-[11px]">
+                            {getLocalizedMonthName(MONTH_KEYS[row.contributionStart.startMonth - 1], 'bn')}{' '}
+                            {row.contributionStart.startYear}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic text-[11px]">নির্ধারিত নয়</span>
+                      )}
+                    </td>
+
                     {/* Total Contributed */}
                     <td className="py-3 px-3 font-mono font-semibold text-gray-700">
                       ৳ {rec.totalContributed.toLocaleString()}
@@ -577,7 +654,7 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
 
                     {/* Actions */}
                     <td className="py-3 px-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
                         {status === 'needs_review' && row.linkedProfile && (
                           <button
                             type="button"
@@ -601,6 +678,23 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
                         >
                           <Link2 className="w-3 h-3" />
                           <span>{row.linkedProfile ? 'পরিবর্তন' : 'লিংক করুন'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const existing = row.contributionStart;
+                            setSettingStartRecord({ record: rec, canonicalId: row.canonicalId, existing });
+                            setStartYear(existing?.startYear || parseInt(selectedYear, 10) || 2026);
+                            setStartMonth(existing?.startMonth || 1);
+                            setStartDateExact(existing?.startDate || '');
+                            setStartNotes(existing?.notes || '');
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-semibold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 rounded-lg flex items-center gap-1 transition-colors"
+                          title="সদস্যের অবদান শুরুর বছর ও মাস নির্ধারণ করুন"
+                        >
+                          <Calendar className="w-3 h-3 text-amber-700" />
+                          <span>অবদান শুরু</span>
                         </button>
 
                         {row.linkedProfile && (
@@ -746,6 +840,163 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
                 <Save className="w-3.5 h-3.5" />
                 <span>নিশ্চিত ও সংরক্ষণ করুন</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Set Contribution Start Modal */}
+      {settingStartRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[#E0DBCF] overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-[#EBE8E0] bg-[#FAF8F5] flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-[#1E3A2F] text-base flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-amber-700" />
+                  <span>অবদান শুরুর সময় নির্ধারণ</span>
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  সদস্য: <strong className="text-gray-800">#{settingStartRecord.record.serial} {settingStartRecord.record.name}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSettingStartRecord(null)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs text-amber-900 leading-relaxed">
+                <strong>স্বাধীন কনফিগারেশন:</strong> এই সময়কাল প্রোফাইল লিঙ্কিংয়ের উপর নির্ভরশীল নয়। শুরুর পূর্ববর্তী আর্থিক বছর বা মাসের জন্য কোনো কৃত্রিম বকেয়া ধার্য করা হবে না।
+              </div>
+
+              {/* Warning if payments exist before selected start */}
+              {(settingStartRecord.record.paidCount || 0) > 0 && (
+                Number(selectedYear) < startYear ||
+                (Number(selectedYear) === startYear && MONTH_KEYS.slice(0, startMonth - 1).some(m => settingStartRecord.record.months[m] === 'paid'))
+              ) && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>সতর্কতা:</strong> নির্বাচিত শুরুর সময়ের পূর্বে এই সদস্যের যাচাইকৃত জমা রয়েছে। এতে পূর্ববর্তী জমা বাতিল হবে না, তবে সমন্বয় পর্যালোচনার প্রয়োজন হতে পারে।
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    শুরুর বছর (Start Year) *
+                  </label>
+                  <select
+                    value={startYear}
+                    onChange={(e) => setStartYear(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#2D5A41] outline-none bg-white font-mono"
+                  >
+                    {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    শুরুর মাস (Start Month) *
+                  </label>
+                  <select
+                    value={startMonth}
+                    onChange={(e) => setStartMonth(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#2D5A41] outline-none bg-white"
+                  >
+                    {MONTH_KEYS.map((m, idx) => (
+                      <option key={m} value={idx + 1}>
+                        {getLocalizedMonthName(m, 'bn')} ({idx + 1})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  নির্দিষ্ট যোগদানের তারিখ (ঐচ্ছিক):
+                </label>
+                <input
+                  type="date"
+                  value={startDateExact}
+                  onChange={(e) => setStartDateExact(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#2D5A41] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  মন্তব্য / নোট (ঐচ্ছিক):
+                </label>
+                <input
+                  type="text"
+                  value={startNotes}
+                  onChange={(e) => setStartNotes(e.target.value)}
+                  placeholder="যেমন: প্রতিষ্ঠাকালীন সদস্য বা নতুন যোগদান..."
+                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#2D5A41] outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 border-t border-[#EBE8E0] bg-[#FAF8F5] flex items-center justify-between">
+              <div>
+                {settingStartRecord.existing && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm('আপনি কি নিশ্চিত যে অবদান শুরুর রেকর্ডটি মুছে ফেলতে চান?')) return;
+                      setIsSaving(true);
+                      try {
+                        const emptyRec: FundContributionStartRecord = {
+                          ...settingStartRecord.existing!,
+                          startYear: 0,
+                          startMonth: 0,
+                          updatedAt: new Date().toISOString(),
+                        };
+                        await storageService.saveFundContributionStartAsync(emptyRec);
+                        setContributionStarts(storageService.getFundContributionStarts());
+                        setSettingStartRecord(null);
+                        showToast('অবদান শুরুর কনফিগারেশন রিসেট করা হয়েছে', 'success');
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    className="text-[11px] text-red-600 hover:underline"
+                  >
+                    রিসেট / মুছুন
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSettingStartRecord(null)}
+                  className="px-3.5 py-2 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded-xl"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveContributionStart}
+                  disabled={isSaving}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-amber-700 hover:bg-amber-800 disabled:opacity-40 rounded-xl flex items-center gap-1.5 shadow-xs"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>সংরক্ষণ করুন</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

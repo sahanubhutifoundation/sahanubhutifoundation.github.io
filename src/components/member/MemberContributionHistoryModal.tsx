@@ -187,6 +187,17 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
                               : 'ভেরিফাইড লিংকড'}
                           </span>
                         </span>
+                      ) : activeSummary.linkStatus === 'not_a_member' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700">
+                          <Clock className="w-3 h-3 text-slate-500" />
+                          <span>
+                            {language === 'ar'
+                              ? 'لم تبدأ المساهمة بعد'
+                              : language === 'en'
+                              ? 'Not Started Yet'
+                              : 'সদস্য ছিলেন না / প্রযোজ্য নয়'}
+                          </span>
+                        </span>
                       ) : activeSummary.linkStatus === 'backend_error' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-100 text-rose-800">
                           <AlertCircle className="w-3 h-3" />
@@ -225,13 +236,27 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
 
                     <div className="text-right">
                       <div className="text-xs text-gray-500">
-                        {language === 'ar' ? 'إجمالي المدفوع:' : language === 'en' ? 'Total Contributed:' : 'মোট জমা:'}
+                        {language === 'ar' ? 'إجمالي المدফوع:' : language === 'en' ? 'Total Contributed:' : 'মোট জমা:'}
                       </div>
                       <div className="text-base font-bold font-mono text-[#2D5A41]">
                         ৳ {formatLocalizedAmount(activeSummary.totalContributed, language)}
                       </div>
                     </div>
                   </div>
+
+                  {activeSummary.yearState === 'not_started' && (
+                    <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                      <div>
+                        {activeSummary.notStartedMessage?.[language] ||
+                          (language === 'ar'
+                            ? `لم تبدأ المساهمة في هذه السنة (${selectedYear})`
+                            : language === 'en'
+                            ? `Contribution not started in this fiscal year (${selectedYear})`
+                            : `এই আর্থিক বছরে (${selectedYear}) সদস্যটির অবদান শুরু হয়নি।`)}
+                      </div>
+                    </div>
+                  )}
 
                   {activeSummary.linkStatus === 'backend_error' && (
                     <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
@@ -246,8 +271,8 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
                     </div>
                   )}
 
-                  {/* Badges row with accurate monthly counts */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-[#EBE8E0] text-xs">
+                  {/* Badges row with accurate monthly counts and due amount */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-[#EBE8E0] text-xs">
                     <div className="p-2 rounded-lg bg-[#FAF8F5] border border-[#EBE8E0]">
                       <span className="text-gray-500 block text-[11px]">
                         {language === 'ar' ? 'الشهور المسددة' : language === 'en' ? 'Paid Months' : 'পরিশোধিত মাস'}
@@ -274,7 +299,15 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
                     </div>
                     <div className="p-2 rounded-lg bg-[#FAF8F5] border border-[#EBE8E0]">
                       <span className="text-gray-500 block text-[11px]">
-                        {language === 'ar' ? 'المساهمة المحددة' : language === 'en' ? 'Monthly Rate' : 'মাসিক নির্ধারিত অবদান'}
+                        {language === 'ar' ? 'المبلغ المتأخر' : language === 'en' ? 'Outstanding' : 'বকেয়া টাকার পরিমাণ'}
+                      </span>
+                      <span className={`font-semibold text-sm font-mono ${activeSummary.dueAmount > 0 ? 'text-red-700 font-bold' : 'text-gray-700'}`}>
+                        ৳ {formatLocalizedAmount(activeSummary.dueAmount || 0, language)}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-[#FAF8F5] border border-[#EBE8E0]">
+                      <span className="text-gray-500 block text-[11px]">
+                        {language === 'ar' ? 'المساهمة المحددة' : language === 'en' ? 'Monthly Rate' : 'মাসিক নির্ধারিত হার'}
                       </span>
                       <span className="font-semibold text-gray-800 font-mono text-sm">
                         ৳ {formatLocalizedAmount(activeSummary.commitment, language)}
@@ -443,40 +476,51 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
                 </div>
 
                 <div className="flex flex-col items-end gap-1.5 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!isReceiptDownloadEnabled) {
-                        setReceiptDisabledNotice(true);
-                        return;
-                      }
-                      onOpenReceiptModal(member.id, selectedYear, paidMonthsForActiveYear);
-                    }}
-                    disabled={isReceiptDownloadEnabled && paidMonthsForActiveYear.length === 0}
-                    className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all ${
-                      isReceiptDownloadEnabled
-                        ? 'bg-white text-[#1E3A2F] hover:bg-emerald-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
-                        : 'bg-white/90 text-amber-900 border border-amber-300 hover:bg-white cursor-pointer'
-                    }`}
-                  >
-                    <FileText className={`w-4 h-4 ${isReceiptDownloadEnabled ? 'text-[#2D5A41]' : 'text-amber-700'}`} />
-                    <span>
-                      {language === 'ar'
-                        ? 'تحميل إيصال المساهمة'
-                        : language === 'en'
-                        ? 'Download Contribution Receipt'
-                        : 'রসিদ ডাউনলোড করুন'}
-                    </span>
-                  </button>
+                  {paidMonthsForActiveYear.length > 0 ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!isReceiptDownloadEnabled) {
+                            setReceiptDisabledNotice(true);
+                            return;
+                          }
+                          onOpenReceiptModal(member.id, selectedYear, paidMonthsForActiveYear);
+                        }}
+                        className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all ${
+                          isReceiptDownloadEnabled
+                            ? 'bg-white text-[#1E3A2F] hover:bg-emerald-50 cursor-pointer'
+                            : 'bg-white/90 text-amber-900 border border-amber-300 hover:bg-white cursor-pointer'
+                        }`}
+                      >
+                        <FileText className={`w-4 h-4 ${isReceiptDownloadEnabled ? 'text-[#2D5A41]' : 'text-amber-700'}`} />
+                        <span>
+                          {language === 'ar'
+                            ? 'تحميل إيصال المساهمة'
+                            : language === 'en'
+                            ? 'Download Contribution Receipt'
+                            : 'রসিদ ডাউনলোড করুন'}
+                        </span>
+                      </button>
 
-                  {!isReceiptDownloadEnabled && (
-                    <span className="text-[11px] text-amber-200 font-medium">
+                      {!isReceiptDownloadEnabled && (
+                        <span className="text-[11px] text-amber-200 font-medium">
+                          {language === 'ar'
+                            ? 'خدمة تنزيل الإيصالات غير متاحة حالياً'
+                            : language === 'en'
+                            ? 'Receipt downloads currently unavailable'
+                            : 'রসিদ ডাউনলোড সুবিধাটি আপাতত বন্ধ'}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <div className="px-3.5 py-2 rounded-xl bg-white/10 border border-white/20 text-emerald-100 text-xs text-center">
                       {language === 'ar'
-                        ? 'خدمة تنزيل الإيصالات غير متاحة حالياً'
+                        ? 'لا توجد مساهمات معتمدة لهذا العام لإصدار إيصال'
                         : language === 'en'
-                        ? 'Receipt downloads currently unavailable'
-                        : 'রসিদ ডাউনলোড সুবিধাটি আপাতত বন্ধ'}
-                    </span>
+                        ? 'No verified contributions found for this fiscal year'
+                        : 'এই বছরে কোনো যাচাইকৃত অবদান পাওয়া যায়নি।'}
+                    </div>
                   )}
                 </div>
               </div>

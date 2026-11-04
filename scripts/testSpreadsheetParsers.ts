@@ -13,7 +13,8 @@ import {
 } from '../src/services/fundService';
 import { storageService } from '../src/services/storageService';
 import { getDeterministicReceiptNumber } from '../src/utils/receiptNumbering';
-import { FundProfileLinkRecord, Member, SheetManualMapping, Activity } from '../src/types';
+import { FundProfileLinkRecord, Member, SheetManualMapping, Activity, FundContributionStartRecord } from '../src/types';
+import { initialActivities } from '../src/data/initialData';
 
 // Polyfill global localStorage for NodeJS test execution
 if (typeof globalThis.localStorage === 'undefined') {
@@ -602,6 +603,106 @@ async function runAllTests() {
   assert(m2027?.latestPaidMonth === 'Jun', 'Latest paid month correctly identified as Jun');
   assert(m2027?.isOngoing === true, 'Member correctly classified as Ongoing');
   assert(m2027?.isComplete === false, 'Member is not complete because Jul is unpaid');
+
+  // TEST 26: Contribution Start Independent of Profile Linking
+  console.log('\n--- TEST 26: Contribution Start Independent Configuration ---');
+  const testStartRecord: FundContributionStartRecord = {
+    id: 'start-sf-mem-test-new',
+    canonicalFundMemberId: 'sf-mem-test-new',
+    startYear: 2026,
+    startMonth: 3,
+    notes: 'Joined March 2026 independently',
+    configuredBy: 'admin',
+    updatedAt: new Date().toISOString(),
+  };
+  storageService.saveFundContributionStart(testStartRecord);
+  const retrievedStart = storageService.getFundContributionStartForMember('sf-mem-test-new');
+  assert(retrievedStart !== undefined, 'Contribution start record saved and retrieved from storageService');
+  assert(retrievedStart?.startYear === 2026 && retrievedStart?.startMonth === 3, 'Correct year (2026) and month (3) stored');
+  const parsedStart = parseMemberContributionStart(undefined, 'sf-mem-test-new');
+  assert(parsedStart !== null && parsedStart.year === 2026 && parsedStart.month === 3, 'parseMemberContributionStart resolves canonicalFundMemberId independently of profile linking');
+
+  // TEST 27: Pre-Start Fiscal Years Show "not_a_member", Zero Due, and No False Arrears
+  console.log('\n--- TEST 27: Pre-Start Fiscal Years Show not_a_member and Zero False Arrears ---');
+  // Register mock member profile
+  const mockMemberProfile: Member = {
+    id: 'test-profile-start-2026',
+    name: 'মো: নতুন সদস্য',
+    nameBn: 'মো: নতুন সদস্য',
+    serial: 99,
+    role: 'member',
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  };
+  storageService.saveMember(mockMemberProfile);
+  // Link canonical ID with start 2026-03 to this profile
+  storageService.saveFundContributionStart({
+    id: 'start-test-profile-start-2026',
+    canonicalFundMemberId: 'test-profile-start-2026',
+    startYear: 2026,
+    startMonth: 3,
+    configuredBy: 'admin',
+    updatedAt: new Date().toISOString(),
+  });
+
+  const historyResult = await getMemberContributionHistory('test-profile-start-2026');
+  assert(historyResult !== null, 'Retrieved contribution history for member');
+  const summary2024 = historyResult?.yearSummaries['2024'];
+  const summary2025 = historyResult?.yearSummaries['2025'];
+  const summary2026 = historyResult?.yearSummaries['2026'];
+
+  assert(summary2024?.linkStatus === 'not_a_member', '2024 (pre-joining) linkStatus is not_a_member');
+  assert(summary2024?.yearState === 'not_started', '2024 yearState is not_started');
+  assert(summary2024?.dueAmount === 0, '2024 dueAmount is strictly ৳0 (no false arrears)');
+  assert(summary2024?.dueMonthsCount === 0, '2024 dueMonthsCount is 0');
+  assert(summary2024?.isReceiptEligible === false, '2024 isReceiptEligible is false (cannot generate receipt)');
+
+  assert(summary2025?.linkStatus === 'not_a_member', '2025 (pre-joining) linkStatus is not_a_member');
+  assert(summary2025?.yearState === 'not_started', '2025 yearState is not_started');
+  assert(summary2025?.dueAmount === 0, '2025 dueAmount is strictly ৳0');
+
+  // TEST 28: Month-by-Month Arrears & Receipt Eligibility in Active Year
+  console.log('\n--- TEST 28: Month-by-Month Arrears Calculation ---');
+  // For 2026, start is March 2026 (months 1 and 2 are not_applicable)
+  const janStatus = summary2026?.months.find((m) => m.month === 'Jan');
+  const febStatus = summary2026?.months.find((m) => m.month === 'Feb');
+  assert(janStatus?.status === 'not_applicable', 'January 2026 is not_applicable (before joining)');
+  assert(febStatus?.status === 'not_applicable', 'February 2026 is not_applicable (before joining)');
+  assert(summary2026?.yearState !== 'not_started', '2026 is the active/started year');
+  assert(summary2026?.isReceiptEligible === false, '2026 has 0 paid months so isReceiptEligible is false');
+
+  // TEST 29: Due Amount Calculation on Member Records
+  console.log('\n--- TEST 29: Due Amount Calculation on FundMemberRecord ---');
+  const mockDueRecordRows = [
+    ['SL', 'Name', 'Rate', 'Jan', 'Feb', 'Mar', 'Apr', 'Total'],
+    ['1', 'সদস্য টেস্ট', '500', 'paid', '', '', '', '500'],
+  ];
+  const mappingDueTest: SheetManualMapping = {
+    headerRowIndex: 0,
+    serialColIndex: 0,
+    nameColIndex: 1,
+    commitmentColIndex: 2,
+    totalColIndex: 7,
+    monthColIndices: { Jan: 3, Feb: 4, Mar: 5, Apr: 6 },
+    paymentFormat: 'auto',
+  };
+  const parsedDueTest = parseFundSheet(mockDueRecordRows, '', '2026', mappingDueTest);
+  const dueRecord = parsedDueTest?.memberRecords[0];
+  assert(dueRecord !== undefined, 'Parsed member record for dueAmount verification');
+  assert(dueRecord?.commitment === 500, 'Commitment is ৳500');
+  assert(typeof dueRecord?.dueAmount === 'number', 'dueAmount property is calculated as number');
+
+  // TEST 30: Gallery Reconciliation (3 General + 7 Activities = 10 Total)
+  console.log('\n--- TEST 30: Gallery Reconciliation ---');
+  storageService.setActivities(initialActivities);
+  const galleryItems = storageService.getGalleryItems();
+  const activitiesList = storageService.getActivities();
+  const generalGalleryItems = galleryItems.filter((g) => !g.activityId);
+  const activityCoverItems = activitiesList.filter((a) => a.coverImage && a.isPublished !== false);
+
+  assert(generalGalleryItems.length === 3, `General gallery items: exactly 3 (got ${generalGalleryItems.length})`);
+  assert(activityCoverItems.length === 7, `Activity media items with covers: exactly 7 (got ${activityCoverItems.length})`);
+  assert(generalGalleryItems.length + activityCoverItems.length === 10, 'Total combined media: exactly 10');
 
   console.log('\n================================================================');
   console.log(`🏁 TEST RESULTS: ${passedTests} / ${totalTests} TESTS PASSED (${Math.round((passedTests / totalTests) * 100)}%)`);
