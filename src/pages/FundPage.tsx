@@ -50,12 +50,17 @@ import {
   Layers,
   Lock,
   FileText,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { fundPrivacyService } from '../services/fundPrivacyService';
 import { FundPrivacyLockScreen } from '../components/FundPrivacyLockScreen';
 import { OtherMonthlyContributionsSection } from '../components/fund/OtherMonthlyContributionsSection';
 import { SpecialFundsSection } from '../components/fund/SpecialFundsSection';
 import { OnlineReceiptModal } from '../components/receipt/OnlineReceiptModal';
+import { FundPasswordModal } from '../components/fund/FundPasswordModal';
+import { MemberContributionHistoryModal } from '../components/member/MemberContributionHistoryModal';
+import { MemberAvatar } from '../components/MemberAvatar';
 
 export const FundPage: React.FC = () => {
   const { t, language } = useLanguage();
@@ -78,6 +83,12 @@ export const FundPage: React.FC = () => {
   );
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [highlightedExpenseId, setHighlightedExpenseId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'directory'>('table');
+  const [directorySort, setDirectorySort] = useState<'serial' | 'name' | 'progress' | 'due' | 'latest_paid'>('serial');
+  const [selectedHistoryMember, setSelectedHistoryMember] = useState<Member | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [pendingHistoryMember, setPendingHistoryMember] = useState<Member | null>(null);
 
   // Auto-scroll and highlight target expense when navigating from an activity
   useEffect(() => {
@@ -519,6 +530,10 @@ export const FundPage: React.FC = () => {
         // Concluded year: incomplete means due/arrears
         isDue = true;
         isOngoing = false;
+      } else if (selYearNum > currentCalendarYear) {
+        // Future year: cannot be past due
+        isOngoing = paidApplicableCount > 0;
+        isDue = false;
       } else {
         // Active year: if up to date through current cutoff month, ongoing; otherwise due
         if (paidApplicableCount >= expectedMonths) {
@@ -594,6 +609,77 @@ export const FundPage: React.FC = () => {
 
     return list;
   }, [memberEvaluations, searchTerm, memberFilter, resolveContributionMemberName, membersList, memberNameMap]);
+
+  // Sorted members based on directorySort or default table order
+  const sortedDisplayMembers = useMemo(() => {
+    if (viewMode === 'table') {
+      return filteredMembers;
+    }
+    const list = [...filteredMembers];
+    switch (directorySort) {
+      case 'serial':
+        return list.sort((a, b) => (Number(a.serial) || 0) - (Number(b.serial) || 0));
+      case 'name':
+        return list.sort((a, b) => {
+          const nameA = (a.name || '').trim();
+          const nameB = (b.name || '').trim();
+          return nameA.localeCompare(nameB, 'bn');
+        });
+      case 'progress':
+        return list.sort((a, b) => {
+          const ratioA = (a.paidApplicableCount || 0) / (a.totalApplicable || 1);
+          const ratioB = (b.paidApplicableCount || 0) / (b.totalApplicable || 1);
+          return ratioB - ratioA;
+        });
+      case 'due':
+        return list.sort((a, b) => {
+          const dueA = Math.max(0, (a.totalApplicable || 0) - (a.paidApplicableCount || 0));
+          const dueB = Math.max(0, (b.totalApplicable || 0) - (b.paidApplicableCount || 0));
+          return dueB - dueA;
+        });
+      case 'latest_paid':
+        return list.sort((a, b) => {
+          const rankA = a.latestPaidMonth ? MONTH_KEYS.indexOf(a.latestPaidMonth as any) : -1;
+          const rankB = b.latestPaidMonth ? MONTH_KEYS.indexOf(b.latestPaidMonth as any) : -1;
+          return rankB - rankA;
+        });
+      default:
+        return list;
+    }
+  }, [filteredMembers, viewMode, directorySort]);
+
+  const handleOpenMemberHistory = (memberRecord: FundMemberRecord) => {
+    const safeName = (memberRecord.name || '').trim();
+    const resolved = resolveContributionMemberName(safeName);
+    const targetProfileId = memberRecord.linkedProfileId || resolved.memberId;
+    const existingProfile = targetProfileId ? membersList.find((m) => m.id === targetProfileId) : undefined;
+
+    const targetMember: Member = existingProfile || {
+      id: targetProfileId || memberRecord.id || `fund-member-${memberRecord.serial}`,
+      name: resolved.displayName || safeName || 'সদস্য',
+      role: 'member',
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    } as Member;
+
+    if (fundPrivacyService.isAccessGranted()) {
+      setSelectedHistoryMember(targetMember);
+      setIsHistoryModalOpen(true);
+    } else {
+      setPendingHistoryMember(targetMember);
+      setIsPasswordModalOpen(true);
+    }
+  };
+
+  const handlePasswordSuccess = () => {
+    setIsAccessGranted(true);
+    setIsPasswordModalOpen(false);
+    if (pendingHistoryMember) {
+      setSelectedHistoryMember(pendingHistoryMember);
+      setIsHistoryModalOpen(true);
+      setPendingHistoryMember(null);
+    }
+  };
 
   // Max monthly total for relative bar sizing
   const maxMonthlyVal = useMemo(() => {
@@ -1356,132 +1442,348 @@ export const FundPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Responsive Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F7F5F0] text-[#5C665F] font-semibold border-b border-[#EBE8E0]">
-                    <tr>
-                      <th className="py-3 px-3 w-10 text-center">#</th>
-                      <th className="py-3 px-4">{t('colMemberName')}</th>
-                      <th className="py-3 px-3 text-right">{t('colMonthlyRate')}</th>
-                      {MONTH_KEYS.map((m) => {
-                        const isApplicable = isMonthApplicableForYear(m, selectedYear);
-                        return (
-                          <th
-                            key={m}
-                            className={`py-3 px-2 text-center text-[11px] ${
-                              !isApplicable ? 'text-[#B0ABA0] font-normal' : ''
-                            }`}
-                          >
-                            {getLocalizedMonthName(m, language)}
-                          </th>
-                        );
-                      })}
-                      <th className="py-3 px-3 text-right">{t('colTotalDeposit')}</th>
-                      <th className="py-3 px-3 text-center">{t('colProgress')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#EBE8E0]">
-                    {filteredMembers.map((member) => {
-                      const safeName = (member.name || '').trim();
-                      const resolved = resolveContributionMemberName(safeName);
-                      // Strict rule: profile link is ONLY active if explicitly verified & approved by admin
-                      const isApprovedLink = Boolean(member.linkedProfileId && member.isMappedByAdmin);
-                      const targetProfileId = isApprovedLink ? member.linkedProfileId : undefined;
-                      const displayName = resolved.displayName || safeName || 'সদস্য';
+              {/* View Mode & Sorter Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#EBE8E0]">
+                <div className="flex items-center gap-1.5 p-1 bg-[#F7F5F0] rounded-xl border border-[#EBE8E0] text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('table')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      viewMode === 'table'
+                        ? 'bg-white text-[#2D5A41] shadow-2xs'
+                        : 'text-[#5C665F] hover:text-[#2D3630]'
+                    }`}
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    <span>{t('viewTableView')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('directory')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      viewMode === 'directory'
+                        ? 'bg-white text-[#2D5A41] shadow-2xs'
+                        : 'text-[#5C665F] hover:text-[#2D3630]'
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>{t('viewDirectoryView')}</span>
+                  </button>
+                </div>
 
-                      return (
-                        <tr key={member.id || `${member.serial}-${member.name}`} className="hover:bg-[#FDFCF9] transition-colors">
-                          <td className="py-3 px-3 text-center font-mono text-[#7A877E]">
-                            {formatLocalizedNumber(member.serial, language)}
-                          </td>
-                          <td className="py-3 px-4 font-semibold text-[#2D3630] whitespace-nowrap">
-                            {memberLinkSettings.makeProfileLink && targetProfileId ? (
-                              <Link
-                                to={`/members/${targetProfileId}`}
-                                className="text-[#2D5A41] hover:underline inline-flex items-center gap-1 group"
-                                title={t('viewMemberProfileTitle')}
-                              >
-                                <span>{displayName}</span>
-                                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </Link>
-                            ) : (
-                              <span className="text-[#2D3630]">{displayName}</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 text-right font-mono text-[#5C665F] whitespace-nowrap">
-                            ৳ {formatLocalizedAmount(member.commitment, language)}
-                          </td>
-                          {MONTH_KEYS.map((m) => {
-                            const isApplicable = isMonthApplicableForYear(m, selectedYear);
-                            if (!isApplicable) {
-                              return (
-                                <td key={m} className="py-3 px-2 text-center">
-                                  <span
-                                    className="text-[#C5BFB0] font-mono text-[11px] select-none"
-                                    title={
-                                      language === 'ar'
-                                        ? 'قبل تأسيس المؤسسة'
-                                        : language === 'en'
-                                        ? 'Pre-foundation'
-                                        : 'প্রতিষ্ঠার পূর্ববর্তী'
-                                    }
-                                  >
-                                    —
-                                  </span>
-                                </td>
-                              );
-                            }
-
-                            const isPaid = member.months && member.months[m] === 'paid';
-                            const mName = getLocalizedMonthName(m, language);
-                            return (
-                              <td key={m} className="py-3 px-2 text-center">
-                                {isPaid ? (
-                                  <span
-                                    className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#E8EFEA] text-[#2D5A41] text-[10px] font-bold"
-                                    title={`${mName} ${t('statusPaid')}`}
-                                  >
-                                    ✓
-                                  </span>
-                                ) : (
-                                  <span
-                                    className="inline-block w-2 h-2 rounded-full bg-[#EBE8E0]"
-                                    title={`${mName} ${t('statusDue')}`}
-                                  />
-                                )}
-                              </td>
-                            );
-                          })}
-                          <td className="py-3 px-3 text-right font-mono font-bold text-[#2D5A41] whitespace-nowrap">
-                            ৳ {formatLocalizedAmount(member.totalContributed, language)}
-                          </td>
-                          <td className="py-3 px-3 text-center whitespace-nowrap">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                                member.isComplete
-                                  ? 'bg-[#E8EFEA] text-[#2D5A41]'
-                                  : member.isDue
-                                  ? 'bg-rose-50 text-rose-700'
-                                  : 'bg-[#F7F5F0] text-[#5C665F]'
-                              }`}
-                            >
-                              {member.isComplete && <CheckCircle2 className="w-3 h-3 text-[#2D5A41]" />}
-                              <span>{formatMonthProgress(member.paidApplicableCount, member.totalApplicable, language)}</span>
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-
-                {filteredMembers.length === 0 && (
-                  <div className="text-center py-8 text-xs text-[#7A877E]">
-                    {t('noMemberFound')}
+                {viewMode === 'directory' && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-[#5C665F] font-medium">{t('sortByLabel')}</span>
+                    <select
+                      value={directorySort}
+                      onChange={(e) => setDirectorySort(e.target.value as any)}
+                      className="px-3 py-1.5 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-xs font-semibold text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41]"
+                    >
+                      <option value="serial">{t('sortSerial')}</option>
+                      <option value="name">{t('sortName')}</option>
+                      <option value="progress">{t('sortProgress')}</option>
+                      <option value="due">{t('sortDue')}</option>
+                      <option value="latest_paid">{t('sortLatestPaid')}</option>
+                    </select>
                   </div>
                 )}
               </div>
+
+              {/* Directory View Cards Grid */}
+              {viewMode === 'directory' ? (
+                <div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {sortedDisplayMembers.map((member) => {
+                      const safeName = (member.name || '').trim();
+                      const resolved = resolveContributionMemberName(safeName);
+                      const isApprovedLink = Boolean(member.linkedProfileId && member.isMappedByAdmin);
+                      const targetProfileId = isApprovedLink ? member.linkedProfileId : undefined;
+                      const existingProfile = targetProfileId ? membersList.find((p) => p.id === targetProfileId) : undefined;
+                      const displayName = resolved.displayName || safeName || 'সদস্য';
+                      const startPeriodDisplay =
+                        selectedYear === '2024'
+                          ? `${getLocalizedMonthName('Dec', language)} ${formatLocalizedNumber('2024', language)}`
+                          : member.startPeriod || `${getLocalizedMonthName('Jan', language)} ${formatLocalizedNumber(selectedYear, language)}`;
+
+                      const dueMonthsCount = Math.max(0, (member.totalApplicable || 0) - (member.paidApplicableCount || 0));
+                      const progressPercent = member.totalApplicable
+                        ? Math.min(100, Math.round(((member.paidApplicableCount || 0) / member.totalApplicable) * 100))
+                        : 0;
+
+                      return (
+                        <div
+                          key={member.id || `${member.serial}-${member.name}`}
+                          className="rounded-2xl border border-[#EBE8E0] bg-white p-4 shadow-3xs hover:shadow-md hover:border-[#2D5A41]/40 transition-all flex flex-col justify-between gap-3.5 group"
+                        >
+                          {/* Card Header */}
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="flex items-center gap-3 min-w-0">
+                              {existingProfile ? (
+                                <MemberAvatar member={existingProfile} config={config} size="sm" />
+                              ) : (
+                                <div className="w-12 h-12 rounded-full bg-[#E8EFEA] border-2 border-[#EBE8E0] flex items-center justify-center text-[#2D5A41] font-bold text-base shrink-0">
+                                  {displayName.slice(0, 1)}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-[#2D3630] text-sm truncate">
+                                    {displayName}
+                                  </span>
+                                  {member.canonicalMemberId && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-[#F0EFEA] text-[#5C665F] font-mono text-[10px] font-semibold">
+                                      {member.canonicalMemberId}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-[#7A877E]">
+                                  <span className="font-mono">#{formatLocalizedNumber(member.serial, language)}</span>
+                                  <span>•</span>
+                                  <span className="truncate">
+                                    {existingProfile?.role || t('unregisteredMember')}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Status Badge */}
+                            <div className="shrink-0">
+                              {member.isComplete ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#E8EFEA] text-[#2D5A41]">
+                                  <CheckCircle2 className="w-3 h-3 text-[#2D5A41]" />
+                                  <span>{t('statusComplete')}</span>
+                                </span>
+                              ) : member.isOngoing ? (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800">
+                                  <span>{t('statusOngoing')}</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700">
+                                  <span>{t('filterDue')}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Card Metrics */}
+                          <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-[#FDFCF9] border border-[#EBE8E0] text-xs">
+                            <div>
+                              <div className="text-[10px] text-[#7A877E]">{t('colMonthlyRate')}</div>
+                              <div className="font-mono font-semibold text-[#2D3630]">
+                                ৳ {formatLocalizedAmount(member.commitment, language)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] text-[#7A877E]">{t('colTotalDeposit')}</div>
+                              <div className="font-mono font-bold text-[#2D5A41]">
+                                ৳ {formatLocalizedAmount(member.totalContributed, language)}
+                              </div>
+                            </div>
+                            <div className="col-span-2 pt-1 border-t border-[#F0EFEA] flex items-center justify-between text-[11px]">
+                              <span className="text-[#7A877E]">{t('startPeriodLabel')}</span>
+                              <span className="font-medium text-[#2D3630]">{startPeriodDisplay}</span>
+                            </div>
+                          </div>
+
+                          {/* Progress & Latest Paid Month */}
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-[#5C665F]">
+                                {t('colProgress')}: {formatLocalizedNumber(member.paidApplicableCount, language)} / {formatLocalizedNumber(member.totalApplicable, language)} মাস
+                              </span>
+                              <span className="font-mono font-semibold text-[#2D5A41]">{progressPercent}%</span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-[#EBE8E0] overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${
+                                  member.isComplete ? 'bg-[#2D5A41]' : member.isDue ? 'bg-amber-500' : 'bg-[#2D5A41]'
+                                }`}
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] pt-0.5">
+                              <span className="text-[#7A877E]">{t('latestPaidMonthLabel')}</span>
+                              <span className="font-semibold text-[#2D3630]">
+                                {member.latestPaidMonth
+                                  ? `${getLocalizedMonthName(member.latestPaidMonth, language)} ${formatLocalizedNumber(selectedYear, language)}`
+                                  : t('noPaymentRecorded')}
+                              </span>
+                            </div>
+                            {dueMonthsCount > 0 && (
+                              <div className="text-[11px] text-rose-600 font-medium">
+                                {t('dueMonthsCountLabel')} {formatLocalizedNumber(dueMonthsCount, language)} মাস
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Card Footer Actions */}
+                          <div className="flex items-center gap-2 pt-2 border-t border-[#EBE8E0]">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenMemberHistory(member)}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[#F7F5F0] hover:bg-[#E8EFEA] text-[#2D5A41] font-semibold text-xs transition-colors cursor-pointer border border-[#EBE8E0] hover:border-[#2D5A41]/30 shadow-3xs"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>{t('viewContributionHistoryBtn')}</span>
+                            </button>
+                            {targetProfileId && (
+                              <Link
+                                to={`/members/${targetProfileId}`}
+                                className="p-2 rounded-xl bg-[#F7F5F0] hover:bg-[#E8EFEA] text-[#5C665F] hover:text-[#2D5A41] transition-colors border border-[#EBE8E0]"
+                                title="সদস্য প্রোফাইল দেখুন"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {sortedDisplayMembers.length === 0 && (
+                    <div className="text-center py-12 text-xs text-[#7A877E]">
+                      {t('noMemberFound')}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Responsive Table */
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F7F5F0] text-[#5C665F] font-semibold border-b border-[#EBE8E0]">
+                      <tr>
+                        <th className="py-3 px-3 w-10 text-center">#</th>
+                        <th className="py-3 px-4">{t('colMemberName')}</th>
+                        <th className="py-3 px-3 text-right">{t('colMonthlyRate')}</th>
+                        {MONTH_KEYS.map((m) => {
+                          const isApplicable = isMonthApplicableForYear(m, selectedYear);
+                          return (
+                            <th
+                              key={m}
+                              className={`py-3 px-2 text-center text-[11px] ${
+                                !isApplicable ? 'text-[#B0ABA0] font-normal' : ''
+                              }`}
+                            >
+                              {getLocalizedMonthName(m, language)}
+                            </th>
+                          );
+                        })}
+                        <th className="py-3 px-3 text-right">{t('colTotalDeposit')}</th>
+                        <th className="py-3 px-3 text-center">{t('colProgress')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#EBE8E0]">
+                      {sortedDisplayMembers.map((member) => {
+                        const safeName = (member.name || '').trim();
+                        const resolved = resolveContributionMemberName(safeName);
+                        // Strict rule: profile link is ONLY active if explicitly verified & approved by admin
+                        const isApprovedLink = Boolean(member.linkedProfileId && member.isMappedByAdmin);
+                        const targetProfileId = isApprovedLink ? member.linkedProfileId : undefined;
+                        const displayName = resolved.displayName || safeName || 'সদস্য';
+
+                        return (
+                          <tr key={member.id || `${member.serial}-${member.name}`} className="hover:bg-[#FDFCF9] transition-colors">
+                            <td className="py-3 px-3 text-center font-mono text-[#7A877E]">
+                              {formatLocalizedNumber(member.serial, language)}
+                            </td>
+                            <td className="py-3 px-4 font-semibold text-[#2D3630] whitespace-nowrap">
+                              {memberLinkSettings.makeProfileLink && targetProfileId ? (
+                                <Link
+                                  to={`/members/${targetProfileId}`}
+                                  className="text-[#2D5A41] hover:underline inline-flex items-center gap-1 group"
+                                  title={t('viewMemberProfileTitle')}
+                                >
+                                  <span>{displayName}</span>
+                                  <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </Link>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenMemberHistory(member)}
+                                  className="text-[#2D3630] hover:text-[#2D5A41] hover:underline cursor-pointer text-left font-semibold"
+                                  title="বিস্তারিত বিবরণী দেখুন"
+                                >
+                                  {displayName}
+                                </button>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-[#5C665F] whitespace-nowrap">
+                              ৳ {formatLocalizedAmount(member.commitment, language)}
+                            </td>
+                            {MONTH_KEYS.map((m) => {
+                              const isApplicable = isMonthApplicableForYear(m, selectedYear);
+                              if (!isApplicable) {
+                                return (
+                                  <td key={m} className="py-3 px-2 text-center">
+                                    <span
+                                      className="text-[#C5BFB0] font-mono text-[11px] select-none"
+                                      title={
+                                        language === 'ar'
+                                          ? 'قبل تأسيس المؤسسة'
+                                          : language === 'en'
+                                          ? 'Pre-foundation'
+                                          : 'প্রতিষ্ঠার পূর্ববর্তী'
+                                      }
+                                    >
+                                      —
+                                    </span>
+                                  </td>
+                                );
+                              }
+
+                              const isPaid = member.months && member.months[m] === 'paid';
+                              const mName = getLocalizedMonthName(m, language);
+                              return (
+                                <td key={m} className="py-3 px-2 text-center">
+                                  {isPaid ? (
+                                    <span
+                                      className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#E8EFEA] text-[#2D5A41] text-[10px] font-bold"
+                                      title={`${mName} ${t('statusPaid')}`}
+                                    >
+                                      ✓
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="inline-block w-2 h-2 rounded-full bg-[#EBE8E0]"
+                                      title={`${mName} ${t('statusDue')}`}
+                                    />
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="py-3 px-3 text-right font-mono font-bold text-[#2D5A41] whitespace-nowrap">
+                              ৳ {formatLocalizedAmount(member.totalContributed, language)}
+                            </td>
+                            <td className="py-3 px-3 text-center whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenMemberHistory(member)}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer hover:opacity-80 transition-opacity ${
+                                  member.isComplete
+                                    ? 'bg-[#E8EFEA] text-[#2D5A41]'
+                                    : member.isDue
+                                    ? 'bg-rose-50 text-rose-700'
+                                    : 'bg-[#F7F5F0] text-[#5C665F]'
+                                }`}
+                                title="ক্লিক করে বিস্তারিত ইতিহাস দেখুন"
+                              >
+                                {member.isComplete && <CheckCircle2 className="w-3 h-3 text-[#2D5A41]" />}
+                                <span>{formatMonthProgress(member.paidApplicableCount, member.totalApplicable, language)}</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {sortedDisplayMembers.length === 0 && (
+                    <div className="text-center py-8 text-xs text-[#7A877E]">
+                      {t('noMemberFound')}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1740,7 +2042,32 @@ export const FundPage: React.FC = () => {
         currentYear={selectedYear}
         memberRecords={fundData?.memberRecords || []}
         onYearChange={handleSelectYear}
-        isLoadingYearData={loading}
+      />
+
+      {/* Member Contribution History Modal */}
+      {selectedHistoryMember && (
+        <MemberContributionHistoryModal
+          isOpen={isHistoryModalOpen}
+          onClose={() => {
+            setIsHistoryModalOpen(false);
+            setSelectedHistoryMember(null);
+          }}
+          member={selectedHistoryMember}
+          onOpenReceiptModal={(_mId, _yr, _pMonths) => {
+            setIsHistoryModalOpen(false);
+            setIsReceiptModalOpen(true);
+          }}
+        />
+      )}
+
+      {/* Fund Password Modal for protected member history */}
+      <FundPasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => {
+          setIsPasswordModalOpen(false);
+          setPendingHistoryMember(null);
+        }}
+        onSuccess={handlePasswordSuccess}
       />
 
       {/* Receipt / Voucher Lightbox Modal */}

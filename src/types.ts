@@ -489,6 +489,16 @@ export interface FundMemberRecord {
   monthlyAmounts?: { [month: string]: number };
   totalContributed: number;
   paidCount: number;
+  hasDiscrepancy?: boolean;
+  discrepancyNote?: string;
+  isTotalInconsistent?: boolean;
+  latestPaidMonth?: string;
+  paidApplicableCount?: number;
+  totalApplicable?: number;
+  isComplete?: boolean;
+  isOngoing?: boolean;
+  isDue?: boolean;
+  startPeriod?: string;
 }
 
 export interface FundDiagnostics {

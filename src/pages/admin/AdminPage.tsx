@@ -226,6 +226,8 @@ export const AdminPage: React.FC = () => {
   const [activitySubTab, setActivitySubTab] = useState<'list' | 'categories'>('list');
   const [editingNotice, setEditingNotice] = useState<Partial<Notice> | null>(null);
   const [editingGallery, setEditingGallery] = useState<Partial<GalleryItem> | null>(null);
+  const [gallerySubTab, setGallerySubTab] = useState<'all' | 'gallery' | 'activity'>('all');
+  const [previewGalleryItem, setPreviewGalleryItem] = useState<(GalleryItem & { isActivityDerived?: boolean }) | null>(null);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [galleryLang, setGalleryLang] = useState<'bn' | 'en' | 'ar'>('bn');
   const [activeMessage, setActiveMessage] = useState<ContactMessage | null>(null);
@@ -1002,6 +1004,24 @@ export const AdminPage: React.FC = () => {
     const res = await storageService.saveGalleryItemAsync(newG);
     if (res.success && res.data) {
       setGallery(res.data);
+
+      // If this gallery item was linked to an activity, also keep the activity in sync
+      if (editingGallery.activityId) {
+        const act = activities.find((a) => a.id === editingGallery.activityId);
+        if (act) {
+          const updatedAct: Activity = {
+            ...act,
+            title: titleObj,
+            coverImage: imgUrl,
+            category: editingGallery.category || act.category,
+            date: newG.date || act.date,
+            showOnMediaPage: newG.isPublished,
+          };
+          await storageService.saveActivityAsync(updatedAct);
+          setActivities(storageService.getActivities());
+        }
+      }
+
       setEditingGallery(null);
       triggerSyncStatus('success', 'মিডিয়া আইটেম সংরক্ষিত ও ভেরিফাইড');
       showToast('মিডিয়া আইটেম সফলভাবে সেন্ট্রাল ডাটাবেজে সংরক্ষিত হয়েছে!');
@@ -1011,19 +1031,50 @@ export const AdminPage: React.FC = () => {
     }
   };
 
-  const handleDeleteGallery = (id: string) => {
-    requestConfirm('গ্যালারি আইটেম মুছে ফেলুন', 'আপনি কি এই ছবিটি মুছে ফেলতে চান?', async () => {
-      triggerSyncStatus('saving', 'মুছে ফেলা হচ্ছে...');
-      const res = await storageService.deleteGalleryItemAsync(id);
-      if (res.success && res.data) {
-        setGallery(res.data);
-        triggerSyncStatus('success', 'মুছে ফেলা হয়েছে');
-        showToast('গ্যালারি আইটেম মুছে ফেলা হয়েছে।');
-      } else {
-        triggerSyncStatus('error', 'মুছে ফেলা ব্যর্থ');
-        showToast(`মুছে ফেলা ব্যর্থ: ${res.error || 'অপ্রত্যাশিত ত্রুটি'}`);
-      }
-    });
+  const handleDeleteGallery = (item: GalleryItem & { isActivityDerived?: boolean; originalActivity?: Activity }) => {
+    if (item.isActivityDerived || item.activityId) {
+      requestConfirm(
+        'কার্যক্রমের মিডিয়া অপসারণ',
+        'আপনি কি এই কার্যক্রমের মিডিয়াটি গ্যালারি থেকে সরাতে চান?\n\nসতর্কতা: এতে কার্যক্রমে যুক্ত মূল রেকর্ড বা ব্যয়ের হিসাব মুছে যাবে না, শুধুমাত্র কভার ছবি বিচ্ছিন্ন করা হবে এবং মিডিয়া পেজ থেকে অপসারিত হবে।',
+        async () => {
+          triggerSyncStatus('saving', 'মিডিয়া বিচ্ছিন্ন করা হচ্ছে...');
+          const actId = item.activityId || (item.id.startsWith('gal-act-') ? item.id.replace('gal-act-', '') : undefined);
+          if (actId) {
+            const act = activities.find((a) => a.id === actId);
+            if (act) {
+              const updatedAct: Activity = {
+                ...act,
+                coverImage: '',
+                showOnMediaPage: false,
+              };
+              await storageService.saveActivityAsync(updatedAct);
+              setActivities(storageService.getActivities());
+            }
+          }
+          const res = await storageService.deleteGalleryItemAsync(item.id);
+          if (res.success && res.data) {
+            setGallery(res.data);
+          } else {
+            setGallery(storageService.getGalleryItems());
+          }
+          triggerSyncStatus('success', 'মিডিয়া সরানো হয়েছে');
+          showToast('কার্যক্রমের কভার ছবি সফলভাবে বিচ্ছিন্ন ও মিডিয়া থেকে অপসারিত হয়েছে।');
+        }
+      );
+    } else {
+      requestConfirm('গ্যালারি আইটেম মুছে ফেলুন', 'আপনি কি এই ছবিটি মুছে ফেলতে চান?', async () => {
+        triggerSyncStatus('saving', 'মুছে ফেলা হচ্ছে...');
+        const res = await storageService.deleteGalleryItemAsync(item.id);
+        if (res.success && res.data) {
+          setGallery(res.data);
+          triggerSyncStatus('success', 'মুছে ফেলা হয়েছে');
+          showToast('গ্যালারি আইটেম মুছে ফেলা হয়েছে।');
+        } else {
+          triggerSyncStatus('error', 'মুছে ফেলা ব্যর্থ');
+          showToast(`মুছে ফেলা ব্যর্থ: ${res.error || 'অপ্রত্যাশিত ত্রুটি'}`);
+        }
+      });
+    }
   };
 
   // Message operations
@@ -4066,275 +4117,480 @@ export const AdminPage: React.FC = () => {
       )}
 
       {/* SECTION: GALLERY MANAGER */}
-      {activeSection === 'gallery' && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-[#2D3630]">
-                মিডিয়া গ্যালারি ব্যবস্থাপনা ({gallery.length})
-              </h2>
-              <p className="text-xs text-[#5C665F] mt-0.5">
-                পাবলিক গ্যালারির স্থিরচিত্রসমূহ পরিচালনা করুন। (ছবি-ভিত্তিক গ্যালারি)
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsBulkUploadOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#E8EFEA] hover:bg-[#D5E4D9] text-[#2D5A41] text-xs font-semibold border border-[#2D5A41]/30 transition-colors cursor-pointer shadow-2xs"
-              >
-                <Upload className="w-4 h-4 text-[#2D5A41]" />
-                <span>একাধিক ছবি আপলোড (Bulk Upload)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditingGallery({ isPublished: true, type: 'photo' })}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold cursor-pointer shadow-2xs"
-              >
-                <Plus className="w-4 h-4" />
-                <span>একক ছবি যুক্ত করুন</span>
-              </button>
-            </div>
-          </div>
+      {activeSection === 'gallery' && (() => {
+        const seenActivityIds = new Set<string>();
+        const combinedAdminMedia: Array<GalleryItem & { isActivityDerived?: boolean; originalActivity?: Activity }> = [];
 
-          {editingGallery && (
-            <div
-              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-150"
-              onClick={() => setEditingGallery(null)}
-            >
-              <div
-                id="gallery-edit-form"
-                ref={galleryFormRef}
-                onClick={(e) => e.stopPropagation()}
-                className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white border border-[#2D5A41]/40 shadow-2xl p-5 sm:p-7 space-y-4 text-xs"
-              >
-                <div className="flex items-center justify-between pb-2 border-b border-[#EBE8E0]">
-                  <h3 className="text-sm font-bold text-[#2D3630]">
-                    {editingGallery.id ? 'মিডিয়া ছবি সম্পাদনা' : 'নতুন ছবি যুক্ত করুন'}
-                  </h3>
-                  <button onClick={() => setEditingGallery(null)} className="p-1 text-[#7A877E] hover:text-[#2D3630] cursor-pointer">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+        // 1. Existing gallery items
+        for (const g of gallery) {
+          if (g.activityId) {
+            const act = activities.find((a) => a.id === g.activityId);
+            seenActivityIds.add(g.activityId);
+            combinedAdminMedia.push({
+              ...g,
+              title: act ? act.title : g.title,
+              url: (act && act.coverImage) || g.url || g.mediaUrl,
+              mediaUrl: (act && act.coverImage) || g.mediaUrl || g.url,
+              thumbnailUrl: (act && act.coverImage) || g.thumbnailUrl || g.url,
+              category: act?.category || g.category || 'কার্যক্রম',
+              date: act?.date || g.date,
+              year: act?.date ? act.date.split('-')[0] : g.year,
+              isActivityDerived: true,
+              originalActivity: act,
+            });
+          } else {
+            combinedAdminMedia.push({
+              ...g,
+              isActivityDerived: false,
+            });
+          }
+        }
 
-                <form onSubmit={handleSaveGallery} className="space-y-4">
-                  {/* Multilingual Tab Switcher for Gallery */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-[#2D3630] mr-1">তথ্য সম্পাদনার ভাষা:</span>
-                      {(['bn', 'en', 'ar'] as const).map((langKey) => (
-                        <button
-                          key={langKey}
-                          type="button"
-                          onClick={() => setGalleryLang(langKey)}
-                          className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                            galleryLang === langKey
-                              ? 'bg-[#2D5A41] text-white shadow-2xs'
-                              : 'bg-white text-[#5C665F] hover:text-[#2D3630] border border-[#EBE8E0]'
-                          }`}
-                        >
-                          {langKey === 'bn' ? 'বাংলা (BN)' : langKey === 'en' ? 'English (EN)' : 'العربية (AR)'}
-                        </button>
-                      ))}
-                    </div>
-                    <span className="text-[11px] text-[#7A877E] font-medium">
-                      {galleryLang === 'bn'
-                        ? 'বাংলা কনটেন্ট এডিট হচ্ছে (ডিফল্ট)'
-                        : galleryLang === 'en'
-                        ? 'Editing English translation'
-                        : 'تحرير النص باللغة العربية'}
-                    </span>
-                  </div>
+        // 2. All activities that have a coverImage and are not yet in the gallery list
+        for (const act of activities) {
+          if (act.coverImage && !seenActivityIds.has(act.id)) {
+            combinedAdminMedia.push({
+              id: `gal-act-${act.id}`,
+              title: act.title,
+              url: act.coverImage,
+              mediaUrl: act.coverImage,
+              thumbnailUrl: act.coverImage,
+              type: 'photo',
+              category: act.category || 'কার্যক্রম',
+              date: act.date,
+              year: act.date ? act.date.split('-')[0] : '',
+              activityId: act.id,
+              isPublished: act.isPublished !== false && act.showOnMediaPage !== false,
+              createdAt: act.createdAt || new Date().toISOString(),
+              isActivityDerived: true,
+              originalActivity: act,
+            });
+          }
+        }
 
-                  <MediaUploadField
-                    label="ছবি ফাইল আপলোড করুন *"
-                    value={editingGallery.url || editingGallery.mediaUrl || ''}
-                    onChange={(url) => setEditingGallery({ ...editingGallery, url, mediaUrl: url })}
-                    required
-                    helperText="গ্যালারি ফটো (JPG, PNG, WEBP - সর্বোচ্চ ১০ MB)"
-                    bucket="gallery"
-                  />
+        // Sort newest first
+        combinedAdminMedia.sort((a, b) => {
+          const dateA = a.date || (a.year ? `${a.year}-01-01` : '') || a.createdAt || '';
+          const dateB = b.date || (b.year ? `${b.year}-01-01` : '') || b.createdAt || '';
+          return dateB.localeCompare(dateA);
+        });
 
-                  <div>
-                    <label className="block font-bold text-[#2D3630] mb-1">
-                      ছবির শিরোনাম ({galleryLang.toUpperCase()}) {galleryLang === 'bn' ? '*' : '(ঐচ্ছিক)'}
-                    </label>
-                    <input
-                      type="text"
-                      required={galleryLang === 'bn'}
-                      dir={galleryLang === 'ar' ? 'rtl' : 'ltr'}
-                      value={getGalleryText('title', galleryLang)}
-                      onChange={(e) => setGalleryText('title', galleryLang, e.target.value)}
-                      placeholder={
-                        galleryLang === 'bn'
-                          ? 'যেমন: মৌলভী বাড়ি প্রাঙ্গণে সভা বা চিকিৎসা সহায়তা'
-                          : galleryLang === 'en'
-                          ? 'e.g., Gathering or Medical Aid at Moulvi Bari'
-                          : 'مثال: لقاء أو مساعدة طبية في باحة مولفي باري'
-                      }
-                      className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                    />
-                  </div>
+        const displayedAdminMedia =
+          gallerySubTab === 'gallery'
+            ? combinedAdminMedia.filter((m) => !m.isActivityDerived)
+            : gallerySubTab === 'activity'
+            ? combinedAdminMedia.filter((m) => m.isActivityDerived)
+            : combinedAdminMedia;
 
-                  <div>
-                    <label className="block font-bold text-[#2D3630] mb-1">
-                      ছবির ক্যাপশন / বিবরণ ({galleryLang.toUpperCase()} - ঐচ্ছিক)
-                    </label>
-                    <textarea
-                      rows={2}
-                      dir={galleryLang === 'ar' ? 'rtl' : 'ltr'}
-                      value={getGalleryText('caption', galleryLang)}
-                      onChange={(e) => setGalleryText('caption', galleryLang, e.target.value)}
-                      placeholder={
-                        galleryLang === 'bn'
-                          ? 'ছবির সংক্ষিপ্ত প্রেক্ষাপট বা বিবরণ...'
-                          : galleryLang === 'en'
-                          ? 'Brief description or caption...'
-                          : 'وصف أو تعليق مختصر על الصورة...'
-                      }
-                      className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                    />
-                  </div>
+        const galleryOnlyCount = combinedAdminMedia.filter((m) => !m.isActivityDerived).length;
+        const activityMediaCount = combinedAdminMedia.filter((m) => m.isActivityDerived).length;
 
-                  <div>
-                    <label className="block font-bold text-[#2D3630] mb-1">কার্যক্রমের সাথে লিংক করুন (ঐচ্ছিক)</label>
-                    <select
-                      value={editingGallery.activityId || ''}
-                      onChange={(e) => {
-                        const selectedActId = e.target.value;
-                        const act = activities.find((a) => a.id === selectedActId);
-                        if (act) {
-                          setEditingGallery({
-                            ...editingGallery,
-                            activityId: selectedActId,
-                            title: editingGallery.title || act.title,
-                            date: editingGallery.date || act.date,
-                            year: act.date ? act.date.split('-')[0] : editingGallery.year,
-                          });
-                        } else {
-                          setEditingGallery({ ...editingGallery, activityId: undefined });
-                        }
-                      }}
-                      className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                    >
-                      <option value="">কোনোটি নয় (None - সাধারণ গ্যালারি ছবি)</option>
-                      {activities.map((act) => (
-                        <option key={act.id} value={act.id}>
-                          {typeof act.title === 'string' ? act.title : act.title.bn || act.title.en} ({act.date})
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-[11px] text-[#7A877E] mt-0.5 block">
-                      কোনো কার্যক্রম সিলেক্ট করা থাকলে মিডিয়া পেজে কার্ডে ক্লিক করলে ভিজিটর সরাসরি সেই কার্যক্রমে পৌঁছাবে।
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-bold text-[#2D3630] mb-1">বিভাগ</label>
-                      <input
-                        type="text"
-                        value={editingGallery.category || ''}
-                        onChange={(e) => setEditingGallery({ ...editingGallery, category: e.target.value })}
-                        placeholder="যেমন: মানবিক সহায়তা / সভা"
-                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-bold text-[#2D3630] mb-1">তারিখ</label>
-                      <input
-                        type="date"
-                        value={editingGallery.date || ''}
-                        onChange={(e) => {
-                          const d = e.target.value;
-                          setEditingGallery({
-                            ...editingGallery,
-                            date: d,
-                            year: d ? d.split('-')[0] : editingGallery.year,
-                          });
-                        }}
-                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-[#2D3630]">
-                      <input
-                        type="checkbox"
-                        checked={editingGallery.isPublished !== false}
-                        onChange={(e) => setEditingGallery({ ...editingGallery, isPublished: e.target.checked })}
-                        className="w-4 h-4 rounded accent-[#2D5A41]"
-                      />
-                      <span>পাবলিক মিডিয়া পেজে প্রকাশিত রাখুন (Visible)</span>
-                    </label>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-2 border-t border-[#EBE8E0]">
-                    <button
-                      type="button"
-                      onClick={() => setEditingGallery(null)}
-                      className="px-3.5 py-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] hover:bg-[#F7F5F0] cursor-pointer"
-                    >
-                      বাতিল
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 rounded-lg bg-[#2D5A41] text-white font-semibold hover:bg-[#234733] shadow-2xs cursor-pointer"
-                    >
-                      সংরক্ষণ করুন
-                    </button>
-                  </div>
-                </form>
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-[#2D3630]">
+                  মিডিয়া গ্যালারি ব্যবস্থাপনা ({combinedAdminMedia.length})
+                </h2>
+                <p className="text-xs text-[#5C665F] mt-0.5">
+                  পাবলিক গ্যালারির স্থিরচিত্র ও কার্যক্রমের মিডিয়াসমূহ পরিচালনা করুন।
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBulkUploadOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#E8EFEA] hover:bg-[#D5E4D9] text-[#2D5A41] text-xs font-semibold border border-[#2D5A41]/30 transition-colors cursor-pointer shadow-2xs"
+                >
+                  <Upload className="w-4 h-4 text-[#2D5A41]" />
+                  <span>একাধিক ছবি আপলোড (Bulk Upload)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingGallery({ isPublished: true, type: 'photo' })}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#2D5A41] hover:bg-[#234733] text-white text-xs font-semibold cursor-pointer shadow-2xs"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>একক ছবি যুক্ত করুন</span>
+                </button>
               </div>
             </div>
-          )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {gallery.map((g) => {
-              const titleStr = typeof g.title === 'string' ? g.title : g.title?.bn || g.title?.en || 'ছবি';
-              return (
+            {/* Sub-tabs: All, Standard Gallery, Activity Media */}
+            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-[#F7F5F0] rounded-xl border border-[#EBE8E0] w-fit text-xs">
+              <button
+                type="button"
+                onClick={() => setGallerySubTab('all')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
+                  gallerySubTab === 'all'
+                    ? 'bg-white text-[#2D5A41] shadow-2xs'
+                    : 'text-[#5C665F] hover:text-[#2D3630]'
+                }`}
+              >
+                সকল মিডিয়া ({combinedAdminMedia.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setGallerySubTab('gallery')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
+                  gallerySubTab === 'gallery'
+                    ? 'bg-white text-[#2D5A41] shadow-2xs'
+                    : 'text-[#5C665F] hover:text-[#2D3630]'
+                }`}
+              >
+                সাধারণ গ্যালারি ({galleryOnlyCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setGallerySubTab('activity')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
+                  gallerySubTab === 'activity'
+                    ? 'bg-white text-[#2D5A41] shadow-2xs'
+                    : 'text-[#5C665F] hover:text-[#2D3630]'
+                }`}
+              >
+                কার্যক্রমের মিডিয়া ({activityMediaCount})
+              </button>
+            </div>
+
+            {/* Lightbox / Preview Modal */}
+            {previewGalleryItem && (
+              <div
+                className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+                onClick={() => setPreviewGalleryItem(null)}
+              >
                 <div
-                  key={g.id}
-                  className="rounded-xl overflow-hidden border border-[#EBE8E0] bg-white group shadow-3xs hover:border-[#2D5A41]/40 transition-all flex flex-col"
+                  onClick={(e) => e.stopPropagation()}
+                  className="relative max-w-3xl w-full bg-white rounded-2xl overflow-hidden shadow-2xl border border-[#EBE8E0]"
                 >
-                  <div className="relative aspect-4/3 bg-[#F7F5F0] overflow-hidden">
-                    <img src={g.thumbnailUrl || g.url || g.mediaUrl} alt={titleStr} className="w-full h-full object-cover" />
-                    {g.activityId && (
-                      <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-[#2D5A41]/90 text-white text-[9px] font-semibold">
-                        কার্যক্রম লিংকযুক্ত
-                      </span>
-                    )}
-                    <div className="absolute inset-0 bg-[#2D3630]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => setEditingGallery(g)}
-                        className="p-1.5 rounded-lg bg-white text-[#2D3630] hover:bg-[#F7F5F0] cursor-pointer shadow-xs"
-                        title="সম্পাদনা করুন"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteGallery(g.id)}
-                        className="p-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 cursor-pointer shadow-xs"
-                        title="মুছে ফেলুন"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                  <div className="relative bg-[#1A231E] max-h-[70vh] flex items-center justify-center">
+                    <img
+                      src={previewGalleryItem.url || previewGalleryItem.mediaUrl || previewGalleryItem.thumbnailUrl}
+                      alt={typeof previewGalleryItem.title === 'string' ? previewGalleryItem.title : previewGalleryItem.title?.bn || 'ছবি'}
+                      className="max-h-[70vh] w-auto object-contain"
+                    />
+                    <button
+                      onClick={() => setPreviewGalleryItem(null)}
+                      className="absolute top-3 right-3 p-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
-                  <div className="p-2.5 flex flex-col flex-1 justify-between gap-1 text-[11px]">
-                    <div className="font-semibold text-[#2D3630] line-clamp-1">{titleStr}</div>
-                    <div className="text-[10px] text-[#7A877E] flex items-center justify-between">
-                      <span>{g.category || 'সাধারণ'}</span>
-                      <span>{g.date || g.year}</span>
+                  <div className="p-4 sm:p-5 space-y-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#E8EFEA] text-[#2D5A41]">
+                        {previewGalleryItem.isActivityDerived ? 'কার্যক্রমের মিডিয়া' : 'সাধারণ গ্যালারি'}
+                      </span>
+                      <span className="text-[#7A877E]">{previewGalleryItem.date || previewGalleryItem.year}</span>
                     </div>
+                    <h4 className="text-sm font-bold text-[#2D3630]">
+                      {typeof previewGalleryItem.title === 'string' ? previewGalleryItem.title : previewGalleryItem.title?.bn || ''}
+                    </h4>
+                    {previewGalleryItem.caption && (
+                      <p className="text-[#5C665F]">
+                        {typeof previewGalleryItem.caption === 'string' ? previewGalleryItem.caption : previewGalleryItem.caption?.bn || ''}
+                      </p>
+                    )}
+                    {previewGalleryItem.activityId && (
+                      <div className="pt-2 border-t border-[#EBE8E0] flex items-center justify-between">
+                        <span className="text-[#7A877E]">সংযুক্ত কার্যক্রম আইডি: {previewGalleryItem.activityId}</span>
+                        <a
+                          href={`/activities/${previewGalleryItem.activityId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#2D5A41] hover:underline inline-flex items-center gap-1 font-semibold"
+                        >
+                          <span>পাবলিক ভিউ দেখুন</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            )}
+
+            {/* Edit / Create Modal */}
+            {editingGallery && (
+              <div
+                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-150"
+                onClick={() => setEditingGallery(null)}
+              >
+                <div
+                  id="gallery-edit-form"
+                  ref={galleryFormRef}
+                  onClick={(e) => e.stopPropagation()}
+                  className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white border border-[#2D5A41]/40 shadow-2xl p-5 sm:p-7 space-y-4 text-xs"
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-[#EBE8E0]">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-[#2D3630]">
+                        {editingGallery.id ? 'মিডিয়া ছবি সম্পাদনা' : 'নতুন ছবি যুক্ত করুন'}
+                      </h3>
+                      {editingGallery.activityId && (
+                        <span className="px-2 py-0.5 rounded-md bg-[#E8EFEA] text-[#2D5A41] text-[10px] font-bold">
+                          কার্যক্রমের মিডিয়া
+                        </span>
+                      )}
+                    </div>
+                    <button onClick={() => setEditingGallery(null)} className="p-1 text-[#7A877E] hover:text-[#2D3630] cursor-pointer">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveGallery} className="space-y-4">
+                    {/* Multilingual Tab Switcher for Gallery */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F7F5F0] border border-[#EBE8E0]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-[#2D3630] mr-1">তথ্য সম্পাদনার ভাষা:</span>
+                        {(['bn', 'en', 'ar'] as const).map((langKey) => (
+                          <button
+                            key={langKey}
+                            type="button"
+                            onClick={() => setGalleryLang(langKey)}
+                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                              galleryLang === langKey
+                                ? 'bg-[#2D5A41] text-white shadow-2xs'
+                                : 'bg-white text-[#5C665F] hover:text-[#2D3630] border border-[#EBE8E0]'
+                            }`}
+                          >
+                            {langKey === 'bn' ? 'বাংলা (BN)' : langKey === 'en' ? 'English (EN)' : 'العربية (AR)'}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-[11px] text-[#7A877E] font-medium">
+                        {galleryLang === 'bn'
+                          ? 'বাংলা কনটেন্ট এডিট হচ্ছে (ডিফল্ট)'
+                          : galleryLang === 'en'
+                          ? 'Editing English translation'
+                          : 'تحرير النص باللغة العربية'}
+                      </span>
+                    </div>
+
+                    <MediaUploadField
+                      label="ছবি ফাইল আপলোড করুন *"
+                      value={editingGallery.url || editingGallery.mediaUrl || ''}
+                      onChange={(url) => setEditingGallery({ ...editingGallery, url, mediaUrl: url })}
+                      required
+                      helperText={
+                        editingGallery.activityId
+                          ? 'কার্যক্রমের কভার ছবি (activities বাকেট - JPG, PNG, WEBP - সর্বোচ্চ ১০ MB)। পরিবর্তন করলে কার্যক্রমে স্বয়ংক্রিয়ভাবে আপডেট হবে।'
+                          : 'গ্যালারি ফটো (gallery বাকেট - JPG, PNG, WEBP - সর্বোচ্চ ১০ MB)'
+                      }
+                      bucket={editingGallery.activityId ? 'activities' : 'gallery'}
+                    />
+
+                    <div>
+                      <label className="block font-bold text-[#2D3630] mb-1">
+                        ছবির শিরোনাম ({galleryLang.toUpperCase()}) {galleryLang === 'bn' ? '*' : '(ঐচ্ছিক)'}
+                      </label>
+                      <input
+                        type="text"
+                        required={galleryLang === 'bn'}
+                        dir={galleryLang === 'ar' ? 'rtl' : 'ltr'}
+                        value={getGalleryText('title', galleryLang)}
+                        onChange={(e) => setGalleryText('title', galleryLang, e.target.value)}
+                        placeholder={
+                          galleryLang === 'bn'
+                            ? 'যেমন: মৌলভী বাড়ি প্রাঙ্গণে সভা বা চিকিৎসা সহায়তা'
+                            : galleryLang === 'en'
+                            ? 'e.g., Gathering or Medical Aid at Moulvi Bari'
+                            : 'مثال: لقاء أو مساعدة طبية في باحة مولفي باري'
+                        }
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-[#2D3630] mb-1">
+                        ছবির ক্যাপশন / বিবরণ ({galleryLang.toUpperCase()} - ঐচ্ছিক)
+                      </label>
+                      <textarea
+                        rows={2}
+                        dir={galleryLang === 'ar' ? 'rtl' : 'ltr'}
+                        value={getGalleryText('caption', galleryLang)}
+                        onChange={(e) => setGalleryText('caption', galleryLang, e.target.value)}
+                        placeholder={
+                          galleryLang === 'bn'
+                            ? 'ছবির সংক্ষিপ্ত প্রেক্ষাপট বা বিবরণ...'
+                            : galleryLang === 'en'
+                            ? 'Brief description or caption...'
+                            : 'وصف أو تعليق مختصر على الصورة...'
+                        }
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-[#2D3630] mb-1">কার্যক্রমের সাথে লিংক করুন (ঐচ্ছিক)</label>
+                      <select
+                        value={editingGallery.activityId || ''}
+                        onChange={(e) => {
+                          const selectedActId = e.target.value;
+                          const act = activities.find((a) => a.id === selectedActId);
+                          if (act) {
+                            setEditingGallery({
+                              ...editingGallery,
+                              activityId: selectedActId,
+                              title: editingGallery.title || act.title,
+                              date: editingGallery.date || act.date,
+                              year: act.date ? act.date.split('-')[0] : editingGallery.year,
+                            });
+                          } else {
+                            setEditingGallery({ ...editingGallery, activityId: undefined });
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                      >
+                        <option value="">কোনোটি নয় (None - সাধারণ গ্যালারি ছবি)</option>
+                        {activities.map((act) => (
+                          <option key={act.id} value={act.id}>
+                            {typeof act.title === 'string' ? act.title : act.title.bn || act.title.en} ({act.date})
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-[11px] text-[#7A877E] mt-0.5 block">
+                        কোনো কার্যক্রম সিলেক্ট করা থাকলে মিডিয়া পেজে কার্ডে ক্লিক করলে ভিজিটর সরাসরি সেই কার্যক্রমে পৌঁছাবে।
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-[#2D3630] mb-1">বিভাগ</label>
+                        <input
+                          type="text"
+                          value={editingGallery.category || ''}
+                          onChange={(e) => setEditingGallery({ ...editingGallery, category: e.target.value })}
+                          placeholder="যেমন: মানবিক সহায়তা / সভা"
+                          className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-[#2D3630] mb-1">তারিখ</label>
+                        <input
+                          type="date"
+                          value={editingGallery.date || ''}
+                          onChange={(e) => {
+                            const d = e.target.value;
+                            setEditingGallery({
+                              ...editingGallery,
+                              date: d,
+                              year: d ? d.split('-')[0] : editingGallery.year,
+                            });
+                          }}
+                          className="w-full px-3 py-2 rounded-lg border border-[#EBE8E0] bg-[#FDFCF9] text-[#2D3630] focus:outline-hidden focus:border-[#2D5A41] focus:ring-1 focus:ring-[#2D5A41]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold text-[#2D3630]">
+                        <input
+                          type="checkbox"
+                          checked={editingGallery.isPublished !== false}
+                          onChange={(e) => setEditingGallery({ ...editingGallery, isPublished: e.target.checked })}
+                          className="w-4 h-4 rounded accent-[#2D5A41]"
+                        />
+                        <span>পাবলিক মিডিয়া পেজে প্রকাশিত রাখুন (Visible)</span>
+                      </label>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-[#EBE8E0]">
+                      <button
+                        type="button"
+                        onClick={() => setEditingGallery(null)}
+                        className="px-3.5 py-1.5 rounded-lg border border-[#EBE8E0] text-[#5C665F] hover:bg-[#F7F5F0] cursor-pointer"
+                      >
+                        বাতিল
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-1.5 rounded-lg bg-[#2D5A41] text-white font-semibold hover:bg-[#234733] shadow-2xs cursor-pointer"
+                      >
+                        সংরক্ষণ করুন
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Media Items Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {displayedAdminMedia.map((g) => {
+                const titleStr = typeof g.title === 'string' ? g.title : g.title?.bn || g.title?.en || 'ছবি';
+                const imgSrc = g.thumbnailUrl || g.url || g.mediaUrl;
+                return (
+                  <div
+                    key={g.id}
+                    className="rounded-xl overflow-hidden border border-[#EBE8E0] bg-white group shadow-3xs hover:border-[#2D5A41]/40 transition-all flex flex-col"
+                  >
+                    <div className="relative aspect-4/3 bg-[#F7F5F0] overflow-hidden">
+                      <img src={imgSrc} alt={titleStr} className="w-full h-full object-cover" />
+                      
+                      {/* Badge indicator: Activity Media vs Standard Gallery */}
+                      {g.isActivityDerived ? (
+                        <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-[#2D5A41] text-white text-[9px] font-bold shadow-xs">
+                          কার্যক্রমের মিডিয়া
+                        </span>
+                      ) : (
+                        <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-stone-700/80 text-white text-[9px] font-medium shadow-xs">
+                          সাধারণ গ্যালারি
+                        </span>
+                      )}
+
+                      <div className="absolute inset-0 bg-[#2D3630]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewGalleryItem(g)}
+                          className="p-1.5 rounded-lg bg-white text-[#2D3630] hover:bg-[#F7F5F0] cursor-pointer shadow-xs"
+                          title="বড় করে দেখুন (View)"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingGallery(g)}
+                          className="p-1.5 rounded-lg bg-white text-[#2D3630] hover:bg-[#F7F5F0] cursor-pointer shadow-xs"
+                          title="সম্পাদনা করুন ও ছবি পরিবর্তন করুন"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGallery(g)}
+                          className="p-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 cursor-pointer shadow-xs"
+                          title="মুছে ফেলুন"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="p-2.5 flex flex-col flex-1 justify-between gap-1 text-[11px]">
+                      <div className="font-semibold text-[#2D3630] line-clamp-1">{titleStr}</div>
+                      <div className="text-[10px] text-[#7A877E] flex items-center justify-between">
+                        <span>{g.category || 'সাধারণ'}</span>
+                        <span>{g.date || g.year}</span>
+                      </div>
+                      {g.isActivityDerived && g.originalActivity && (
+                        <div className="text-[10px] text-[#2D5A41] font-medium truncate pt-1 border-t border-[#F0EFEA]">
+                          কার্যক্রম: {typeof g.originalActivity.title === 'string' ? g.originalActivity.title : g.originalActivity.title?.bn || 'সংযুক্ত'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {displayedAdminMedia.length === 0 && (
+              <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-[#EBE8E0] text-xs text-[#7A877E]">
+                এই বিভাগে কোনো মিডিয়া আইটেম পাওয়া যায়নি।
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* SECTION: CONTACT INBOX */}
       {activeSection === 'inbox' && (

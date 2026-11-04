@@ -1290,6 +1290,55 @@ export function parseFundSheet(
         unrecognizedMembers.push({ serial: finalSerial, rawName: cleanName });
       }
 
+      // Discrepancy checks:
+      // STRICT RULE: NEVER manufacture monthly payments from annual totals.
+      // If monthly cells are blank/unpaid but sheet total column has an amount, flag discrepancy.
+      const hasDiscrepancy = paidMonthsCount === 0 && sheetTotalCol > 0;
+      const discrepancyNote = hasDiscrepancy ? 'মাসিক ঘরে এন্ট্রি নেই কিন্তু বার্ষিক মোট রয়েছে' : undefined;
+      const isTotalInconsistent = calculatedMemberTotal > 0 && sheetTotalCol > 0 && Math.abs(calculatedMemberTotal - sheetTotalCol) > 0;
+
+      // Find latest verified paid month
+      let latestPaidMonth: string | undefined = undefined;
+      for (let i = MONTH_KEYS.length - 1; i >= 0; i--) {
+        const mKey = MONTH_KEYS[i];
+        if (months[mKey] === 'paid') {
+          latestPaidMonth = mKey;
+          break;
+        }
+      }
+
+      // Applicable month evaluation
+      const currentCalYear = new Date().getFullYear();
+      const currentCalMonth = new Date().getMonth();
+      const targetYearNum = parseInt(targetYearKey, 10) || currentCalYear;
+      const isHistoricalYear = targetYearNum < currentCalYear;
+      const totalApplicable = is2024FoundingYear ? 1 : 12;
+      const paidApplicableCount = is2024FoundingYear ? (months.Dec === 'paid' ? 1 : 0) : paidMonthsCount;
+      const isComplete = totalApplicable > 0 && paidApplicableCount >= totalApplicable;
+      let isOngoing = false;
+      let isDue = false;
+      if (isComplete) {
+        isOngoing = false;
+        isDue = false;
+      } else if (isHistoricalYear) {
+        isDue = true;
+        isOngoing = false;
+      } else if (targetYearNum > currentCalYear) {
+        isOngoing = paidApplicableCount > 0;
+        isDue = false;
+      } else {
+        const expectedMonths = Math.min(totalApplicable, currentCalMonth + 1);
+        if (paidApplicableCount >= expectedMonths) {
+          isOngoing = true;
+          isDue = false;
+        } else {
+          isDue = true;
+          isOngoing = false;
+        }
+      }
+
+      const startPeriod = is2024FoundingYear ? '২০২৪ (প্রতিষ্ঠাকালীন)' : `জানুয়ারি ${targetYearKey}`;
+
       // Stable, unique row-based record ID preserving distinct rows even with shared serials
       const memberRecordId = `${targetYearKey}-row${r + 1}-${normalizedNameKey || finalSerial}`;
 
@@ -1308,6 +1357,16 @@ export function parseFundSheet(
         monthlyAmounts: monthAmounts,
         totalContributed,
         paidCount: paidMonthsCount,
+        hasDiscrepancy,
+        discrepancyNote,
+        isTotalInconsistent,
+        latestPaidMonth,
+        paidApplicableCount,
+        totalApplicable,
+        isComplete,
+        isOngoing,
+        isDue,
+        startPeriod,
       });
     }
   }
@@ -1688,7 +1747,8 @@ export async function fetchFundData(
   rawSourceUrl: string,
   forceFresh = false,
   selectedYear?: string,
-  explicitGid?: string
+  explicitGid?: string,
+  draftManualMapping?: SheetManualMapping
 ): Promise<FundData> {
   const config = storageService.getConfig();
   let effectiveSourceUrl = (rawSourceUrl || '').trim();
@@ -1942,7 +2002,7 @@ export async function fetchFundData(
   const targetSrc = (config.yearlyFundSources || []).find((s) => s.year === selectedYear);
   const savedLayoutMappings = getSavedSheetLayoutMappings();
   const mappingKey = `${effectiveSourceUrl}#${effectiveGid || '0'}`;
-  const activeManualMapping = targetSrc?.manualMapping || savedLayoutMappings[mappingKey] || savedLayoutMappings[effectiveSourceUrl];
+  const activeManualMapping = draftManualMapping || targetSrc?.manualMapping || savedLayoutMappings[mappingKey] || savedLayoutMappings[effectiveSourceUrl];
 
   let failureReason: 'not_found' | 'access_denied' | 'fetch_error' | 'invalid_layout' = 'fetch_error';
 
@@ -2160,7 +2220,7 @@ export interface MemberContributionStart {
  */
 export function parseMemberContributionStart(member?: Member): MemberContributionStart | null {
   if (!member) return null;
-  const candidate = (member.contributionStartDate || member.joiningDate || '').trim();
+  const candidate = (member.contributionStartDate || member.joiningDate || member.createdAt || '').trim();
   if (!candidate) return null;
 
   // Format: YYYY-MM or YYYY-MM-DD
@@ -2197,9 +2257,15 @@ export async function getMemberContributionHistory(
   preferredYear?: string
 ): Promise<MemberContributionHistoryResult | null> {
   const registeredMembers = storageService.getMembers();
-  const member = registeredMembers.find((m) => m.id === profileId);
+  let member = registeredMembers.find((m) => m.id === profileId || m.name === profileId);
   if (!member) {
-    return null;
+    member = {
+      id: profileId,
+      name: profileId,
+      role: 'member',
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    } as Member;
   }
 
   // Ensure persistent cross-browser profile links are available
@@ -2279,6 +2345,10 @@ export async function getMemberContributionHistory(
           });
         }
       }
+      // Priority 5: Raw ID or name match fallback
+      if (!rec) {
+        rec = fundData.memberRecords.find((m) => m.id === profileId || m.name === member.name || m.name === profileId);
+      }
     }
 
     // Determine year-specific contribution rate (use source record rate or defaults)
@@ -2342,8 +2412,7 @@ export async function getMemberContributionHistory(
       }
 
       // Rule 5: Applicable month without payment -> Due (বকেয়া)
-      // Only mark due if the member is verified linked to this year's sheet
-      if (rec) {
+      if (rec || memberStart) {
         return {
           month: m,
           status: 'due',

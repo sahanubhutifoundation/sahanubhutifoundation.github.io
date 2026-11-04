@@ -13,7 +13,7 @@ import {
 } from '../src/services/fundService';
 import { storageService } from '../src/services/storageService';
 import { getDeterministicReceiptNumber } from '../src/utils/receiptNumbering';
-import { FundProfileLinkRecord, Member, SheetManualMapping } from '../src/types';
+import { FundProfileLinkRecord, Member, SheetManualMapping, Activity } from '../src/types';
 
 // Polyfill global localStorage for NodeJS test execution
 if (typeof globalThis.localStorage === 'undefined') {
@@ -229,6 +229,7 @@ async function runAllTests() {
 
   // TEST 9: Foundation Founding Date Rule (2024 starts from December)
   console.log('\n--- TEST 9: 2024 Founding Year Rule ---');
+  storageService.setMembers(dummyRegisteredMembers);
   const history2024 = await getMemberContributionHistory(dummyRegisteredMembers[0].id, '2024');
   if (history2024 && history2024.yearSummaries['2024']) {
     const summary2024 = history2024.yearSummaries['2024'];
@@ -511,6 +512,96 @@ async function runAllTests() {
       `Formula holds: Applicable (${founding2024.applicableMonthsCount}) = Paid (${founding2024.paidMonthsCount}) + Due (${founding2024.dueMonthsCount})`
     );
   }
+
+  // TEST 22: Activity Media Visibility in Admin & Safe Deletion
+  console.log('\n--- TEST 22: Activity Media Admin Integration & Safe Deletion ---');
+  const testAct: Activity = {
+    id: 'act-test-media-1',
+    slug: 'first-initiative',
+    title: { bn: 'প্রথম উদ্যোগের সফল বাস্তবায়ন', en: 'First initiative', ar: '' },
+    summary: { bn: 'মানবিক উদ্যোগ সফলভাবে সম্পন্ন', en: '', ar: '' },
+    description: { bn: 'বিস্তারিত বিবরণ', en: '', ar: '' },
+    date: '2025-02-15',
+    category: 'মানবিক সহায়তা',
+    coverImage: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792758711455_ndhmvp.png',
+    showOnMediaPage: true,
+    isPublished: true,
+    createdAt: new Date().toISOString(),
+  };
+  storageService.setActivities([testAct]);
+  const acts = storageService.getActivities();
+  const actWithCover = acts.find((a) => a.id === 'act-test-media-1');
+  assert(actWithCover !== undefined, 'Activity with cover image retrieved');
+  assert(Boolean(actWithCover?.coverImage), 'Activity has public cover image URL');
+
+  // Verify safe deletion behavior: detaching cover image does not delete activity record
+  const detachedAct = { ...actWithCover!, coverImage: '', showOnMediaPage: false };
+  storageService.setActivities([detachedAct]);
+  const remainingActs = storageService.getActivities();
+  assert(remainingActs.length === 1, 'Activity record preserved in database');
+  assert(remainingActs[0].id === 'act-test-media-1', 'Activity ID and metadata remain intact');
+  assert(remainingActs[0].coverImage === '', 'Cover image safely cleared without deleting activity');
+
+  // TEST 23: Month-to-Column Mapping (2027 layout support)
+  console.log('\n--- TEST 23: Month-to-Column Manual Mapping Parsing ---');
+  const mock2027Rows = [
+    ['ক্রমিক', 'সদস্যের নাম', 'মোবাইল', 'মাসিক হার', 'মে', 'জুন', 'জুলাই', 'মোট জমা'],
+    ['1', 'আব্দুর রহিম', '01700000000', '500', '✓', '✓', '', '1000'],
+  ];
+  const mapping2027: SheetManualMapping = {
+    headerRowIndex: 0,
+    serialColIndex: 0,
+    nameColIndex: 1,
+    commitmentColIndex: 3,
+    totalColIndex: 7,
+    monthColIndices: {
+      May: 4,
+      Jun: 5,
+      Jul: 6,
+    },
+    paymentFormat: 'boolean_marker',
+  };
+  const parsed2027 = parseFundSheet(mock2027Rows, '', '2027', mapping2027);
+  assert(parsed2027 !== null, '2027 matrix layout parsed with custom month columns');
+  assert(parsed2027?.memberRecords.length === 1, 'Extracted 1 member record');
+  const m2027 = parsed2027?.memberRecords[0];
+  assert(m2027?.months['May'] === 'paid', 'May marked paid via custom column 4');
+  assert(m2027?.months['Jun'] === 'paid', 'Jun marked paid via custom column 5');
+  assert(m2027?.months['Jul'] !== 'paid', 'Jul marked unpaid (empty)');
+  assert(m2027?.totalContributed === 1000, 'Calculated total: ৳1000');
+
+  // TEST 24: Discrepancy Flagging Without Manufactured Monthly Payments
+  console.log('\n--- TEST 24: Discrepancy Flagging (No Manufactured Payments) ---');
+  const mockDiscrepancyRows = [
+    ['SL', 'Name', 'Commitment', 'Jan', 'Feb', 'Mar', 'Total'],
+    ['1', 'কারী মোজাম্মেল', '500', '', '', '', '500'],
+  ];
+  const mappingDiscrepancy: SheetManualMapping = {
+    headerRowIndex: 0,
+    serialColIndex: 0,
+    nameColIndex: 1,
+    commitmentColIndex: 2,
+    totalColIndex: 6,
+    monthColIndices: {
+      Jan: 3,
+      Feb: 4,
+      Mar: 5,
+    },
+    paymentFormat: 'auto',
+  };
+  const parsedDiscrepancy = parseFundSheet(mockDiscrepancyRows, '', '2026', mappingDiscrepancy);
+  const discMember = parsedDiscrepancy?.memberRecords[0];
+  assert(discMember?.hasDiscrepancy === true, 'Member flagged with hasDiscrepancy === true');
+  assert(discMember?.months['Jan'] !== 'paid', 'January NOT artificially manufactured as paid');
+  assert(discMember?.months['Feb'] !== 'paid', 'February NOT artificially manufactured as paid');
+  assert(discMember?.months['Mar'] !== 'paid', 'March NOT artificially manufactured as paid');
+  assert(discMember?.totalContributed === 500, 'Preserved verified source annual total (500)');
+
+  // TEST 25: Member Directory Status & Latest Paid Month
+  console.log('\n--- TEST 25: Member Directory Status & Latest Paid Month ---');
+  assert(m2027?.latestPaidMonth === 'Jun', 'Latest paid month correctly identified as Jun');
+  assert(m2027?.isOngoing === true, 'Member correctly classified as Ongoing');
+  assert(m2027?.isComplete === false, 'Member is not complete because Jul is unpaid');
 
   console.log('\n================================================================');
   console.log(`🏁 TEST RESULTS: ${passedTests} / ${totalTests} TESTS PASSED (${Math.round((passedTests / totalTests) * 100)}%)`);

@@ -346,6 +346,91 @@ export const translations: TranslationDictionary = {
     en: 'No member records found.',
     ar: 'لم يتم العثور على سجلات للأعضاء.',
   },
+  viewTableView: {
+    bn: 'তালিকা ভিউ',
+    en: 'Table View',
+    ar: 'عرض الجدول',
+  },
+  viewDirectoryView: {
+    bn: 'সদস্যভিত্তিক পূর্ণ তালিকা',
+    en: 'Member Directory',
+    ar: 'دليل الأعضاء الكامل',
+  },
+  directorySubtitle: {
+    bn: 'প্রতিটি সদস্যের মাসিক অবদান, অগ্রগতি ও বর্তমান স্থিতি',
+    en: 'Individual monthly contributions, progress, and current status',
+    ar: 'المساهمات الشهرية الفردية ونسبة الإنجاز والحالة الحالية',
+  },
+  sortByLabel: {
+    bn: 'সর্ট করুন:',
+    en: 'Sort by:',
+    ar: 'ترتيب حسب:',
+  },
+  sortSerial: {
+    bn: 'ক্রম অনুযায়ী',
+    en: 'Serial No.',
+    ar: 'حسب الرقم التسلسلي',
+  },
+  sortName: {
+    bn: 'নাম অনুযায়ী',
+    en: 'Member Name',
+    ar: 'حسب الاسم',
+  },
+  sortProgress: {
+    bn: 'অবদানের অগ্রগতি',
+    en: 'Contribution Progress',
+    ar: 'حسب نسبة التقدم',
+  },
+  sortDue: {
+    bn: 'বকেয়া মাস',
+    en: 'Due Months Count',
+    ar: 'حسب الأشهر المستحقة',
+  },
+  sortLatestPaid: {
+    bn: 'সর্বশেষ পরিশোধিত মাস',
+    en: 'Latest Paid Month',
+    ar: 'حسب آخر شهر مدفوع',
+  },
+  statusComplete: {
+    bn: 'পরিপূর্ণ',
+    en: 'Complete',
+    ar: 'مكتمل',
+  },
+  statusOngoing: {
+    bn: 'চলমান',
+    en: 'Ongoing',
+    ar: 'قيد المتابعة',
+  },
+  startPeriodLabel: {
+    bn: 'অবদান শুরু:',
+    en: 'Started:',
+    ar: 'بدء المساهمة:',
+  },
+  latestPaidMonthLabel: {
+    bn: 'সর্বশেষ পরিশোধ:',
+    en: 'Latest Paid:',
+    ar: 'آخر دفعة:',
+  },
+  viewContributionHistoryBtn: {
+    bn: 'বিস্তারিত বিবরণী',
+    en: 'Detailed Statement',
+    ar: 'الكشف التفصيلي',
+  },
+  noPaymentRecorded: {
+    bn: 'এখনও জমা হয়নি',
+    en: 'No payment recorded',
+    ar: 'لم تسجل دفعات بعد',
+  },
+  unregisteredMember: {
+    bn: 'ফান্ড সদস্য',
+    en: 'Fund Member',
+    ar: 'عضو الصندوق',
+  },
+  dueMonthsCountLabel: {
+    bn: 'বকেয়া:',
+    en: 'Due:',
+    ar: 'المستحق:',
+  },
   separateFundBadge: {
     bn: 'পৃথক তহবিল',
     en: 'Separate Fund',

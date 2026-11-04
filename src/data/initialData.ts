@@ -820,7 +820,7 @@ Sahanubhuti Foundation`,
   },
 };
 
-// Initial verified activity
+// Initial verified activities
 export const initialActivities: Activity[] = [
   {
     id: 'act-1',
@@ -844,7 +844,83 @@ export const initialActivities: Activity[] = [
     category: 'ওষুধ ও চিকিৎসা',
     coverImage: '',
     isPublished: true,
-    createdAt: new Date().toISOString(),
+    showOnMediaPage: false,
+    createdAt: '2024-12-15T10:00:00.000Z',
+  },
+  {
+    id: 'act-1789977895526',
+    slug: 'first-initiative-success',
+    title: {
+      bn: 'প্রথম উদ্যোগের সফল বাস্তবায়ন',
+      en: 'Successful Implementation of the First Initiative',
+      ar: 'تنفيذ المبادرة الأولى بنجاح',
+    },
+    summary: {
+      bn: 'আমাদের ফান্ড থেকে ১,১৬০ টাকা ব্যয় করে একজন ব্যক্তিকে এক মাসের প্রয়োজনীয় ওষুধ কিনে দেওয়া হয়েছে।',
+      en: 'Purchased one month of necessary prescription medicines for a person in need by spending 1,160 BDT from the fund.',
+      ar: 'تم إنفاق مبلغ 1,160 تاكا من الصندوق لشراء الأدوية الأساسية لمدة شهر لشخص محتاج.',
+    },
+    description: {
+      bn: 'আসসালামু আলাইকুম, আশা করি আপনারা সবাই ভালো আছেন। আমাদের এই ‘সহানুভূতি ফাউন্ডেশন’ গড়ার মূল উদ্দেশ্যই ছিল আমরা যেন সবাই মিলে একতাবদ্ধ থাকতে পারি এবং ভালো কিছু কাজ করতে পারি। আমরা ইতিমধ্যে একটি উদ্যোগ নিয়ে তা সফলভাবে বাস্তবায়ন করেছি। আমাদের ফান্ড থেকে ১,১৬০ টাকা ব্যয় করে একজন অসুস্থ ব্যক্তির এক মাসের প্রয়োজনীয় ওষুধ কিনে দেওয়া হয়েছে।',
+      en: 'The core purpose of establishing Sahanubhuti Foundation is standing united to accomplish benevolent work. We have successfully implemented an initiative providing necessary one-month medicines.',
+      ar: 'الهدف الأساسي من تأسيس مؤسسة ساهانوبوتي هو التكاتف وصنع الخير معاً. لقد نفذنا مبادرة ناجحة لتوفير الأدوية الأساسية لشخص محتاج.',
+    },
+    date: '2025-09-25',
+    category: 'ওষুধ ও চিকিৎসা',
+    coverImage: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792758711455_ndhmvp.png',
+    showOnMediaPage: true,
+    isPublished: true,
+    createdAt: '2025-09-25T12:00:00.000Z',
+  },
+  {
+    id: 'act-1789973445521',
+    slug: 'elderly-care-support',
+    title: {
+      bn: 'মুরুব্বির সেবা বাবদ খরচ সংক্রান্ত (মাইনুদ্দিন কাকার বাড়ির মুরুব্বি)',
+      en: 'Elderly Care Assistance Expenses (Mainuddin Kaka House)',
+      ar: 'مصروفات رعاية كبار السن (منزل معين الدين)',
+    },
+    summary: {
+      bn: 'মাইনুদ্দিন সাহেবের বাড়ির মুরুব্বির সেবা বাবদ আমাদের তহবিল থেকে মোট ১৩০ টাকা খরচ হয়েছে।',
+      en: 'A total of 130 BDT was disbursed from the fund for the care of an elderly relative at Mainuddin Kaka house.',
+      ar: 'تم صرف 130 تاكا من الصندوق لرعاية أحد كبار السن في منزل معين الدين.',
+    },
+    description: {
+      bn: 'সম্মানিত সদস্যবৃন্দ, আসসালামু আলাইকুম। সাম্প্রতিক কার্যক্রমের ব্যয় বিবরণী: আপনাদের অবগতির জন্য জানানো যাচ্ছে যে, মাইনুদ্দিন সাহেবের বাড়ির মুরুব্বির সেবা বাবদ আমাদের তহবিল থেকে মোট ১৩০ (এক শত ত্রিশ) টাকা খরচ হয়েছে। আমরা বিশ্বাস করি, স্বচ্ছতা ও জবাবদিহিতা একটি সুন্দর সমাজ বিনির্মাণের পূর্বশর্ত।',
+      en: 'Recent expense report: A total of 130 BDT was disbursed for elderly care assistance. We believe transparency and accountability are prerequisites for building a harmonious society.',
+      ar: 'تقرير المصروفات: تم صرف 130 تاكا لرعاية أحد كبار السن. نؤمن بأن الشفافية هي أساس بناء مجتمع متكافل.',
+    },
+    date: '2026-01-01',
+    category: 'জরুরি মানবিক সহায়তা',
+    coverImage: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792760998200_b4evn1.png',
+    showOnMediaPage: true,
+    isPublished: true,
+    createdAt: '2026-01-01T10:00:00.000Z',
+  },
+  {
+    id: 'act-1789972828584',
+    slug: 'graveyard-workers-refreshment',
+    title: {
+      bn: 'কবরস্থানের শ্রমিকদের নাস্তা বাবদ খরচ (ছোট ভাই আফনানের মৃত্যুতে)',
+      en: 'Graveyard Workers Refreshments (Demise of Brother Afnan)',
+      ar: 'وجبات عمال المقبرة (وفاة الأخ أفنان)',
+    },
+    summary: {
+      bn: 'আফনানের কবরস্থানের কার্যক্রমে নিয়োজিত কবর খোঁড়ার শ্রমিকদের নাস্তার জন্য ৪৩০ টাকা ব্যয় করা হয়েছে।',
+      en: '430 BDT was disbursed for refreshments for grave workers during the funeral of brother Afnan.',
+      ar: 'تم إنفاق 430 تاكا لوجبات عمال حفر القبور خلال جنازة الأخ أفنان.',
+    },
+    description: {
+      bn: 'আসসালামু আলাইকুম প্রিয় সদস্যবৃন্দ, খরচ সংক্রান্ত অবগতি: পূর্বে গৃহীত সিদ্ধান্তের আলোকে আফনানের কবরস্থানের কার্যক্রমে নিয়োজিত কবর খোঁড়ার শ্রমিকদের নাস্তার জন্য ৪৩০ (চার শত ত্রিশ) টাকা ব্যয় করা হয়েছে। ব্যয়ের তথ্য যথাযথভাবে হিসাব খাতায় সংরক্ষণ করা হয়েছে। সকল সদস্যের অবগতির জন্য বিষয়টি জানানো হলো।',
+      en: 'Notice of expense: 430 BDT was disbursed for refreshments for grave-digging workers in the graveyard activities for our late brother Afnan.',
+      ar: 'إشعار بالمصروفات: تم صرف 430 تاكا لوجبات العمال في مقبرة الأخ الراحل أفنان رحمة الله عليه.',
+    },
+    date: '2025-12-20',
+    category: 'জরুরি মানবিক সহায়তা',
+    coverImage: 'https://oskmpyuofgiivprcojfh.supabase.co/storage/v1/object/public/activities/1792760192262_en84pb.png',
+    showOnMediaPage: true,
+    isPublished: true,
+    createdAt: '2025-12-20T14:00:00.000Z',
   },
 ];
 
