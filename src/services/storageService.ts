@@ -508,7 +508,8 @@ export const storageService = {
   },
 
   getActivities(): Activity[] {
-    const list = getLocalItem<Activity[]>(KEYS.ACTIVITIES, initialActivities);
+    const rawList = getLocalItem<Activity[]>(KEYS.ACTIVITIES, initialActivities);
+    const list = rawList.filter((a) => a.id !== 'act-1');
     const allSpFunds = getLocalItem<SpecialFundRecord[]>(KEYS.SPECIAL_FUNDS, initialConfig.specialFunds || []);
 
     return list.map((act) => {
@@ -1530,29 +1531,47 @@ export const storageService = {
   getFundContributionStartForMember(canonicalFundMemberIdOrProfileId: string): FundContributionStartRecord | undefined {
     if (!canonicalFundMemberIdOrProfileId) return undefined;
     const target = canonicalFundMemberIdOrProfileId.trim().toLowerCase();
+    const targetStripped = target.replace(/^(20\d\d|sf-mem)-/, '');
     const starts = this.getFundContributionStarts();
     return starts.find((s) => {
       if (s.canonicalFundMemberId && s.canonicalFundMemberId.toLowerCase() === target) return true;
       if (s.memberId && s.memberId.toLowerCase() === target) return true;
+      if (s.memberProfileId && s.memberProfileId.toLowerCase() === target) return true;
       if (s.id && s.id.toLowerCase() === target) return true;
+      if (s.canonicalFundMemberId) {
+        const sStripped = s.canonicalFundMemberId.toLowerCase().replace(/^(20\d\d|sf-mem)-/, '');
+        if (sStripped === targetStripped) return true;
+      }
       return false;
     });
   },
 
   saveFundContributionStart(startRecord: FundContributionStartRecord): FundContributionStartRecord[] {
     const all = this.getFundContributionStarts();
-    const id = startRecord.id || `fcs-${startRecord.canonicalFundMemberId || Date.now()}`;
+    const cleanCanonicalId = (startRecord.canonicalFundMemberId || '').trim();
+    const strippedCanonical = cleanCanonicalId.replace(/^20\d\d-/, '');
+    const permanentCanonical = strippedCanonical || cleanCanonicalId;
+    const id = startRecord.id || `fcs-${permanentCanonical || Date.now()}`;
     const cleanItem: FundContributionStartRecord = {
       ...startRecord,
       id,
+      canonicalFundMemberId: permanentCanonical,
       updatedAt: new Date().toISOString(),
     };
 
-    const idx = all.findIndex((s) => s.id === id || s.canonicalFundMemberId === cleanItem.canonicalFundMemberId);
+    const coreIdentifier = permanentCanonical.replace(/^sf-mem-/, '');
+    const idx = all.findIndex((s) => {
+      if (s.id === cleanItem.id) return true;
+      if (cleanItem.canonicalFundMemberId && s.canonicalFundMemberId === cleanItem.canonicalFundMemberId) return true;
+      if (cleanItem.canonicalFundMemberId && s.canonicalFundMemberId && s.canonicalFundMemberId.replace(/^(20\d\d|sf-mem)-/, '') === coreIdentifier) return true;
+      if (cleanItem.memberProfileId && s.memberProfileId === cleanItem.memberProfileId) return true;
+      if (cleanItem.memberId && s.memberId === cleanItem.memberId) return true;
+      return false;
+    });
     let updated: FundContributionStartRecord[];
     if (idx >= 0) {
       updated = [...all];
-      updated[idx] = cleanItem;
+      updated[idx] = { ...updated[idx], ...cleanItem };
     } else {
       updated = [cleanItem, ...all];
     }

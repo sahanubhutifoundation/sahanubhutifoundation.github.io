@@ -39,6 +39,7 @@ import {
   FundVisibilitySettings,
   MultilingualText,
   YearlyFundSource,
+  FundContributionStartRecord,
 } from '../../types';
 import {
   Lock,
@@ -601,6 +602,36 @@ export const AdminPage: React.FC = () => {
     if (res.success && res.data) {
       setMembers(res.data);
       setEditingMember(null);
+
+      // Automatically derive and set contribution start period from joining date if present
+      if (newMember.joiningDate) {
+        const match = newMember.joiningDate.match(/^(\d{4})[-/.](\d{1,2})/);
+        if (match) {
+          const sYr = parseInt(match[1], 10);
+          const sMo = parseInt(match[2], 10);
+          if (!isNaN(sYr) && !isNaN(sMo) && sMo >= 1 && sMo <= 12) {
+            const existingStart = storageService.getFundContributionStartForMember(newMember.id);
+            if (!existingStart || !existingStart.startYear) {
+              const autoStartRecord: FundContributionStartRecord = {
+                id: `start-${newMember.id}`,
+                canonicalFundMemberId: newMember.id,
+                memberProfileId: newMember.id,
+                memberId: newMember.id,
+                startYear: sYr,
+                startMonth: sMo,
+                startDate: newMember.joiningDate,
+                notes: 'সদস্য যোগদানের তারিখ অনুযায়ী স্বয়ংক্রিয়ভাবে নির্ধারিত',
+                configuredBy: 'admin',
+                updatedAt: new Date().toISOString(),
+              };
+              storageService.saveFundContributionStartAsync(autoStartRecord).catch((err) => {
+                console.warn('Auto-save contribution start warning:', err);
+              });
+            }
+          }
+        }
+      }
+
       triggerSyncStatus('success', 'সদস্য সংরক্ষিত ও ভেরিফাইড');
       showToast('সদস্য তথ্য সফলভাবে সেন্ট্রাল ডাটাবেজে সংরক্ষিত হয়েছে!');
     } else {

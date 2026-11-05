@@ -54,6 +54,7 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
     record: FundMemberRecord;
     canonicalId: string;
     existing?: FundContributionStartRecord;
+    linkedProfile?: Member;
   } | null>(null);
   const [startYear, setStartYear] = useState<number>(2026);
   const [startMonth, setStartMonth] = useState<number>(1);
@@ -95,10 +96,13 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
     return sheetRecords.map((rec) => {
       const cleanName = (rec.name || '').trim();
       const norm = cleanName.toLowerCase().replace(/[\s\.\-_]+/g, '');
-      const canonicalId = rec.canonicalMemberId || `${selectedYear}-${rec.serial}-${norm}`;
+      const baseMemberId = rec.canonicalMemberId
+        ? rec.canonicalMemberId.replace(/^20\d\d-/, '')
+        : `sf-mem-${rec.serial}-${norm}`;
+      const canonicalId = rec.canonicalMemberId || baseMemberId;
 
       const explicitLink = links.find((l) => {
-        if (l.canonicalFundMemberId && l.canonicalFundMemberId === canonicalId) return true;
+        if (l.canonicalFundMemberId && (l.canonicalFundMemberId === canonicalId || l.canonicalFundMemberId.replace(/^20\d\d-/, '') === baseMemberId)) return true;
         if (l.sheetSerial && l.sheetSerial === rec.serial) return true;
         const lNorm = (l.sheetMemberName || '').toLowerCase().replace(/[\s\.\-_]+/g, '');
         return lNorm && lNorm === norm;
@@ -130,12 +134,36 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
         }
       }
 
+      // Authoritative year-independent contribution start lookup:
+      // Works whether the start was saved in 2024, 2025, 2026, 2027 or by profile ID
       const contributionStart = contributionStarts.find((cs) => {
-        if (cs.canonicalFundMemberId && cs.canonicalFundMemberId === canonicalId) return true;
-        if (linkedProfile && cs.canonicalFundMemberId === linkedProfile.id) return true;
-        if (explicitLink?.linkedProfileId && cs.canonicalFundMemberId === explicitLink.linkedProfileId) return true;
-        const csNorm = (cs.canonicalFundMemberId || '').toLowerCase().replace(/[\s\.\-_]+/g, '');
-        return csNorm && csNorm === norm;
+        // 1. Direct canonicalFundMemberId match
+        if (cs.canonicalFundMemberId) {
+          if (cs.canonicalFundMemberId === canonicalId || cs.canonicalFundMemberId === baseMemberId) return true;
+          const csStripped = cs.canonicalFundMemberId.replace(/^20\d\d-/, '');
+          if (csStripped === baseMemberId || csStripped === canonicalId.replace(/^20\d\d-/, '')) return true;
+          if (csStripped === `${rec.serial}-${norm}` || csStripped === `sf-mem-${rec.serial}-${norm}`) return true;
+        }
+        // 2. Linked profile ID match
+        if (linkedProfile) {
+          if (cs.canonicalFundMemberId === linkedProfile.id) return true;
+          if (cs.memberProfileId === linkedProfile.id) return true;
+          if (cs.memberId === linkedProfile.id) return true;
+        }
+        if (explicitLink?.linkedProfileId) {
+          if (cs.canonicalFundMemberId === explicitLink.linkedProfileId) return true;
+          if (cs.memberProfileId === explicitLink.linkedProfileId) return true;
+          if (cs.memberId === explicitLink.linkedProfileId) return true;
+        }
+        if (rec.linkedProfileId) {
+          if (cs.canonicalFundMemberId === rec.linkedProfileId) return true;
+          if (cs.memberProfileId === rec.linkedProfileId) return true;
+          if (cs.memberId === rec.linkedProfileId) return true;
+        }
+        // 3. Normalized name / serial match
+        const csNorm = (cs.canonicalFundMemberId || '').toLowerCase().replace(/^20\d\d-/, '').replace(/[\s\.\-_]+/g, '');
+        if (csNorm && (csNorm === norm || csNorm === `${rec.serial}${norm}` || csNorm === `sfmem${rec.serial}${norm}`)) return true;
+        return false;
       });
 
       return {
@@ -298,10 +326,16 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
     try {
       const record = settingStartRecord.record;
       const canonicalId = settingStartRecord.canonicalId;
+      const linkedProfile = settingStartRecord.linkedProfile;
+      const cleanName = (record.name || '').trim();
+      const norm = cleanName.toLowerCase().replace(/[\s\.\-_]+/g, '');
+      const permanentCanonicalId = (canonicalId || '').replace(/^20\d\d-/, '') || `sf-mem-${record.serial}-${norm}`;
+
       const startRecord: FundContributionStartRecord = {
-        id: `start-${canonicalId}`,
-        canonicalFundMemberId: canonicalId,
-        memberProfileId: settingStartRecord.existing?.memberProfileId || record.linkedProfileId,
+        id: `start-${permanentCanonicalId}`,
+        canonicalFundMemberId: permanentCanonicalId,
+        memberProfileId: linkedProfile?.id || settingStartRecord.existing?.memberProfileId || record.linkedProfileId,
+        memberId: linkedProfile?.id || settingStartRecord.existing?.memberId,
         startYear: Number(startYear),
         startMonth: Number(startMonth),
         startDate: startDateExact || undefined,
@@ -315,6 +349,18 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
         showToast(res.error || 'অবদান শুরু ক্লাউড ডাটাবেজে সংরক্ষণ করা যায়নি।', 'error');
         return;
       }
+
+      // If linked to a registered member profile, keep member's joiningDate & contributionStartDate in sync
+      if (linkedProfile) {
+        const startStr = `${startYear}-${String(startMonth).padStart(2, '0')}`;
+        const updatedProfile: Member = {
+          ...linkedProfile,
+          contributionStartDate: startStr,
+          joiningDate: startDateExact || linkedProfile.joiningDate,
+        };
+        await storageService.saveMemberAsync(updatedProfile);
+      }
+
       setContributionStarts(storageService.getFundContributionStarts());
       setSettingStartRecord(null);
       showToast(`${record.name}-এর অবদান শুরুর সময় (${startMonth}/${startYear}) সফলভাবে সংরক্ষিত হয়েছে`, 'success');
@@ -684,11 +730,34 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
                           type="button"
                           onClick={() => {
                             const existing = row.contributionStart;
-                            setSettingStartRecord({ record: rec, canonicalId: row.canonicalId, existing });
-                            setStartYear(existing?.startYear || parseInt(selectedYear, 10) || 2026);
-                            setStartMonth(existing?.startMonth || 1);
-                            setStartDateExact(existing?.startDate || '');
-                            setStartNotes(existing?.notes || '');
+                            const linkedProf = row.linkedProfile;
+                            const existingMemberJoiningDate = linkedProf?.joiningDate || linkedProf?.createdAt?.split('T')[0] || '';
+                            const initialExactDate = existing?.startDate || existingMemberJoiningDate || '';
+
+                            let initYear = existing?.startYear;
+                            let initMonth = existing?.startMonth;
+
+                            if (!initYear && initialExactDate) {
+                              const m = initialExactDate.match(/^(\d{4})[-/.](\d{1,2})/);
+                              if (m) {
+                                initYear = parseInt(m[1], 10);
+                                initMonth = parseInt(m[2], 10);
+                              }
+                            }
+
+                            setSettingStartRecord({
+                              record: rec,
+                              canonicalId: row.canonicalId,
+                              existing,
+                              linkedProfile: linkedProf,
+                            });
+                            setStartYear(initYear || parseInt(selectedYear, 10) || 2026);
+                            setStartMonth(initMonth || 1);
+                            setStartDateExact(initialExactDate);
+                            setStartNotes(
+                              existing?.notes ||
+                              (linkedProf?.joiningDate ? 'সদস্যের নিবন্ধিত যোগদানের তারিখ অনুযায়ী নির্ধারিত' : '')
+                            );
                           }}
                           className="px-2.5 py-1 text-[11px] font-semibold bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 rounded-lg flex items-center gap-1 transition-colors"
                           title="সদস্যের অবদান শুরুর বছর ও মাস নির্ধারণ করুন"
@@ -929,9 +998,31 @@ export const AdminFundProfileLinkingManager: React.FC<AdminFundProfileLinkingMan
                 <input
                   type="date"
                   value={startDateExact}
-                  onChange={(e) => setStartDateExact(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setStartDateExact(val);
+                    const m = val.match(/^(\d{4})[-/.](\d{1,2})/);
+                    if (m) {
+                      const y = parseInt(m[1], 10);
+                      const mo = parseInt(m[2], 10);
+                      if (y >= 2020 && y <= 2035 && mo >= 1 && mo <= 12) {
+                        setStartYear(y);
+                        setStartMonth(mo);
+                      }
+                    }
+                  }}
                   className="w-full px-3 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#2D5A41] outline-none"
                 />
+                {settingStartRecord.linkedProfile?.joiningDate ? (
+                  <p className="text-[11px] text-emerald-700 bg-emerald-50/80 border border-emerald-200/60 rounded-lg px-2.5 py-1 mt-1.5 flex items-center gap-1.5">
+                    <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                    <span>সদস্য প্রোফাইলে সংরক্ষিত যোগদানের তারিখ: <strong>{settingStartRecord.linkedProfile.joiningDate}</strong></span>
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-amber-700 bg-amber-50/80 border border-amber-200/60 rounded-lg px-2.5 py-1 mt-1.5">
+                    যোগদানের তারিখ পূর্বে সংরক্ষিত নেই — প্রয়োজন হলে এখানে নির্ধারণ করতে পারেন
+                  </p>
+                )}
               </div>
 
               <div>

@@ -704,6 +704,55 @@ async function runAllTests() {
   assert(activityCoverItems.length === 7, `Activity media items with covers: exactly 7 (got ${activityCoverItems.length})`);
   assert(generalGalleryItems.length + activityCoverItems.length === 10, 'Total combined media: exactly 10');
 
+  // TEST 31: Cross-Year Carryover of Contribution Start Record
+  console.log('\n--- TEST 31: Cross-Year Carryover of Contribution Start Record ---');
+  const persistentMemberStart: FundContributionStartRecord = {
+    id: 'start-sf-mem-2-abdurrakib',
+    canonicalFundMemberId: 'sf-mem-2-abdurrakib',
+    memberProfileId: 'mem-rakib-2',
+    memberId: 'mem-rakib-2',
+    startYear: 2026,
+    startMonth: 4,
+    startDate: '2026-04-01',
+    notes: 'Configured once for all financial years',
+    configuredBy: 'admin',
+    updatedAt: new Date().toISOString(),
+  };
+  storageService.saveFundContributionStart(persistentMemberStart);
+
+  // Retrieve using base canonical ID (2024 context)
+  const retrieved2024 = storageService.getFundContributionStartForMember('sf-mem-2-abdurrakib');
+  assert(retrieved2024 !== undefined, 'Found contribution start in 2024 context');
+  assert(retrieved2024?.startYear === 2026 && retrieved2024?.startMonth === 4, '2024 context: start is 2026-04');
+
+  // Retrieve using year-prefixed ID (2025 context e.g. 2025-2-abdurrakib)
+  const retrieved2025 = storageService.getFundContributionStartForMember('2025-2-abdurrakib');
+  assert(retrieved2025 !== undefined, 'Cross-year lookup: Found contribution start in 2025 context');
+  assert(retrieved2025?.startYear === 2026 && retrieved2025?.startMonth === 4, '2025 context carries over start: 2026-04');
+
+  // Retrieve using profile ID
+  const retrievedByProfile = storageService.getFundContributionStartForMember('mem-rakib-2');
+  assert(retrievedByProfile !== undefined, 'Found contribution start via linked profile ID');
+  assert(retrievedByProfile?.startYear === 2026 && retrievedByProfile?.startMonth === 4, 'Profile ID lookup matches start 2026-04');
+
+  // TEST 32: Auto-Derivation from Member joiningDate
+  console.log('\n--- TEST 32: Auto-Derivation from Member joiningDate ---');
+  const sampleMemberWithJoiningDate: Member = {
+    id: 'mem-new-2025',
+    serial: 100,
+    name: 'তানভীর আহমেদ',
+    nameBn: 'তানভীর আহমেদ',
+    role: 'সদস্য',
+    roleBn: 'সদস্য',
+    joiningDate: '2025-05-15',
+    isActive: true,
+    createdAt: '2025-05-15T00:00:00.000Z',
+  };
+  const derivedStart = parseMemberContributionStart(sampleMemberWithJoiningDate);
+  assert(derivedStart !== null, 'Derived contribution start successfully from joiningDate');
+  assert(derivedStart?.year === 2025, 'Derived start year is 2025');
+  assert(derivedStart?.month === 5, 'Derived start month is 5 (May)');
+
   console.log('\n================================================================');
   console.log(`🏁 TEST RESULTS: ${passedTests} / ${totalTests} TESTS PASSED (${Math.round((passedTests / totalTests) * 100)}%)`);
   console.log('================================================================\n');

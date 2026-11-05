@@ -823,31 +823,6 @@ Sahanubhuti Foundation`,
 // Initial verified activities
 export const initialActivities: Activity[] = [
   {
-    id: 'act-1',
-    slug: 'essential-medicine-assistance',
-    title: {
-      bn: 'জরুরি ওষুধ সহায়তা প্রদান',
-      en: 'Emergency Medicine Assistance',
-      ar: 'تقديم المساعدات الدوائية العاجلة',
-    },
-    summary: {
-      bn: 'ফাউন্ডেশনের বাইতুল মাল ফান্ড থেকে ব্যয় করে একজন অসহায় ব্যক্তির এক মাসের প্রয়োজনীয় ওষুধ কিনে দেওয়া হয়েছে।',
-      en: 'Purchased one month of necessary prescription medicines for a person in need from the Baytul Mal fund.',
-      ar: 'شراء أدوية شهرية ضرورية لشخص محتاج من رصيد بيت المال التابع للمؤسسة.',
-    },
-    description: {
-      bn: 'আলহামদুলিল্লাহ, সহানুভূতি ফাউন্ডেশনের প্রাথমিক মানবিক উদ্যোগ হিসেবে একজন অসুস্থ ও প্রয়োজনীয় ব্যক্তির এক মাসের জন্য অত্যাবশ্যকীয় ব্যবস্থাপত্র অনুযায়ী জরুরি ওষুধ সহায়তা সফলভাবে সরবরাহ করা হয়েছে। ছোট ছোট এমন আন্তরিক উদ্যোগই আমাদের অনুপ্রেরণা।',
-      en: 'Alhamdulillah, as an early humanitarian initiative of Sahanubhuti Foundation, essential prescription medicines were supplied for a full month to an ailing individual in need. Such modest, sincere acts are our inspiration.',
-      ar: 'الحمد لله، كمبادرة إنسانية أولى لمؤسسة ساهانوبوتي، تم توفير الأدوية الأساسية لشخص مريض لمدة شهر كامل. هذه الخطوات الصادقة هي مصدر إلهامنا المستمر.',
-    },
-    date: '2024-12-15',
-    category: 'ওষুধ ও চিকিৎসা',
-    coverImage: '',
-    isPublished: true,
-    showOnMediaPage: false,
-    createdAt: '2024-12-15T10:00:00.000Z',
-  },
-  {
     id: 'act-1789977895526',
     slug: 'first-initiative-success',
     title: {
