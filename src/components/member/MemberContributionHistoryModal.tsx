@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Calendar,
@@ -95,6 +95,32 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
     member.nameBn ||
     member.name;
 
+  const startRecord = useMemo(() => {
+    return storageService.getFundContributionStartForMember(member.id);
+  }, [member.id]);
+
+  const memberStartPeriodText = useMemo(() => {
+    let sYear = startRecord?.startYear;
+    let sMonth = startRecord?.startMonth;
+
+    if (!sYear && (member.contributionStartDate || member.joiningDate)) {
+      const candidate = (member.contributionStartDate || member.joiningDate || '').trim();
+      const match = candidate.match(/^(\d{4})[-/.](\d{1,2})/);
+      if (match) {
+        sYear = parseInt(match[1], 10);
+        sMonth = parseInt(match[2], 10);
+      }
+    }
+
+    if (!sYear) return '';
+    const mKey = sMonth && sMonth >= 1 && sMonth <= 12 ? MONTH_KEYS[sMonth - 1] : undefined;
+    const monthName = mKey ? getLocalizedMonthName(mKey, language) : '';
+    const yearStr = formatLocalizedNumber(sYear, language);
+    return monthName ? `${monthName} ${yearStr}` : yearStr;
+  }, [startRecord, member, language]);
+
+  const isNotYetMember = activeSummary?.yearState === 'not_started';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#E0DBCF] flex flex-col max-h-[90vh] overflow-hidden">
@@ -168,9 +194,51 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
             </div>
           ) : (
             <>
-              {/* Year Summary Card */}
-              {activeSummary && (
-                <div className="p-4 rounded-xl border bg-[#FDFCF9] border-[#E8E4DA] space-y-3">
+              {/* If Selected Financial Year is Entirely Before Membership Started: Clean Not-A-Member View */}
+              {isNotYetMember ? (
+                <div className="p-6 sm:p-8 rounded-2xl border border-dashed border-[#DCD6C8] bg-[#FAF8F5] text-center space-y-4 animate-in fade-in duration-200">
+                  <div className="flex flex-col items-center justify-center gap-2.5">
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <span className="font-bold text-base text-[#1E3A2F]">
+                        {formatLocalizedNumber(selectedYear, language)} {language === 'ar' ? 'مساهمات عام' : language === 'en' ? 'Annual Overview' : 'সালের সারসংক্ষেপ'}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs">
+                        <Clock className="w-3.5 h-3.5 text-slate-500" />
+                        <span>
+                          {language === 'ar'
+                            ? 'لم يكن عضواً / غير منطبق'
+                            : language === 'en'
+                            ? 'Not a Member / Not Applicable'
+                            : 'সদস্য ছিলেন না / প্রযোজ্য নয়'}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="max-w-md w-full mx-auto p-4 rounded-xl bg-white border border-[#E8E4DA] text-xs text-[#2D3630] space-y-2 shadow-2xs mt-1">
+                      <p className="font-medium text-[#5C665F]">
+                        {language === 'ar'
+                          ? `لم تبدأ مساهمة هذا العضو في هذه السنة المالية (${formatLocalizedNumber(selectedYear, language)}).`
+                          : language === 'en'
+                          ? `This member's contribution had not started in this fiscal year (${formatLocalizedNumber(selectedYear, language)}).`
+                          : `এই আর্থিক বছরে (${formatLocalizedNumber(selectedYear, language)}) সদস্যটির অবদান শুরু হয়নি।`}
+                      </p>
+                      {memberStartPeriodText && (
+                        <p className="font-bold text-[#1E3A2F] text-sm pt-1 border-t border-[#F0ECE1]">
+                          {language === 'ar'
+                            ? `فترة بدء المساهمة: ${memberStartPeriodText}`
+                            : language === 'en'
+                            ? `Contribution start period: ${memberStartPeriodText}`
+                            : `সদস্যের অবদান শুরুর সময়: ${memberStartPeriodText}`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Year Summary Card */}
+                  {activeSummary && (
+                    <div className="p-4 rounded-xl border bg-[#FDFCF9] border-[#E8E4DA] space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm text-[#1E3A2F]">
@@ -548,7 +616,9 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
               )}
             </>
           )}
-        </div>
+        </>
+      )}
+    </div>
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-[#EBE8E0] bg-[#FAF8F5] flex items-center justify-end">

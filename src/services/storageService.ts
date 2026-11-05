@@ -867,11 +867,21 @@ export const storageService = {
     return updated;
   },
 
+  setGalleryItems(items: GalleryItem[]): void {
+    setLocalItem(KEYS.GALLERY, items);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_cloud_synced', { detail: ['gallery'] }));
+    }
+  },
+
   deleteGalleryItem(id: string): GalleryItem[] {
-    const list = this.getGalleryItems().filter((g) => String(g.id).trim() !== String(id).trim());
+    const cleanId = String(id).trim();
+    const list = this.getGalleryItems().filter((g) => String(g.id).trim() !== cleanId);
     setLocalItem(KEYS.GALLERY, list);
-    if (supabaseService.isAvailable()) {
-      supabaseService.deleteGalleryItem(id).catch(console.warn);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_cloud_synced', { detail: ['gallery'] }));
     }
     return list;
   },
@@ -1528,9 +1538,10 @@ export const storageService = {
     return Array.isArray(cfgStarts) ? cfgStarts : [];
   },
 
-  getFundContributionStartForMember(canonicalFundMemberIdOrProfileId: string): FundContributionStartRecord | undefined {
+  getFundContributionStartForMember(canonicalFundMemberIdOrProfileId: any): FundContributionStartRecord | undefined {
     if (!canonicalFundMemberIdOrProfileId) return undefined;
-    const target = canonicalFundMemberIdOrProfileId.trim().toLowerCase();
+    const target = String(canonicalFundMemberIdOrProfileId).trim().toLowerCase();
+    if (!target) return undefined;
     const targetStripped = target.replace(/^(20\d\d|sf-mem)-/, '');
     const starts = this.getFundContributionStarts();
     return starts.find((s) => {
@@ -1834,8 +1845,9 @@ export const storageService = {
   },
 
   async deleteGalleryItemAsync(id: string): Promise<OperationResult<GalleryItem[]>> {
+    const cleanId = String(id).trim();
     if (supabaseService.isAvailable()) {
-      const res = await supabaseService.deleteGalleryItemDetailed(id);
+      const res = await supabaseService.deleteGalleryItemDetailed(cleanId);
       if (!res.success) {
         return {
           success: false,
@@ -1844,17 +1856,9 @@ export const storageService = {
           details: res.details,
         };
       }
-      const updated = this.deleteGalleryItem(id);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('sf_data_updated'));
-      }
-      return { success: true, data: updated };
     }
 
-    const updated = this.deleteGalleryItem(id);
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('sf_data_updated'));
-    }
+    const updated = this.deleteGalleryItem(cleanId);
     return { success: true, data: updated };
   },
 
@@ -1946,9 +1950,6 @@ export const storageService = {
   setNotices(list: Notice[]): void {
     setLocalItem(KEYS.NOTICES, list);
   },
-  setGalleryItems(list: GalleryItem[]): void {
-    setLocalItem(KEYS.GALLERY, list);
-  },
   setGallery(list: GalleryItem[]): void {
     this.setGalleryItems(list);
   },
@@ -2034,7 +2035,7 @@ export const storageService = {
 
       // 6. Gallery
       const cloudGallery = await supabaseService.fetchGallery();
-      if (cloudGallery && cloudGallery.length > 0) {
+      if (cloudGallery !== null) {
         setLocalItem(KEYS.GALLERY, cloudGallery);
         synced.push('gallery');
       }

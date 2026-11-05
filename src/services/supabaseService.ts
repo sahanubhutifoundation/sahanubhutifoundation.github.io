@@ -2140,21 +2140,59 @@ export const supabaseService = {
     }
 
     try {
-      const { error } = await supabase.from('gallery_items').delete().eq('id', id);
-      if (error) {
+      const cleanId = String(id).trim();
+
+      // Verify presence in Supabase gallery_items before deleting
+      const { data: existing, error: checkError } = await supabase
+        .from('gallery_items')
+        .select('id, category')
+        .eq('id', cleanId)
+        .maybeSingle();
+
+      if (checkError) {
         return {
           success: false,
-          error: `গ্যালারি আইটেম মুছে ফেলা ব্যর্থ: ${error.message}`,
-          code: error.code,
-          details: error.details,
+          error: `ডাটাবেজ যাচাইকরণে সমস্যা: ${checkError.message}`,
+          code: checkError.code,
+          details: checkError.details,
         };
       }
 
-      const { data: check } = await supabase.from('gallery_items').select('id').eq('id', id).maybeSingle();
-      if (check) {
+      // Delete the exact persistent record
+      const { data: deletedRows, error: deleteError } = await supabase
+        .from('gallery_items')
+        .delete()
+        .eq('id', cleanId)
+        .select('id');
+
+      if (deleteError) {
         return {
           success: false,
-          error: 'ডাটাবেজ থেকে গ্যালারি আইটেম মুছে ফেলা যাচাইকরণ ব্যর্থ।',
+          error: `গ্যালারি আইটেম মুছে ফেলা ব্যর্থ: ${deleteError.message}`,
+          code: deleteError.code,
+          details: deleteError.details,
+        };
+      }
+
+      // If the row was present in database but 0 rows were deleted
+      if (existing && (!deletedRows || deletedRows.length === 0)) {
+        return {
+          success: false,
+          error: 'ডাটাবেজ থেকে গ্যালারি আইটেম মুছে ফেলা যায়নি (০টি রেকর্ড প্রভাবিত হয়েছে)।',
+        };
+      }
+
+      // Final confirmation that row is no longer in gallery_items
+      const { data: verifyCheck } = await supabase
+        .from('gallery_items')
+        .select('id')
+        .eq('id', cleanId)
+        .maybeSingle();
+
+      if (verifyCheck) {
+        return {
+          success: false,
+          error: 'ডাটাবেজ থেকে গ্যালারি আইটেম অপসারণ নিশ্চিত করা যায়নি। রেকর্ডটি এখনও বিদ্যমান।',
         };
       }
 

@@ -4,6 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { PageHero } from '../components/PageHero';
 import { EmptyState } from '../components/EmptyState';
 import { storageService } from '../services/storageService';
+import { supabaseService } from '../services/supabaseService';
 import { GalleryItem } from '../types';
 import { ImageIcon, X, Calendar, ArrowRight, ExternalLink } from 'lucide-react';
 import { toBengaliDigits, resolveCategoryLabel, getActivityUuid } from '../utils/foundationHelpers';
@@ -83,6 +84,15 @@ export const GalleryPage: React.FC = () => {
 
   useEffect(() => {
     loadMediaItems();
+
+    if (supabaseService.isAvailable()) {
+      supabaseService.fetchGallery().then((cloudGallery) => {
+        if (cloudGallery !== null) {
+          storageService.setGalleryItems(cloudGallery);
+          loadMediaItems();
+        }
+      }).catch(() => {});
+    }
 
     const handleUpdate = () => loadMediaItems();
     window.addEventListener('sf_data_updated', handleUpdate);

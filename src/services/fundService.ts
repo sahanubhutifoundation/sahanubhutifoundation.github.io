@@ -1,6 +1,6 @@
 import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord, Language, OtherMonthlyContribution, YearlyFundSource, YearlyAccountingLedgerEntry, Member, SheetManualMapping, FundProfileLinkRecord } from '../types';
 import { storageService } from './storageService';
-import { parseRecordYear, getApplicableMonthsForYear, isMonthApplicableForYear } from '../utils/foundationHelpers';
+import { parseRecordYear, getApplicableMonthsForYear, isMonthApplicableForYear, formatLocalizedNumber } from '../utils/foundationHelpers';
 
 export type { YearlyAccountingLedgerEntry };
 
@@ -647,9 +647,10 @@ export function removeMemberSheetMapping(sheetKey: string): void {
  * Normalizes member names across Bengali, English, titles, honorifics, and whitespace.
  * Strips titles like Dr., Maulana, Hafez, Mufti, মোঃ, মুহাম্মদ, মো:, etc.
  */
-export function normalizeMemberMatchName(name?: string): string {
+export function normalizeMemberMatchName(name?: any): string {
   if (!name) return '';
-  return name
+  const str = typeof name === 'string' ? name : (name.bn || name.en || name.name || String(name));
+  return String(str || '')
     .toLowerCase()
     .trim()
     .replace(/\b(dr|doctor|prof|professor|maulana|mawlana|hafez|hafiz|mufti|md|mohammad|muhammad|engr)\b\.?/gi, '')
@@ -2380,7 +2381,7 @@ export async function getMemberContributionHistory(
     }
 
     let rec: FundMemberRecord | undefined;
-    if (fundData && fundData.memberRecords) {
+    if (!isPreStartYear && fundData && fundData.memberRecords) {
       // Priority 1: Match by confirmed profile link (canonicalFundMemberId or linkedProfileId)
       if (profileLink && profileLink.confirmedByAdmin) {
         rec = fundData.memberRecords.find((m) => {
@@ -2412,8 +2413,8 @@ export async function getMemberContributionHistory(
       }
     }
 
-    // Determine year-specific contribution rate (use source record rate or defaults)
-    const yearCommitment = rec?.commitment || (is2024FoundingYear ? 100 : 500);
+    // Determine year-specific contribution rate (use source record rate or defaults, strictly 0 if pre-start)
+    const yearCommitment = isPreStartYear ? 0 : (rec?.commitment || (is2024FoundingYear ? 100 : 500));
 
     let monthsList: MemberMonthContributionStatus[];
 
@@ -2527,20 +2528,28 @@ export async function getMemberContributionHistory(
       ? 'active'
       : 'source_unavailable';
 
+    const startMoBn = memberStart?.month ? getLocalizedMonthName(MONTH_KEYS[memberStart.month - 1], 'bn') : '';
+    const startMoEn = memberStart?.month ? getLocalizedMonthName(MONTH_KEYS[memberStart.month - 1], 'en') : '';
+    const startMoAr = memberStart?.month ? getLocalizedMonthName(MONTH_KEYS[memberStart.month - 1], 'ar') : '';
+
+    const startYrBn = memberStart ? formatLocalizedNumber(memberStart.year, 'bn') : '';
+    const startYrEn = memberStart ? formatLocalizedNumber(memberStart.year, 'en') : '';
+    const startYrAr = memberStart ? formatLocalizedNumber(memberStart.year, 'ar') : '';
+
     const notStartedMessage = isPreStartYear && memberStart
       ? {
-          bn: `এই আর্থিক বছরে (${yr}) সদস্যটির অবদান শুরু হয়নি। সদস্যের অবদান শুরুর সময়: ${memberStart.month ? getLocalizedMonthName(MONTH_KEYS[memberStart.month - 1], 'bn') + ' ' : ''}${memberStart.year}`,
-          en: `Contribution not started in this fiscal year (${yr}). Start period: ${memberStart.month}/${memberStart.year}`,
-          ar: `لم تبدأ المساهمة في هذه السنة المالية (${yr}). فترة البدء: ${memberStart.month}/${memberStart.year}`,
+          bn: `এই আর্থিক বছরে সদস্যটির অবদান শুরু হয়নি।\nসদস্যের অবদান শুরুর সময়: ${startMoBn ? startMoBn + ' ' : ''}${startYrBn}`,
+          en: `This member's contribution had not started in this fiscal year.\nContribution start period: ${startMoEn ? startMoEn + ' ' : ''}${startYrEn}`,
+          ar: `لم تبدأ مساهمة العضو في هذه السنة المالية.\nفترة بدء المساهمة: ${startMoAr ? startMoAr + ' ' : ''}${startYrAr}`,
         }
       : undefined;
 
     const summary: MemberYearContributionSummary = {
       year: yr,
-      isLinked: Boolean(rec),
+      isLinked: !isPreStartYear && Boolean(rec),
       linkStatus,
-      sheetMemberName: rec?.name || profileLink?.sheetMemberName,
-      sheetSerial: rec?.serial || profileLink?.sheetSerial,
+      sheetMemberName: isPreStartYear ? undefined : (rec?.name || profileLink?.sheetMemberName),
+      sheetSerial: isPreStartYear ? undefined : (rec?.serial || profileLink?.sheetSerial),
       commitment: yearCommitment,
       paidMonthsCount,
       applicableMonthsCount,
@@ -2550,7 +2559,7 @@ export async function getMemberContributionHistory(
       months: monthsList,
       backendError: cloudFetchError,
       isContributionStarted: !memberStart || yrNum >= memberStart.year,
-      isReceiptEligible,
+      isReceiptEligible: !isPreStartYear && isReceiptEligible,
       yearState,
       notStartedMessage,
     };
