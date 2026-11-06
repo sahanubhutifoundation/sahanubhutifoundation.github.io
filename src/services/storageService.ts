@@ -16,6 +16,7 @@ import {
   SpecialFundExpense,
   FundProfileLinkRecord,
   FundContributionStartRecord,
+  YearSheetSnapshot,
 } from '../types';
 import {
   initialConfig,
@@ -45,6 +46,7 @@ const KEYS = {
   SPECIAL_FUNDS: 'sf_foundation_special_funds',
   PROFILE_LINKS: 'sf_foundation_profile_links',
   CONTRIBUTION_STARTS: 'sf_foundation_contribution_starts',
+  SHEET_SNAPSHOTS: 'sf_foundation_sheet_snapshots',
 };
 
 // Helper for local storage access with safe error fallbacks
@@ -1544,7 +1546,9 @@ export const storageService = {
     if (!target) return undefined;
     const targetStripped = target.replace(/^(20\d\d|sf-mem)-/, '');
     const starts = this.getFundContributionStarts();
-    return starts.find((s) => {
+
+    // 1. Direct match by canonicalFundMemberId, memberId, memberProfileId, id, or stripped canonical ID
+    const directMatch = starts.find((s) => {
       if (s.canonicalFundMemberId && s.canonicalFundMemberId.toLowerCase() === target) return true;
       if (s.memberId && s.memberId.toLowerCase() === target) return true;
       if (s.memberProfileId && s.memberProfileId.toLowerCase() === target) return true;
@@ -1555,6 +1559,34 @@ export const storageService = {
       }
       return false;
     });
+    if (directMatch) return directMatch;
+
+    // 2. Cross-reference through profile links (e.g. year-specific canonical ID linked to profileId)
+    const allLinks = this.getFundProfileLinks('all');
+    const matchedLink = allLinks.find((l) => {
+      const cId = (l.canonicalFundMemberId || '').toLowerCase();
+      const pId = (l.linkedProfileId || '').toLowerCase();
+      return (
+        cId === target ||
+        pId === target ||
+        cId.replace(/^(20\d\d|sf-mem)-/, '') === targetStripped
+      );
+    });
+
+    if (matchedLink) {
+      const linkMatch = starts.find((s) => {
+        if (matchedLink.linkedProfileId && (s.memberId === matchedLink.linkedProfileId || s.memberProfileId === matchedLink.linkedProfileId)) {
+          return true;
+        }
+        if (matchedLink.canonicalFundMemberId && s.canonicalFundMemberId === matchedLink.canonicalFundMemberId) {
+          return true;
+        }
+        return false;
+      });
+      if (linkMatch) return linkMatch;
+    }
+
+    return undefined;
   },
 
   saveFundContributionStart(startRecord: FundContributionStartRecord): FundContributionStartRecord[] {
@@ -1648,6 +1680,78 @@ export const storageService = {
       }
     }
     return { success: true, data: this.getFundContributionStarts() };
+  },
+
+  getYearSheetSnapshot(year: string): YearSheetSnapshot | null {
+    const cleanYear = String(year || '').trim();
+    if (!cleanYear) return null;
+    const all = getLocalItem<Record<string, YearSheetSnapshot>>(KEYS.SHEET_SNAPSHOTS, {});
+    if (all[cleanYear]) return all[cleanYear];
+    return getLocalItem<YearSheetSnapshot | null>(`sf_fund_sheet_snapshot_${cleanYear}`, null);
+  },
+
+  getAllYearSheetSnapshots(): Record<string, YearSheetSnapshot> {
+    return getLocalItem<Record<string, YearSheetSnapshot>>(KEYS.SHEET_SNAPSHOTS, {});
+  },
+
+  saveYearSheetSnapshot(snapshot: YearSheetSnapshot): void {
+    if (!snapshot || !snapshot.year) return;
+    const cleanYear = String(snapshot.year).trim();
+    const all = this.getAllYearSheetSnapshots();
+    all[cleanYear] = snapshot;
+    setLocalItem(KEYS.SHEET_SNAPSHOTS, all);
+    setLocalItem(`sf_fund_sheet_snapshot_${cleanYear}`, snapshot);
+
+    if (supabaseService.isAvailable()) {
+      supabaseService.saveYearSheetSnapshot(snapshot).catch((err) => {
+        console.warn(`Supabase saveYearSheetSnapshot warning for ${cleanYear}:`, err);
+      });
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sf_sheet_snapshot_updated', { detail: snapshot }));
+      window.dispatchEvent(new Event('sf_data_updated'));
+      window.dispatchEvent(new CustomEvent('sf_fund_data_updated'));
+    }
+  },
+
+  async fetchYearSheetSnapshotAsync(year: string): Promise<OperationResult<YearSheetSnapshot | null>> {
+    const cleanYear = String(year || '').trim();
+    if (supabaseService.isAvailable()) {
+      try {
+        const res = await supabaseService.fetchYearSheetSnapshot(cleanYear);
+        if (res.success && res.data) {
+          const all = this.getAllYearSheetSnapshots();
+          all[cleanYear] = res.data;
+          setLocalItem(KEYS.SHEET_SNAPSHOTS, all);
+          setLocalItem(`sf_fund_sheet_snapshot_${cleanYear}`, res.data);
+          return { success: true, data: res.data };
+        }
+      } catch (err: any) {
+        console.warn(`fetchYearSheetSnapshotAsync notice for ${cleanYear}:`, err);
+      }
+    }
+    const local = this.getYearSheetSnapshot(cleanYear);
+    return { success: true, data: local };
+  },
+
+  async fetchAllYearSheetSnapshotsAsync(): Promise<Record<string, YearSheetSnapshot>> {
+    if (supabaseService.isAvailable()) {
+      try {
+        const res = await supabaseService.fetchAllYearSheetSnapshots();
+        if (res.success && res.data && Object.keys(res.data).length > 0) {
+          const all = { ...this.getAllYearSheetSnapshots(), ...res.data };
+          setLocalItem(KEYS.SHEET_SNAPSHOTS, all);
+          Object.entries(res.data).forEach(([yr, snap]) => {
+            setLocalItem(`sf_fund_sheet_snapshot_${yr}`, snap);
+          });
+          return all;
+        }
+      } catch (err: any) {
+        console.warn('fetchAllYearSheetSnapshotsAsync notice:', err);
+      }
+    }
+    return this.getAllYearSheetSnapshots();
   },
 
   async deleteDesignationAsync(id: string): Promise<OperationResult<Designation[]>> {
@@ -2066,6 +2170,19 @@ export const storageService = {
       if (cloudLinksRes.success && cloudLinksRes.data && cloudLinksRes.data.length > 0) {
         setLocalItem(KEYS.PROFILE_LINKS, cloudLinksRes.data);
         synced.push('profile_links');
+      }
+
+      // 11. Fund Contribution Starts (Persistent member start periods)
+      const cloudStartsRes = await supabaseService.fetchFundContributionStartsDetailed();
+      if (cloudStartsRes.success && cloudStartsRes.data && cloudStartsRes.data.length > 0) {
+        setLocalItem(KEYS.CONTRIBUTION_STARTS, cloudStartsRes.data);
+        synced.push('contribution_starts');
+      }
+
+      // 12. Year-wise Google Sheet Snapshots (Persistent financial archive)
+      const cloudSnapshots = await this.fetchAllYearSheetSnapshotsAsync();
+      if (cloudSnapshots && Object.keys(cloudSnapshots).length > 0) {
+        synced.push('sheet_snapshots');
       }
 
       if (typeof window !== 'undefined' && synced.length > 0) {

@@ -1,4 +1,4 @@
-import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord, Language, OtherMonthlyContribution, YearlyFundSource, YearlyAccountingLedgerEntry, Member, SheetManualMapping, FundProfileLinkRecord } from '../types';
+import { FundData, FundMemberRecord, FundTransaction, ExpenseRecord, Language, OtherMonthlyContribution, YearlyFundSource, YearlyAccountingLedgerEntry, Member, SheetManualMapping, FundProfileLinkRecord, YearSheetSnapshot } from '../types';
 import { storageService } from './storageService';
 import { parseRecordYear, getApplicableMonthsForYear, isMonthApplicableForYear, formatLocalizedNumber } from '../utils/foundationHelpers';
 
@@ -1668,94 +1668,186 @@ function parseGenericTransactions(rows: string[][], rawSourceUrl: string, select
 }
 
 /**
- * Saves successfully loaded fund data in local cache
+ * Computes deterministic hash of sheet records for change detection
+ */
+export function computeSheetContentHash(memberRecords: FundMemberRecord[], year: string): string {
+  const simplified = (memberRecords || []).map((m) => ({
+    s: m.serial,
+    n: m.name,
+    c: m.commitment,
+    t: m.totalContributed,
+    m: m.months,
+    a: m.monthlyAmounts,
+  }));
+  const json = JSON.stringify({ year, simplified });
+  let hash = 0;
+  for (let i = 0; i < json.length; i++) {
+    hash = ((hash << 5) - hash) + json.charCodeAt(i);
+    hash |= 0;
+  }
+  return `hash_${year}_${Math.abs(hash).toString(16)}_${simplified.length}`;
+}
+
+/**
+ * Saves or updates verified YearSheetSnapshot in storage and Supabase
+ */
+export function saveVerifiedYearSheetSnapshot(
+  result: FundData,
+  year: string,
+  url: string,
+  gid?: string,
+  mapping?: SheetManualMapping
+): YearSheetSnapshot {
+  const memberRecords = result.memberRecords || [];
+  const contentHash = computeSheetContentHash(memberRecords, year);
+  const existingSnapshot = storageService.getYearSheetSnapshot(year);
+  const isChanged = !existingSnapshot || existingSnapshot.contentHash !== contentHash;
+  const version = isChanged ? ((existingSnapshot?.snapshotVersion || 0) + 1) : (existingSnapshot?.snapshotVersion || 1);
+
+  // Extract spreadsheet ID from URL
+  let sheetId = '';
+  const match = (url || '').match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (match) sheetId = match[1];
+
+  const snapshot: YearSheetSnapshot = {
+    year,
+    spreadsheetId: sheetId || undefined,
+    sheetGid: gid || '0',
+    sourceUrl: url,
+    lastSyncedAt: new Date().toISOString(),
+    contentHash,
+    snapshotVersion: version,
+    verificationStatus: 'verified',
+    headerRowIndex: result.diagnostics?.headerRowIndex,
+    columnMappings: mapping,
+    memberRecords,
+    summary: {
+      totalReceived: result.amountReceived || 0,
+      regularReceived: result.amountReceived || 0,
+      memberCount: memberRecords.length,
+      contributorCount: result.contributorCount || 0,
+      verifiedRowCount: memberRecords.length,
+    },
+    yearlyReceived: result.yearlyReceived,
+    yearlyExpenses: {},
+    diagnosticInfo: {
+      excludedRows: result.diagnostics?.missingFields || [],
+      detectedType: result.diagnostics?.detectedType,
+    },
+  };
+
+  storageService.saveYearSheetSnapshot(snapshot);
+  return snapshot;
+}
+
+/**
+ * Saves successfully loaded fund data in local cache and persistent cloud snapshot
  */
 function cacheFundData(data: FundData, year?: string): void {
-  if (typeof localStorage === 'undefined') {
-    return;
+  const yr = year || data.year || 'default';
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const key = `${CACHE_PREFIX}${yr}`;
+      const timeKey = `${CACHE_TIME_PREFIX}${yr}`;
+      localStorage.setItem(key, JSON.stringify(data));
+      localStorage.setItem(timeKey, new Date().toISOString());
+    } catch (e) {
+      console.warn('Could not cache fund data:', e);
+    }
   }
-  try {
-    const key = `${CACHE_PREFIX}${year || data.year || 'default'}`;
-    const timeKey = `${CACHE_TIME_PREFIX}${year || data.year || 'default'}`;
-    localStorage.setItem(key, JSON.stringify(data));
-    localStorage.setItem(timeKey, new Date().toISOString());
-  } catch (e) {
-    console.warn('Could not cache fund data:', e);
+
+  // Also persist YearSheetSnapshot if data contains verified member records
+  if (data.memberRecords && data.memberRecords.length > 0 && yr !== 'default') {
+    try {
+      saveVerifiedYearSheetSnapshot(data, yr, data.sourceUrl || '');
+    } catch (e) {
+      console.warn('Could not persist year sheet snapshot:', e);
+    }
   }
 }
 
 /**
- * Gets cached fund data as fallback for a specific year
+ * Gets cached fund data as fallback for a specific year, reading from local cache
+ * or reconstructed from persistent year sheet snapshot
  */
 export function getCachedFundData(year?: string): FundData | null {
-  if (typeof localStorage === 'undefined') {
-    return null;
-  }
-  try {
-    const key = `${CACHE_PREFIX}${year || 'default'}`;
-    const cached = localStorage.getItem(key);
-    if (cached) {
-      const data = JSON.parse(cached) as FundData;
-      // Guarantee year matches
-      if (year && data.year && data.year !== year) {
-        return null;
-      }
-
-      const config = storageService.getConfig();
-      const yrKey = year || data.year || '2026';
-      const yearlyLedger = computeContinuousYearlyFundLedger(
-        data.yearlyReceived || {},
-        yrKey,
-        (data.memberRecords || []).reduce((sum, m) => sum + (Number(m.totalContributed) || 0), 0),
-        config.yearlyFundSources || [],
-        (config as any).verifiedOpeningBalance || 0
-      );
-
-      const currentLedger = yearlyLedger[yrKey] || {
-        year: yrKey,
-        openingBalance: 0,
-        regularMemberIncome: data.amountReceived || 0,
-        otherEligibleIncome: 0,
-        integratedSpecialIncome: 0,
-        currentYearIncome: data.amountReceived || 0,
-        generalFundExpenses: 0,
-        integratedSpecialExpenses: 0,
-        currentYearExpenses: 0,
-        periodMovement: data.amountReceived || 0,
-        closingBalance: data.amountReceived || 0,
-      };
-
-      data.expenses = storageService.getExpenses(yrKey);
-      data.otherMonthlyContributions = storageService.getOtherMonthlyContributions(yrKey);
-      data.specialFunds = storageService.getSpecialFunds(yrKey);
-      data.openingBalance = currentLedger.openingBalance;
-      data.amountReceived = currentLedger.currentYearIncome;
-      data.amountSpent = currentLedger.currentYearExpenses;
-      data.periodMovement = currentLedger.periodMovement;
-      data.currentBalance = currentLedger.closingBalance;
-      data.totalFund = currentLedger.closingBalance;
-      data.otherMonthlyTotal = currentLedger.otherEligibleIncome;
-      data.expenseRatio =
-        currentLedger.currentYearIncome > 0 ? (currentLedger.currentYearExpenses / currentLedger.currentYearIncome) * 100 : 0;
-      data.safetyRatio = Math.max(0, 100 - (data.expenseRatio || 0));
-
-      const yearlyIncome: Record<string, number> = {};
-      Object.keys(yearlyLedger).forEach((y) => {
-        yearlyIncome[y] = yearlyLedger[y].currentYearIncome;
-      });
-      data.yearlyIncome = yearlyIncome;
-      data.yearlyReceived = yearlyIncome;
-      data.yearlyLedger = yearlyLedger;
-
-      return {
-        ...data,
-        year: yrKey,
-        status: 'fallback',
-      };
+  const yrKey = year || '2026';
+  let cachedJson: string | null = null;
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const key = `${CACHE_PREFIX}${yrKey}`;
+      cachedJson = localStorage.getItem(key);
+    } catch (e) {
+      console.warn('Storage reading error in getCachedFundData:', e);
     }
-  } catch (e) {
-    console.warn('Could not read cached fund data:', e);
   }
+
+  if (cachedJson) {
+    try {
+      const data = JSON.parse(cachedJson) as FundData;
+      if (!year || !data.year || data.year === year) {
+        return data;
+      }
+    } catch {}
+  }
+
+  // Check persistent year sheet snapshot
+  const snapshot = storageService.getYearSheetSnapshot(yrKey);
+  if (snapshot && snapshot.memberRecords && snapshot.memberRecords.length > 0) {
+    const config = storageService.getConfig();
+    const totalRec = snapshot.summary.totalReceived || 0;
+    const yearlyLedger = computeContinuousYearlyFundLedger(
+      snapshot.yearlyReceived || { [yrKey]: totalRec },
+      yrKey,
+      totalRec,
+      config.yearlyFundSources || [],
+      (config as any).verifiedOpeningBalance || 0
+    );
+    const currentLedger = yearlyLedger[yrKey] || {
+      year: yrKey,
+      openingBalance: 0,
+      regularMemberIncome: totalRec,
+      otherEligibleIncome: 0,
+      integratedSpecialIncome: 0,
+      currentYearIncome: totalRec,
+      generalFundExpenses: 0,
+      integratedSpecialExpenses: 0,
+      currentYearExpenses: 0,
+      periodMovement: totalRec,
+      closingBalance: totalRec,
+    };
+
+    const yearlyIncome: Record<string, number> = {};
+    Object.keys(yearlyLedger).forEach((y) => {
+      yearlyIncome[y] = yearlyLedger[y].currentYearIncome;
+    });
+
+    return {
+      totalFund: currentLedger.closingBalance,
+      amountReceived: currentLedger.currentYearIncome,
+      amountSpent: currentLedger.currentYearExpenses,
+      currentBalance: currentLedger.closingBalance,
+      openingBalance: currentLedger.openingBalance,
+      periodMovement: currentLedger.periodMovement,
+      contributorCount: snapshot.summary.contributorCount || snapshot.memberRecords.length,
+      yearlyReceived: snapshot.yearlyReceived || yearlyIncome,
+      yearlyIncome,
+      yearlyLedger,
+      monthlyTotals: {},
+      memberRecords: snapshot.memberRecords,
+      transactions: [],
+      expenses: storageService.getExpenses(yrKey),
+      otherMonthlyContributions: storageService.getOtherMonthlyContributions(yrKey),
+      specialFunds: storageService.getSpecialFunds(yrKey),
+      lastUpdated: snapshot.lastSyncedAt,
+      sourceUrl: snapshot.sourceUrl,
+      sourceType: 'google_sheet',
+      status: 'fallback',
+      isStale: true,
+      year: yrKey,
+    };
+  }
+
   return null;
 }
 
@@ -2242,9 +2334,10 @@ export interface MemberContributionStart {
  * from Admin-confirmed FundContributionStartRecord, contributionStartDate, or joiningDate.
  */
 export function parseMemberContributionStart(member?: Member, canonicalFundMemberId?: string): MemberContributionStart | null {
-  const idToCheck = canonicalFundMemberId || member?.id;
-  if (idToCheck) {
-    const explicitStart = storageService.getFundContributionStartForMember(idToCheck);
+  // Priority 1: Check explicit Admin-configured contribution starts for this member by all known IDs
+  const candidateIds = Array.from(new Set([member?.id, canonicalFundMemberId].filter(Boolean))) as string[];
+  for (const id of candidateIds) {
+    const explicitStart = storageService.getFundContributionStartForMember(id);
     if (explicitStart && explicitStart.startYear) {
       return {
         year: explicitStart.startYear,
@@ -2254,10 +2347,24 @@ export function parseMemberContributionStart(member?: Member, canonicalFundMembe
     }
   }
 
-  // Also check if member.name matches any contribution start record
-  if (member?.name || member?.nameBn) {
+  // Priority 2: Match by registered profile link or member name in contribution starts
+  if (member) {
     const starts = storageService.getFundContributionStarts();
-    const found = starts.find(s => s.canonicalFundMemberId === member.name || s.canonicalFundMemberId === member.nameBn);
+    const memBnNorm = normalizeMemberMatchName(member.nameBn);
+    const memNorm = normalizeMemberMatchName(member.name);
+    const found = starts.find((s) => {
+      if (member.id && s.memberId && String(s.memberId).trim() === String(member.id).trim()) return true;
+      if (member.id && s.memberProfileId && String(s.memberProfileId).trim() === String(member.id).trim()) return true;
+      if (s.canonicalFundMemberId) {
+        const sNorm = normalizeMemberMatchName(s.canonicalFundMemberId);
+        if (sNorm && (sNorm === memBnNorm || sNorm === memNorm)) return true;
+      }
+      if (s.memberName) {
+        const smNorm = normalizeMemberMatchName(s.memberName);
+        if (smNorm && (smNorm === memBnNorm || smNorm === memNorm)) return true;
+      }
+      return false;
+    });
     if (found && found.startYear) {
       return {
         year: found.startYear,

@@ -119,7 +119,7 @@ export const MemberContributionHistoryModal: React.FC<MemberContributionHistoryM
     return monthName ? `${monthName} ${yearStr}` : yearStr;
   }, [startRecord, member, language]);
 
-  const isNotYetMember = activeSummary?.yearState === 'not_started';
+  const isNotYetMember = activeSummary?.yearState === 'not_started' || activeSummary?.linkStatus === 'not_a_member';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">

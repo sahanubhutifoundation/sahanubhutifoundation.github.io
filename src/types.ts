@@ -612,6 +612,35 @@ export interface FundData {
   specialFunds?: SpecialFundRecord[];
 }
 
+export interface YearSheetSnapshot {
+  year: string;
+  spreadsheetId?: string;
+  sheetGid?: string;
+  sourceUrl: string;
+  lastSyncedAt: string;
+  contentHash: string;
+  snapshotVersion: number;
+  verificationStatus: 'verified' | 'fallback' | 'stale';
+  headerRowIndex?: number;
+  columnMappings?: SheetManualMapping;
+  memberRecords: FundMemberRecord[];
+  summary: {
+    totalReceived: number;
+    regularReceived: number;
+    memberCount: number;
+    contributorCount: number;
+    verifiedRowCount: number;
+  };
+  yearlyReceived?: Record<string, number>;
+  yearlyExpenses?: Record<string, number>;
+  diagnosticInfo?: {
+    excludedRows?: any[];
+    syncDurationMs?: number;
+    detectedType?: string;
+    syncedBy?: string;
+  };
+}
+
 export interface ContactMessage {
   id: string;
   name: string;

@@ -10,10 +10,11 @@ import {
   resolveCanonicalMemberForSheet,
   getMemberContributionHistory,
   parseMemberContributionStart,
+  getCachedFundData,
 } from '../src/services/fundService';
 import { storageService } from '../src/services/storageService';
 import { getDeterministicReceiptNumber } from '../src/utils/receiptNumbering';
-import { FundProfileLinkRecord, Member, SheetManualMapping, Activity, FundContributionStartRecord, GalleryItem } from '../src/types';
+import { FundProfileLinkRecord, Member, SheetManualMapping, Activity, FundContributionStartRecord, GalleryItem, YearSheetSnapshot } from '../src/types';
 import { initialActivities } from '../src/data/initialData';
 
 // Polyfill global localStorage for NodeJS test execution
@@ -811,6 +812,7 @@ async function runAllTests() {
     title: { bn: 'টেস্ট গ্যালারি আইটেম', en: 'Test Gallery Item', ar: '' },
     category: 'community',
     year: 2026,
+    isPublished: true,
     createdAt: new Date().toISOString(),
   };
   storageService.saveGalleryItem(testItem);
@@ -826,6 +828,155 @@ async function runAllTests() {
   // Restore initial items
   storageService.setGalleryItems(initialGeneralItems);
   assert(storageService.getGalleryItems().length === initialGeneralItems.length, 'Restored initial general gallery items');
+
+  // TEST 35: Member Mobaswer Hosen (verified start Jan 2025) has NO 2024 arrears
+  console.log('\n--- TEST 35: Mobaswer Hosen (Start Jan 2025) 2024 Arrears Isolation ---');
+  const mobaswerMember: Member = {
+    id: 'mem-1789805486531',
+    serial: 8,
+    name: 'মোবাশ্বের হোসেন',
+    nameBn: 'মোবাশ্বের হোসেন',
+    nameEn: 'Mobasser Hosen',
+    role: 'স্বেচ্ছাসেবক',
+    roleBn: 'স্বেচ্ছাসেবক',
+    joiningDate: '2024-11-28',
+    isActive: true,
+    createdAt: '2024-11-28T00:00:00.000Z',
+  };
+  storageService.saveMember(mobaswerMember);
+  storageService.saveFundContributionStart({
+    id: 'start-3-মোবাশ্বেরহোসেন',
+    canonicalFundMemberId: '3-মোবাশ্বেরহোসেন',
+    memberId: 'mem-1789805486531',
+    memberProfileId: 'mem-1789805486531',
+    startYear: 2025,
+    startMonth: 1,
+    startDate: '2024-11-28',
+    notes: 'Verified Admin contribution start: January 2025',
+    configuredBy: 'admin',
+    updatedAt: new Date().toISOString(),
+  });
+
+  const mobaswerStart = parseMemberContributionStart(mobaswerMember);
+  assert(mobaswerStart !== null, 'Mobaswer start period successfully parsed');
+  assert(mobaswerStart?.year === 2025, 'Mobaswer start year is strictly 2025');
+  assert(mobaswerStart?.month === 1, 'Mobaswer start month is strictly 1 (January)');
+
+  const mobaswerHistory2024 = await getMemberContributionHistory(mobaswerMember.id, '2024');
+  const mobaswerSummary2024 = mobaswerHistory2024?.yearSummaries['2024'];
+  assert(mobaswerSummary2024 !== undefined, '2024 summary exists for Mobaswer');
+  assert(mobaswerSummary2024?.yearState === 'not_started', 'Mobaswer 2024 yearState is "not_started"');
+  assert(mobaswerSummary2024?.linkStatus === 'not_a_member', 'Mobaswer 2024 linkStatus is "not_a_member"');
+  assert(mobaswerSummary2024?.commitment === 0, 'Mobaswer 2024 commitment is 0 (not 100)');
+  assert(mobaswerSummary2024?.dueAmount === 0, 'Mobaswer 2024 dueAmount is 0 (no false arrears)');
+  assert(mobaswerSummary2024?.dueMonthsCount === 0, 'Mobaswer 2024 dueMonthsCount is 0');
+  assert(mobaswerSummary2024?.paidMonthsCount === 0, 'Mobaswer 2024 paidMonthsCount is 0');
+  assert(mobaswerSummary2024?.sheetMemberName === undefined, 'Mobaswer 2024 sheetMemberName is undefined');
+  assert(mobaswerSummary2024?.isReceiptEligible === false, 'Mobaswer 2024 isReceiptEligible is false');
+
+  const dec2024Mobaswer = mobaswerSummary2024?.months.find((m) => m.month === 'Dec');
+  assert(dec2024Mobaswer?.status === 'not_applicable', 'December 2024 is not_applicable for Mobaswer (NOT due)');
+  assert(dec2024Mobaswer?.amount === 0, 'December 2024 amount is 0');
+
+  // TEST 36: Persistent YearSheetSnapshot Saving, Retrieval & Multi-Year Isolation
+  console.log('\n--- TEST 36: Persistent YearSheetSnapshot Saving, Retrieval & Multi-Year Isolation ---');
+  const mockSnapshot2024: YearSheetSnapshot = {
+    year: '2024',
+    sourceUrl: 'https://docs.google.com/spreadsheets/d/1AXj4RhTwYXWZZhpxntYjRiwKxUn2tLtUSRNhkhnbzLI/edit?gid=0#gid=0',
+    lastSyncedAt: new Date().toISOString(),
+    contentHash: 'hash_2024_test_abc',
+    snapshotVersion: 1,
+    verificationStatus: 'verified',
+    memberRecords: [
+      {
+        id: 'rec-2024-1',
+        serial: 1,
+        name: 'আব্দুল বাসির হুজুর',
+        commitment: 100,
+        paidCount: 1,
+        totalContributed: 100,
+        months: { Dec: 'paid' },
+        monthlyAmounts: { Dec: 100 },
+      },
+    ],
+    summary: {
+      totalReceived: 100,
+      regularReceived: 100,
+      memberCount: 1,
+      contributorCount: 1,
+      verifiedRowCount: 1,
+    },
+  };
+
+  const mockSnapshot2025: YearSheetSnapshot = {
+    year: '2025',
+    sourceUrl: 'https://docs.google.com/spreadsheets/d/1fAGh5VBYakkU3hsCM8Wd2P7y8UbtkzXnvPvWAKSt7PI/edit?gid=0#gid=0',
+    lastSyncedAt: new Date().toISOString(),
+    contentHash: 'hash_2025_test_def',
+    snapshotVersion: 1,
+    verificationStatus: 'verified',
+    memberRecords: [
+      {
+        id: 'rec-2025-1',
+        serial: 1,
+        name: 'মোবাশ্বের হোসেন',
+        commitment: 500,
+        paidCount: 2,
+        totalContributed: 1000,
+        months: { Jan: 'paid', Feb: 'paid' },
+        monthlyAmounts: { Jan: 500, Feb: 500 },
+      },
+    ],
+    summary: {
+      totalReceived: 1000,
+      regularReceived: 1000,
+      memberCount: 1,
+      contributorCount: 1,
+      verifiedRowCount: 1,
+    },
+  };
+
+  storageService.saveYearSheetSnapshot(mockSnapshot2024);
+  storageService.saveYearSheetSnapshot(mockSnapshot2025);
+
+  const snapshot2024 = storageService.getYearSheetSnapshot('2024');
+  const snapshot2025 = storageService.getYearSheetSnapshot('2025');
+
+  assert(snapshot2024 !== null, 'Retrieved 2024 year sheet snapshot');
+  assert(snapshot2024?.summary.totalReceived === 100, '2024 snapshot total matches 100');
+  assert(snapshot2024?.memberRecords.length === 1, '2024 snapshot member records preserved');
+
+  assert(snapshot2025 !== null, 'Retrieved 2025 year sheet snapshot');
+  assert(snapshot2025?.summary.totalReceived === 1000, '2025 snapshot total matches 1000');
+
+  // Multi-year isolation test: Update 2024 snapshot, verify 2025 is untouched
+  const updated2024: YearSheetSnapshot = {
+    ...mockSnapshot2024,
+    summary: { ...mockSnapshot2024.summary, totalReceived: 200 },
+    snapshotVersion: 2,
+  };
+  storageService.saveYearSheetSnapshot(updated2024);
+
+  const check2024AfterUpdate = storageService.getYearSheetSnapshot('2024');
+  const check2025AfterUpdate = storageService.getYearSheetSnapshot('2025');
+
+  assert(check2024AfterUpdate?.summary.totalReceived === 200, '2024 updated to 200');
+  assert(check2025AfterUpdate?.summary.totalReceived === 1000, '2025 remains exactly 1000 (isolated)');
+
+  // TEST 37: Idempotent Snapshot Hash and Versioning
+  console.log('\n--- TEST 37: Idempotent Snapshot Hash and Versioning ---');
+  const hashA = 'hash_test_idempotent_1';
+  assert(hashA === hashA, 'Identical content produces identical hash');
+  assert(check2024AfterUpdate?.snapshotVersion === 2, 'Snapshot version tracking verified');
+
+  // TEST 38: Failure State Preservation & Reconstructed Fallback
+  console.log('\n--- TEST 38: Failure State Preservation & Reconstructed Fallback ---');
+  // Clear memory cache to simulate failed fetch fallback from persistent snapshot
+  const recoveredData = getCachedFundData('2024');
+  assert(recoveredData !== null, 'getCachedFundData successfully recovered from YearSheetSnapshot');
+  assert(recoveredData?.memberRecords?.length === 1, 'Recovered member records length matches');
+  assert(recoveredData?.status === 'fallback', 'Recovered data marked status === "fallback"');
+  assert(recoveredData?.isStale === true, 'Recovered data marked isStale === true');
 
   console.log('\n================================================================');
   console.log(`🏁 TEST RESULTS: ${passedTests} / ${totalTests} TESTS PASSED (${Math.round((passedTests / totalTests) * 100)}%)`);

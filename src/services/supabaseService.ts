@@ -12,6 +12,7 @@ import {
   SocialLink,
   FundProfileLinkRecord,
   FundContributionStartRecord,
+  YearSheetSnapshot,
 } from '../types';
 
 export interface OperationResult<T = any> {
@@ -706,6 +707,172 @@ export const supabaseService = {
         error: err?.message || String(err),
         details: 'Exception in saveFundContributionStartsDetailed',
       };
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // 1B. YEAR-WISE GOOGLE SHEET SNAPSHOTS (PERSISTENT CLOUD ARCHIVE)
+  // --------------------------------------------------------------------------
+  async fetchYearSheetSnapshot(year: string): Promise<OperationResult<YearSheetSnapshot | null>> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { success: false, error: 'ডাটাবেজ সংযোগ সক্রিয় নেই।' };
+    }
+    const cleanYear = String(year || '').trim();
+    if (!cleanYear) {
+      return { success: false, error: 'আর্থিক বছর উল্লেখ করা হয়নি।' };
+    }
+
+    try {
+      // 1. Direct row from site_settings (id = fund_sheet_snapshot_{year})
+      const { data: row, error: rowErr } = await supabase
+        .from('site_settings')
+        .select('config')
+        .eq('id', `fund_sheet_snapshot_${cleanYear}`)
+        .maybeSingle();
+
+      if (!rowErr && row?.config && typeof row.config === 'object') {
+        const snap = row.config as YearSheetSnapshot;
+        if (snap.year && Array.isArray(snap.memberRecords)) {
+          return { success: true, data: snap };
+        }
+      }
+
+      // 2. Backup check in primary config
+      const { data: cfgRow } = await supabase
+        .from('site_settings')
+        .select('config')
+        .eq('id', 'foundation_primary_config')
+        .maybeSingle();
+
+      if (cfgRow?.config?.yearlySheetSnapshots?.[cleanYear]) {
+        return { success: true, data: cfgRow.config.yearlySheetSnapshots[cleanYear] };
+      }
+
+      return { success: true, data: null };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || 'বছরভিত্তিক শিট স্ন্যাপশট লোড করতে ব্যর্থ হয়েছে।',
+      };
+    }
+  },
+
+  async saveYearSheetSnapshot(snapshot: YearSheetSnapshot): Promise<OperationResult<boolean>> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { success: false, error: 'ডাটাবেজ সংযোগ সক্রিয় নেই।' };
+    }
+    if (!snapshot || !snapshot.year || !Array.isArray(snapshot.memberRecords)) {
+      return { success: false, error: 'অবৈধ বছরভিত্তিক শিট স্ন্যাপশট ডাটা।' };
+    }
+
+    const cleanYear = String(snapshot.year).trim();
+    const rowId = `fund_sheet_snapshot_${cleanYear}`;
+    const now = new Date().toISOString();
+
+    const sanitizedSnapshot: YearSheetSnapshot = {
+      ...snapshot,
+      year: cleanYear,
+      lastSyncedAt: snapshot.lastSyncedAt || now,
+      snapshotVersion: Number(snapshot.snapshotVersion) || 1,
+      verificationStatus: snapshot.verificationStatus || 'verified',
+    };
+
+    try {
+      // 1. Upsert dedicated row in site_settings
+      const { error: upsertErr } = await supabase
+        .from('site_settings')
+        .upsert({
+          id: rowId,
+          config: sanitizedSnapshot,
+          updated_at: now,
+        });
+
+      if (upsertErr) {
+        return {
+          success: false,
+          error: `শিট স্ন্যাপশট সংরক্ষণ ব্যর্থ: ${upsertErr.message}`,
+          code: upsertErr.code,
+          details: upsertErr.details,
+        };
+      }
+
+      // 2. Backup dual-persist in primary config
+      try {
+        const { data: cfgRow } = await supabase
+          .from('site_settings')
+          .select('config')
+          .eq('id', 'foundation_primary_config')
+          .maybeSingle();
+
+        if (cfgRow?.config) {
+          const currentSnapshots = cfgRow.config.yearlySheetSnapshots || {};
+          const updatedConfig = {
+            ...cfgRow.config,
+            yearlySheetSnapshots: {
+              ...currentSnapshots,
+              [cleanYear]: sanitizedSnapshot,
+            },
+          };
+          await supabase
+            .from('site_settings')
+            .update({ config: updatedConfig, updated_at: now })
+            .eq('id', 'foundation_primary_config');
+        }
+      } catch (backupErr) {
+        console.warn('Backup write warning for year snapshot:', backupErr);
+      }
+
+      return { success: true, data: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || 'শিট স্ন্যাপশট সংরক্ষণে ত্রুটি ঘটেছে।',
+      };
+    }
+  },
+
+  async fetchAllYearSheetSnapshots(): Promise<OperationResult<Record<string, YearSheetSnapshot>>> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { success: false, error: 'ডাটাবেজ সংযোগ সক্রিয় নেই।' };
+    }
+
+    try {
+      const { data: rows, error } = await supabase
+        .from('site_settings')
+        .select('id, config');
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      const snapshots: Record<string, YearSheetSnapshot> = {};
+      (rows || []).forEach((row) => {
+        if (row.id && row.id.startsWith('fund_sheet_snapshot_') && row.config) {
+          const snap = row.config as YearSheetSnapshot;
+          if (snap.year && Array.isArray(snap.memberRecords)) {
+            snapshots[snap.year] = snap;
+          }
+        }
+      });
+
+      // Also check primary config backup
+      const primaryRow = (rows || []).find((r) => r.id === 'foundation_primary_config');
+      if (primaryRow?.config?.yearlySheetSnapshots) {
+        Object.entries(primaryRow.config.yearlySheetSnapshots as Record<string, YearSheetSnapshot>).forEach(
+          ([yr, snap]) => {
+            if (!snapshots[yr] && snap?.year && Array.isArray(snap.memberRecords)) {
+              snapshots[yr] = snap;
+            }
+          }
+        );
+      }
+
+      return { success: true, data: snapshots };
+    } catch (err: any) {
+      return { success: false, error: err?.message || String(err) };
     }
   },
 
